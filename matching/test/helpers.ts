@@ -1,5 +1,5 @@
-import users from "../fixtures/synthetic-users.json" with { type: "json" };
 import scenarios from "../fixtures/scenarios.json" with { type: "json" };
+import users from "../fixtures/synthetic-users.json" with { type: "json" };
 import type {
   ActivityBucket,
   Block,
@@ -39,19 +39,14 @@ function activityBucketFromHours(hours: number): ActivityBucket {
   return "older";
 }
 
-function haversineKm(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
-): number {
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371;
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
   const dLng = toRad(b.lng - a.lng);
   const x =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) *
-      Math.cos(toRad(b.lat)) *
-      Math.sin(dLng / 2) ** 2;
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
@@ -104,10 +99,7 @@ export function makeViewer(scenarioName: string): Viewer {
   };
 }
 
-export function makeCandidates(
-  viewer: Viewer,
-  excludeIds: string[] = [],
-): Candidate[] {
+export function makeCandidates(viewer: Viewer, excludeIds: string[] = []): Candidate[] {
   return (users.users as RawUser[])
     .filter((u) => u.id !== viewer.userId && !excludeIds.includes(u.id))
     .map((u) => {
@@ -118,8 +110,7 @@ export function makeCandidates(
         activityBucket: activityBucketFromHours(u.lastActiveHoursAgo),
         softPreferences: {
           relationshipGoal:
-            viewer.profile.relationshipGoal !== null &&
-            profile.relationshipGoal !== null
+            viewer.profile.relationshipGoal !== null && profile.relationshipGoal !== null
               ? viewer.profile.relationshipGoal === profile.relationshipGoal
               : undefined,
         },

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { env } from "../env.js";
 import {
   issueSession,
   revokeSession,
@@ -7,7 +8,6 @@ import {
   startEmailLogin,
   verifyEmailLogin,
 } from "../services/auth.service.js";
-import { env } from "../env.js";
 
 const startSchema = z.object({
   method: z.enum(["email", "apple", "dev"]),
@@ -58,9 +58,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         where: { id: body.devUserId },
       });
       if (!user) return reply.code(404).send({ error: "user_not_found" });
-      const session = await issueSession(app.prisma, user.id, (p) =>
-        app.jwt.sign(p),
-      );
+      const session = await issueSession(app.prisma, user.id, (p) => app.jwt.sign(p));
       return reply.send({ ...session, userId: user.id, isNewUser: false });
     }
 
@@ -70,9 +68,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/verify", async (req, reply) => {
     const body = verifySchema.parse(req.body);
     const result = await verifyEmailLogin(app.prisma, body);
-    const session = await issueSession(app.prisma, result.userId, (p) =>
-      app.jwt.sign(p),
-    );
+    const session = await issueSession(app.prisma, result.userId, (p) => app.jwt.sign(p));
     return reply.send({
       ...session,
       userId: result.userId,
@@ -84,9 +80,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.get("/verify", async (req, reply) => {
     const params = verifySchema.parse(req.query);
     const result = await verifyEmailLogin(app.prisma, params);
-    const session = await issueSession(app.prisma, result.userId, (p) =>
-      app.jwt.sign(p),
-    );
+    const session = await issueSession(app.prisma, result.userId, (p) => app.jwt.sign(p));
     return reply.send({
       ...session,
       userId: result.userId,
@@ -96,9 +90,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/refresh", async (req, reply) => {
     const body = refreshSchema.parse(req.body);
-    const next = await rotateRefreshToken(app.prisma, body.refreshToken, (p) =>
-      app.jwt.sign(p),
-    );
+    const next = await rotateRefreshToken(app.prisma, body.refreshToken, (p) => app.jwt.sign(p));
     if (!next) return reply.code(401).send({ error: "invalid_refresh_token" });
     return reply.send(next);
   });

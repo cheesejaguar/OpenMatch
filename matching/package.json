@@ -13,18 +13,13 @@
     },
     "./config": "./algorithm_config.json"
   },
-  "files": [
-    "dist",
-    "algorithm_config.json",
-    "README.md",
-    "CHANGELOG.md"
-  ],
+  "files": ["dist", "algorithm_config.json", "README.md", "CHANGELOG.md"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'"
+    "lint": "biome check src test"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

@@ -1,19 +1,11 @@
-import type {
-  AlgorithmConfig,
-  Candidate,
-  Explanation,
-  ExplanationKey,
-  Viewer,
-} from "./types.js";
+import type { AlgorithmConfig, Candidate, Explanation, ExplanationKey, Viewer } from "./types.js";
 
 const COPY: Record<ExplanationKey, (n?: number) => string> = {
   withinDistance: () => "Within your distance range.",
   mutualGenderPreference: () => "Matches your selected gender preference.",
   sameRelationshipGoal: () => "You both selected the same relationship goal.",
-  compatibleRelationshipGoal: () =>
-    "Your relationship goals are compatible.",
-  sharedInterests: (n) =>
-    n && n > 0 ? `You share ${n} interest${n === 1 ? "" : "s"}.` : "",
+  compatibleRelationshipGoal: () => "Your relationship goals are compatible.",
+  sharedInterests: (n) => (n && n > 0 ? `You share ${n} interest${n === 1 ? "" : "s"}.` : ""),
   recentlyActive: () => "This profile is active recently.",
 };
 
@@ -45,8 +37,7 @@ export function explain(
       keys.push("sameRelationshipGoal");
       parts.push(COPY.sameRelationshipGoal());
     } else {
-      const compat =
-        config.relationshipGoalCompatibility[vGoal]?.[cGoal] ?? 0;
+      const compat = config.relationshipGoalCompatibility[vGoal]?.[cGoal] ?? 0;
       if (compat >= 0.7) {
         keys.push("compatibleRelationshipGoal");
         parts.push(COPY.compatibleRelationshipGoal());
@@ -54,19 +45,13 @@ export function explain(
     }
   }
 
-  const shared = countSharedInterests(
-    viewer.profile.interests,
-    candidate.profile.interests,
-  );
+  const shared = countSharedInterests(viewer.profile.interests, candidate.profile.interests);
   if (shared > 0) {
     keys.push("sharedInterests");
     parts.push(COPY.sharedInterests(shared));
   }
 
-  if (
-    candidate.activityBucket === "within24h" ||
-    candidate.activityBucket === "within7d"
-  ) {
+  if (candidate.activityBucket === "within24h" || candidate.activityBucket === "within7d") {
     keys.push("recentlyActive");
     parts.push(COPY.recentlyActive());
   }

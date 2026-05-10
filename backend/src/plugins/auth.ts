@@ -1,6 +1,6 @@
-import fp from "fastify-plugin";
 import fastifyJwt from "@fastify/jwt";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import fp from "fastify-plugin";
 import { env } from "../env.js";
 
 export interface AuthClaims {
@@ -32,15 +32,12 @@ export default fp(async (app) => {
     sign: { expiresIn: `${env.JWT_ACCESS_TTL_SECONDS}s` },
   });
 
-  app.decorate(
-    "authenticate",
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      try {
-        await req.jwtVerify();
-        req.userId = (req.user as AuthClaims).sub;
-      } catch {
-        return reply.code(401).send({ error: "unauthorized" });
-      }
-    },
-  );
+  app.decorate("authenticate", async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await req.jwtVerify();
+      req.userId = (req.user as AuthClaims).sub;
+    } catch {
+      return reply.code(401).send({ error: "unauthorized" });
+    }
+  });
 });

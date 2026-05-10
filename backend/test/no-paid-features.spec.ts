@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 
 // Guardrail tests — fail CI if anyone adds payment / paid mechanics.
 // See README.md and CONTRIBUTING.md.
@@ -11,10 +11,7 @@ function listSourceFiles(dir: string, results: string[] = []): string[] {
     if (entry.isDirectory()) {
       if (entry.name === "node_modules" || entry.name === "dist") continue;
       listSourceFiles(full, results);
-    } else if (
-      entry.name.endsWith(".ts") &&
-      !entry.name.endsWith(".d.ts")
-    ) {
+    } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
       results.push(full);
     }
   }

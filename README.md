@@ -1,14 +1,22 @@
 # 💞 OpenMatch
 
+[![CI](https://github.com/cheesejaguar/openmatch/actions/workflows/ci.yml/badge.svg)](https://github.com/cheesejaguar/openmatch/actions/workflows/ci.yml)
+[![iOS](https://github.com/cheesejaguar/openmatch/actions/workflows/ios.yml/badge.svg)](https://github.com/cheesejaguar/openmatch/actions/workflows/ios.yml)
+[![Docker](https://github.com/cheesejaguar/openmatch/actions/workflows/docker.yml/badge.svg)](https://github.com/cheesejaguar/openmatch/actions/workflows/docker.yml)
+[![CodeQL](https://github.com/cheesejaguar/openmatch/actions/workflows/codeql.yml/badge.svg)](https://github.com/cheesejaguar/openmatch/actions/workflows/codeql.yml)
+[![Terraform](https://github.com/cheesejaguar/openmatch/actions/workflows/terraform.yml/badge.svg)](https://github.com/cheesejaguar/openmatch/actions/workflows/terraform.yml)
+
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-purple.svg)](CODE_OF_CONDUCT.md)
 [![Open Source Love](https://badges.frapsoft.com/os/v3/open-source.svg?v=103)](https://github.com/cheesejaguar/openmatch)
+[![Linted with Biome](https://img.shields.io/badge/Linted_with-Biome-60A5FA.svg?logo=biome&logoColor=white)](https://biomejs.dev/)
 [![Made with Swift](https://img.shields.io/badge/Swift-5.9-orange.svg?logo=swift&logoColor=white)](https://swift.org)
 [![Made with TypeScript](https://img.shields.io/badge/TypeScript-5.4-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node](https://img.shields.io/badge/Node-20.x-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Postgres + PostGIS](https://img.shields.io/badge/Postgres-16%20%2B%20PostGIS-336791.svg?logo=postgresql&logoColor=white)](https://postgis.net/)
 [![Platform: iOS 17+](https://img.shields.io/badge/Platform-iOS%2017%2B-lightgrey.svg?logo=apple&logoColor=white)](https://developer.apple.com/ios/)
+[![Container: ghcr.io](https://img.shields.io/badge/Container-ghcr.io-2188ff.svg?logo=docker&logoColor=white)](https://github.com/cheesejaguar/openmatch/pkgs/container/openmatch-backend)
 [![No Paid Boosts](https://img.shields.io/badge/Paid%20Boosts-Never-ff4d6d.svg)](#-what-this-project-will-not-do)
 
 > 🪟 An open-source, swipe-based iOS dating app with an auditable matching algorithm and **no paid dating advantage**.
@@ -91,6 +99,36 @@ The live matching algorithm and its weights are served at `GET /api/v1/transpare
 - ❌ No exact location shown to other users.
 
 🔒 These constraints are enforced by code: there is no `StoreKit` import in the iOS app, no `super_like` value in the swipe enum, and no payment fields on any API. Pull requests adding any of them will be rejected.
+
+## 🐳 Container image
+
+The backend is published to GitHub Container Registry on every push to `main`:
+
+```bash
+docker pull ghcr.io/cheesejaguar/openmatch-backend:latest
+```
+
+Tags also available:
+
+- `latest` — tracks `main`.
+- `sha-<commit>` — pinned to a specific commit.
+- `vX.Y.Z` — published when a `v*` git tag is pushed.
+
+This is the image referenced by `infra/gcp/cloudrun.tf`. See [`infra/gcp/README.md`](infra/gcp/README.md) for the production deployment story.
+
+## 🛠️ Continuous integration
+
+Every PR runs:
+
+- 🧹 **Lint + format** (`biome check`) against the whole repo.
+- 🔍 **Typecheck** (`tsc --noEmit`) for both TypeScript workspaces.
+- 🧪 **Tests** — `@openmatch/matching` (no DB) + `@openmatch/backend` (live Postgres + PostGIS service container).
+- 📦 **Builds** — both TS workspaces and the backend Docker image.
+- 📱 **iOS** — `xcodebuild build` + `xcodebuild test` on `macos-latest` (paths-filtered to `ios/**`).
+- ☁️ **Terraform** — `terraform fmt -check` + `terraform validate` (paths-filtered to `infra/gcp/**`).
+- 🛡️ **CodeQL** — JavaScript/TypeScript security analysis on a weekly schedule.
+
+🤖 Dependabot opens grouped PRs weekly for npm, GitHub Actions, Docker, and Terraform.
 
 ## 🤝 Contributing
 

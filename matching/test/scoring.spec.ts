@@ -10,8 +10,8 @@ import {
   relationshipGoalScore,
   scoreCandidate,
 } from "../src/scoring.js";
-import { FIXED_NOW, makeCandidates, makeViewer } from "./helpers.js";
 import type { Candidate } from "../src/types.js";
+import { FIXED_NOW, makeCandidates, makeViewer } from "./helpers.js";
 
 describe("distanceScore", () => {
   it("returns 1 at zero distance", () => {
@@ -45,10 +45,7 @@ describe("preferenceOverlapScore", () => {
     expect(preferenceOverlapScore({ a: undefined, b: undefined })).toBe(0.5);
   });
   it("returns the fraction of matched soft preferences", () => {
-    expect(preferenceOverlapScore({ a: true, b: false, c: true })).toBeCloseTo(
-      2 / 3,
-      5,
-    );
+    expect(preferenceOverlapScore({ a: true, b: false, c: true })).toBeCloseTo(2 / 3, 5);
   });
 });
 
@@ -57,12 +54,8 @@ describe("relationshipGoalScore", () => {
     expect(relationshipGoalScore("LongTerm", "LongTerm", currentConfig)).toBe(1);
   });
   it("uses the compatibility matrix", () => {
-    expect(
-      relationshipGoalScore("LongTerm", "LifePartner", currentConfig),
-    ).toBe(0.7);
-    expect(
-      relationshipGoalScore("LongTerm", "Casual", currentConfig),
-    ).toBe(0);
+    expect(relationshipGoalScore("LongTerm", "LifePartner", currentConfig)).toBe(0.7);
+    expect(relationshipGoalScore("LongTerm", "Casual", currentConfig)).toBe(0);
   });
   it("returns 0.5 when either goal is unknown", () => {
     expect(relationshipGoalScore(null, "LongTerm", currentConfig)).toBe(0.5);
@@ -84,9 +77,7 @@ describe("profileCompletenessScore", () => {
       hasEducationLevel: true,
       hasCity: true,
     };
-    expect(
-      profileCompletenessScore(all, currentConfig.recommendedCompletenessFields),
-    ).toBe(1);
+    expect(profileCompletenessScore(all, currentConfig.recommendedCompletenessFields)).toBe(1);
   });
   it("returns 0 when nothing is filled in", () => {
     const none = {
@@ -101,9 +92,7 @@ describe("profileCompletenessScore", () => {
       hasEducationLevel: false,
       hasCity: false,
     };
-    expect(
-      profileCompletenessScore(none, currentConfig.recommendedCompletenessFields),
-    ).toBe(0);
+    expect(profileCompletenessScore(none, currentConfig.recommendedCompletenessFields)).toBe(0);
   });
 });
 
@@ -113,16 +102,10 @@ describe("fairnessRotationScore", () => {
   });
   it("returns 0 when impressions are at or above the cap", () => {
     expect(
-      fairnessRotationScore(
-        currentConfig.constraints.fairnessImpressionCap,
-        currentConfig,
-      ),
+      fairnessRotationScore(currentConfig.constraints.fairnessImpressionCap, currentConfig),
     ).toBe(0);
     expect(
-      fairnessRotationScore(
-        currentConfig.constraints.fairnessImpressionCap + 50,
-        currentConfig,
-      ),
+      fairnessRotationScore(currentConfig.constraints.fairnessImpressionCap + 50, currentConfig),
     ).toBe(0);
   });
 });

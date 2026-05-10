@@ -1,7 +1,7 @@
-import type { FastifyPluginAsync } from "fastify";
-import { currentConfig } from "@openmatch/matching";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { currentConfig } from "@openmatch/matching";
+import type { FastifyPluginAsync } from "fastify";
 
 export const transparencyRoutes: FastifyPluginAsync = async (app) => {
   // No auth required — algorithm transparency is public by design.
@@ -9,10 +9,8 @@ export const transparencyRoutes: FastifyPluginAsync = async (app) => {
   app.get("/algorithm/current", async () => {
     return {
       ...currentConfig,
-      note:
-        "These are the live weights and constraints used by the discovery deck. The package source and synthetic tests are in the public repository.",
-      sourceUrl:
-        "https://github.com/cheesejaguar/openmatch/tree/main/matching",
+      note: "These are the live weights and constraints used by the discovery deck. The package source and synthetic tests are in the public repository.",
+      sourceUrl: "https://github.com/cheesejaguar/openmatch/tree/main/matching",
     };
   });
 
@@ -26,10 +24,7 @@ export const transparencyRoutes: FastifyPluginAsync = async (app) => {
     let markdown: string | null = null;
     try {
       const root = path.resolve(process.cwd(), "..");
-      markdown = await fs.readFile(
-        path.join(root, "docs", "algorithm", "CHANGELOG.md"),
-        "utf-8",
-      );
+      markdown = await fs.readFile(path.join(root, "docs", "algorithm", "CHANGELOG.md"), "utf-8");
     } catch {
       markdown = null;
     }

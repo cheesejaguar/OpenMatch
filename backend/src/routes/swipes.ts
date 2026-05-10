@@ -47,18 +47,15 @@ export const swipesRoutes: FastifyPluginAsync = async (app) => {
     );
   });
 
-  app.post<{ Params: { swipeId: string } }>(
-    "/:swipeId/undo",
-    async (req, reply) => {
-      const result = await undoSwipe(app.prisma, req.userId!, req.params.swipeId);
-      if (!result.undone) {
-        return reply.code(400).send({
-          error: "undo_not_available",
-          message:
-            "Undo is free, but it has integrity limits — your action may be too old, already undone, or affected by moderation.",
-        });
-      }
-      return reply.send({ undone: true });
-    },
-  );
+  app.post<{ Params: { swipeId: string } }>("/:swipeId/undo", async (req, reply) => {
+    const result = await undoSwipe(app.prisma, req.userId!, req.params.swipeId);
+    if (!result.undone) {
+      return reply.code(400).send({
+        error: "undo_not_available",
+        message:
+          "Undo is free, but it has integrity limits — your action may be too old, already undone, or affected by moderation.",
+      });
+    }
+    return reply.send({ undone: true });
+  });
 };

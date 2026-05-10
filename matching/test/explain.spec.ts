@@ -8,10 +8,7 @@ describe("explain", () => {
     const viewer = makeViewer("viewerSeekingLongTermMen");
     const candidates = makeCandidates(viewer);
     const nearby = candidates.find(
-      (c) =>
-        c.profile.gender === "Man" &&
-        c.distanceKm < 5 &&
-        c.profile.userId !== "u019",
+      (c) => c.profile.gender === "Man" && c.distanceKm < 5 && c.profile.userId !== "u019",
     )!;
     const e = explain(viewer, nearby, currentConfig);
     expect(e.keys).toContain("withinDistance");
@@ -22,8 +19,7 @@ describe("explain", () => {
     const viewer = makeViewer("viewerSeekingLongTermMen");
     const candidates = makeCandidates(viewer);
     const sharing = candidates.find(
-      (c) =>
-        c.profile.userId === "u002" /* shares hiking & cooking with u001 */,
+      (c) => c.profile.userId === "u002" /* shares hiking & cooking with u001 */,
     )!;
     const e = explain(viewer, sharing, currentConfig);
     expect(e.keys).toContain("sharedInterests");

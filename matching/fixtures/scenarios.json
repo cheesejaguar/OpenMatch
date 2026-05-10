@@ -7,8 +7,8 @@
         "minAge": 25,
         "maxAge": 35,
         "maxDistanceKm": 40,
-        "interestedGenders": ["Man","NonBinary"],
-        "relationshipGoals": ["LongTerm","LifePartner","Marriage"],
+        "interestedGenders": ["Man", "NonBinary"],
+        "relationshipGoals": ["LongTerm", "LifePartner", "Marriage"],
         "excludeIncompatibleGoals": false,
         "includeUnansweredOptionalFields": true
       }

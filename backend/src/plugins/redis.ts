@@ -1,5 +1,5 @@
-import { Redis } from "ioredis";
 import fp from "fastify-plugin";
+import { Redis } from "ioredis";
 import { env } from "../env.js";
 
 declare module "fastify" {

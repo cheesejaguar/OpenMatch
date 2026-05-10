@@ -1,4 +1,4 @@
-import { getDiscoveryDeck, currentConfig } from "@openmatch/matching";
+import { currentConfig, getDiscoveryDeck } from "@openmatch/matching";
 import type {
   ActivityBucket,
   Candidate,
@@ -58,15 +58,11 @@ function toMatchingProfile(row: RawProfileRow): MatchingProfile {
     location: { lat: row.lat, lng: row.lng },
     city: row.city,
     relationshipGoal:
-      row.relationship_goal === null
-        ? null
-        : (row.relationship_goal as MatchingRelationshipGoal),
+      row.relationship_goal === null ? null : (row.relationship_goal as MatchingRelationshipGoal),
     interests: row.interests,
     accountStatus: row.account_status as MatchingProfile["accountStatus"],
-    visibilityStatus:
-      row.visibility_status as MatchingProfile["visibilityStatus"],
-    moderationStatus:
-      row.moderation_status as MatchingProfile["moderationStatus"],
+    visibilityStatus: row.visibility_status as MatchingProfile["visibilityStatus"],
+    moderationStatus: row.moderation_status as MatchingProfile["moderationStatus"],
     lastActiveAt: row.last_active_at,
     publicFields: {
       hasPhotosAtLeastTwo: row.has_at_least_two_photos,
@@ -109,9 +105,7 @@ export async function buildDeck(input: BuildDeckInput) {
   }
 
   // Pull viewer location.
-  const viewerLoc = await input.prisma.$queryRawUnsafe<
-    Array<{ lat: number; lng: number }>
-  >(
+  const viewerLoc = await input.prisma.$queryRawUnsafe<Array<{ lat: number; lng: number }>>(
     `SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng
      FROM "Profile" WHERE "userId" = $1`,
     input.viewerUserId,
@@ -171,10 +165,7 @@ export async function buildDeck(input: BuildDeckInput) {
   // Blocks (either direction)
   const blocks = await input.prisma.block.findMany({
     where: {
-      OR: [
-        { blockerUserId: input.viewerUserId },
-        { blockedUserId: input.viewerUserId },
-      ],
+      OR: [{ blockerUserId: input.viewerUserId }, { blockedUserId: input.viewerUserId }],
     },
   });
 
@@ -206,10 +197,8 @@ export async function buildDeck(input: BuildDeckInput) {
         : (viewerUser.profile.relationshipGoal as MatchingRelationshipGoal),
     interests: viewerUser.profile.interests,
     accountStatus: viewerUser.status as MatchingProfile["accountStatus"],
-    visibilityStatus:
-      viewerUser.profile.visibilityStatus as MatchingProfile["visibilityStatus"],
-    moderationStatus:
-      viewerUser.profile.moderationStatus as MatchingProfile["moderationStatus"],
+    visibilityStatus: viewerUser.profile.visibilityStatus as MatchingProfile["visibilityStatus"],
+    moderationStatus: viewerUser.profile.moderationStatus as MatchingProfile["moderationStatus"],
     lastActiveAt: viewerUser.profile.lastActiveAt,
     publicFields: {
       hasPhotosAtLeastTwo: false,
@@ -223,12 +212,8 @@ export async function buildDeck(input: BuildDeckInput) {
       hasEducationLevel: viewerUser.profile.educationLevel !== null,
       hasCity: viewerUser.profile.city !== null,
     },
-    interestedInGenders: viewerUser.preferences
-      .interestedGenders as MatchingGender[],
-    candidatePreferredAgeRange: [
-      viewerUser.preferences.minAge,
-      viewerUser.preferences.maxAge,
-    ],
+    interestedInGenders: viewerUser.preferences.interestedGenders as MatchingGender[],
+    candidatePreferredAgeRange: [viewerUser.preferences.minAge, viewerUser.preferences.maxAge],
   };
 
   const viewer: Viewer = {
@@ -239,13 +224,10 @@ export async function buildDeck(input: BuildDeckInput) {
       minAge: viewerUser.preferences.minAge,
       maxAge: viewerUser.preferences.maxAge,
       maxDistanceKm: viewerUser.preferences.maxDistanceKm,
-      interestedGenders: viewerUser.preferences
-        .interestedGenders as MatchingGender[],
-      relationshipGoals: viewerUser.preferences
-        .relationshipGoals as MatchingRelationshipGoal[],
+      interestedGenders: viewerUser.preferences.interestedGenders as MatchingGender[],
+      relationshipGoals: viewerUser.preferences.relationshipGoals as MatchingRelationshipGoal[],
       excludeIncompatibleGoals: viewerUser.preferences.excludeIncompatibleGoals,
-      includeUnansweredOptionalFields:
-        viewerUser.preferences.includeUnansweredOptionalFields,
+      includeUnansweredOptionalFields: viewerUser.preferences.includeUnansweredOptionalFields,
     },
   };
 
@@ -254,22 +236,16 @@ export async function buildDeck(input: BuildDeckInput) {
     .filter((row) => !likedTargets.has(row.user_id))
     .map((row) => {
       const profile = toMatchingProfile(row);
-      const candidateUser = candidateRows.find(
-        (r) => r.profile_id === row.profile_id,
-      )!;
+      const candidateUser = candidateRows.find((r) => r.profile_id === row.profile_id)!;
       // Age requires DOB which isn't joined — fetch DOB cheaply.
       // We accept a follow-up query rather than coupling matching to age math.
       return {
         profile,
-        distanceKm: haversineKm(
-          viewer.profile.location,
-          { lat: row.lat, lng: row.lng },
-        ),
+        distanceKm: haversineKm(viewer.profile.location, { lat: row.lat, lng: row.lng }),
         activityBucket: activityBucket(row.last_active_at, now),
         softPreferences: {
           relationshipGoal:
-            viewer.profile.relationshipGoal !== null &&
-            profile.relationshipGoal !== null
+            viewer.profile.relationshipGoal !== null && profile.relationshipGoal !== null
               ? viewer.profile.relationshipGoal === profile.relationshipGoal
               : undefined,
         },

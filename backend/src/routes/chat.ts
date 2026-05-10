@@ -33,11 +33,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: { conversationId: string } }>(
     "/:conversationId/messages",
     async (req, reply) => {
-      const result = await listMessages(
-        app.prisma,
-        req.params.conversationId,
-        req.userId!,
-      );
+      const result = await listMessages(app.prisma, req.params.conversationId, req.userId!);
       if (!result) return reply.code(404).send({ error: "not_found" });
       return result;
     },
@@ -66,9 +62,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         return reply.send(msg);
       } catch (err) {
         const e = err as { statusCode?: number; message?: string };
-        return reply
-          .code(e.statusCode ?? 500)
-          .send({ error: e.message ?? "internal_error" });
+        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
       }
     },
   );
@@ -89,11 +83,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         conn.socket.send(JSON.stringify({ error: "unauthorized" }));
         return;
       }
-      const ok = await authorizedForConversation(
-        app.prisma,
-        req.params.conversationId,
-        userId,
-      );
+      const ok = await authorizedForConversation(app.prisma, req.params.conversationId, userId);
       if (!ok) {
         conn.socket.send(JSON.stringify({ error: "not_authorized" }));
         return;
@@ -101,9 +91,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
       const subscriber = (msg: unknown) => {
         conn.socket.send(JSON.stringify(msg));
       };
-      const set =
-        subscribers.get(req.params.conversationId) ??
-        new Set<(m: unknown) => void>();
+      const set = subscribers.get(req.params.conversationId) ?? new Set<(m: unknown) => void>();
       set.add(subscriber);
       subscribers.set(req.params.conversationId, set);
 

@@ -9,28 +9,18 @@ import type {
   Viewer,
 } from "./types.js";
 
-export function distanceScore(
-  distanceKm: number,
-  maxDistanceKm: number,
-): number {
+export function distanceScore(distanceKm: number, maxDistanceKm: number): number {
   if (maxDistanceKm <= 0) return 0;
   const raw = 1 - distanceKm / maxDistanceKm;
   return Math.max(0.25, Math.min(1, raw));
 }
 
-export function activityScore(
-  candidate: Candidate,
-  config: AlgorithmConfig,
-): number {
+export function activityScore(candidate: Candidate, config: AlgorithmConfig): number {
   return config.activityBuckets[candidate.activityBucket];
 }
 
-export function preferenceOverlapScore(
-  soft: SoftPreferenceSnapshot,
-): number {
-  const entries = Object.values(soft).filter(
-    (v) => v !== undefined,
-  ) as boolean[];
+export function preferenceOverlapScore(soft: SoftPreferenceSnapshot): number {
+  const entries = Object.values(soft).filter((v) => v !== undefined) as boolean[];
   if (entries.length === 0) return 0.5;
   const matched = entries.filter((v) => v === true).length;
   return matched / entries.length;
@@ -76,10 +66,7 @@ export function profileCompletenessScore(
   return Math.min(1, completed / denominator);
 }
 
-export function fairnessRotationScore(
-  recentImpressions: number,
-  config: AlgorithmConfig,
-): number {
+export function fairnessRotationScore(recentImpressions: number, config: AlgorithmConfig): number {
   const cap = config.constraints.fairnessImpressionCap;
   if (cap <= 0) return 1;
   return 1 - Math.min(1, recentImpressions / cap);
@@ -101,10 +88,7 @@ export function scoreCandidate(
   now: Date,
 ): ScoreBreakdown {
   const w = config.weights;
-  const distance = distanceScore(
-    candidate.distanceKm,
-    viewer.preferences.maxDistanceKm,
-  );
+  const distance = distanceScore(candidate.distanceKm, viewer.preferences.maxDistanceKm);
   const activity = activityScore(candidate, config);
   const preferenceOverlap = preferenceOverlapScore(candidate.softPreferences);
   const goal = relationshipGoalScore(

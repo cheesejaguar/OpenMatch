@@ -50,9 +50,7 @@ export const safetyRoutes: FastifyPluginAsync = async (app) => {
         return reply.send({ reportId: report.id, status: report.status });
       } catch (err) {
         const e = err as { statusCode?: number; message?: string };
-        return reply
-          .code(e.statusCode ?? 500)
-          .send({ error: e.message ?? "internal_error" });
+        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
       }
     },
   );
@@ -64,21 +62,14 @@ export const safetyRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(204).send();
     } catch (err) {
       const e = err as { statusCode?: number; message?: string };
-      return reply
-        .code(e.statusCode ?? 500)
-        .send({ error: e.message ?? "internal_error" });
+      return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
     }
   });
 
-  app.delete<{ Params: { userId: string } }>(
-    "/block/:userId",
-    async (req, reply) => {
-      await unblockUser(app.prisma, req.userId!, req.params.userId);
-      return reply.code(204).send();
-    },
-  );
+  app.delete<{ Params: { userId: string } }>("/block/:userId", async (req, reply) => {
+    await unblockUser(app.prisma, req.userId!, req.params.userId);
+    return reply.code(204).send();
+  });
 
-  app.get("/blocked-users", async (req) =>
-    listBlockedUsers(app.prisma, req.userId!),
-  );
+  app.get("/blocked-users", async (req) => listBlockedUsers(app.prisma, req.userId!));
 };

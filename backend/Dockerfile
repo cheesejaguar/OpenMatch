@@ -9,7 +9,9 @@ FROM node:20-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build -w @openmatch/matching && npm run build -w @openmatch/backend
+RUN npx prisma generate --schema backend/prisma/schema.prisma \
+  && npm run build -w @openmatch/matching \
+  && npm run build -w @openmatch/backend
 
 FROM node:20-alpine AS runner
 WORKDIR /app
