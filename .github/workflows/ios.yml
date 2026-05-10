@@ -56,8 +56,10 @@ jobs:
         run: xcodebuild -project OpenMatch.xcodeproj -list
 
       - name: Build
+        id: build
         working-directory: ios
         run: |
+          set -o pipefail
           xcodebuild \
             -project OpenMatch.xcodeproj \
             -scheme OpenMatch \
@@ -67,7 +69,32 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             -derivedDataPath build/DerivedData \
-            build
+            build 2>&1 | tee /tmp/xcodebuild.log
+
+      - name: Publish build log on failure
+        if: failure()
+        run: |
+          {
+            echo "## xcodebuild build failed"
+            echo ""
+            echo "### error/warning lines"
+            echo '```'
+            grep -E "error:|warning:|\*\* BUILD FAILED \*\*" /tmp/xcodebuild.log | head -200 || true
+            echo '```'
+            echo ""
+            echo "### last 200 lines of full log"
+            echo '```'
+            tail -n 200 /tmp/xcodebuild.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: /tmp/xcodebuild.log
+          retention-days: 7
 
   test:
     name: xcodebuild test (booted simulator)
