@@ -27,8 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Show Xcode version
+        run: xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -46,35 +46,65 @@ jobs:
         working-directory: ios
         run: make generate
 
-      - name: List available simulators
-        run: xcrun simctl list devices available
+      # The simulator name on macos-latest changes with each Xcode release
+      # (iPhone 15 → iPhone 16 → ...). Resolve the newest available iPhone
+      # simulator dynamically so this workflow doesn't break when GitHub
+      # rolls a new image.
+      - name: Resolve iPhone simulator
+        id: sim
+        run: |
+          xcrun simctl list devices available
+          DEVICE=$(xcrun simctl list devices available -j \
+            | python3 -c '
+          import json, sys, re
+          data = json.load(sys.stdin)
+          best = None
+          best_num = -1
+          for runtime, devs in data["devices"].items():
+              if "iOS" not in runtime:
+                  continue
+              for d in devs:
+                  name = d.get("name", "")
+                  m = re.match(r"^iPhone (\d+)(?:\s|$)", name)
+                  if not m or not d.get("isAvailable", True):
+                      continue
+                  num = int(m.group(1))
+                  if num > best_num:
+                      best_num = num
+                      best = name
+          print(best or "iPhone 15")
+          ')
+          echo "Selected simulator: $DEVICE"
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
 
-      - name: Build (iPhone 15 simulator)
+      - name: Build
         working-directory: ios
+        env:
+          DEVICE: ${{ steps.sim.outputs.device }}
         run: |
           set -o pipefail
           xcodebuild \
             -project OpenMatch.xcodeproj \
             -scheme OpenMatch \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -destination "platform=iOS Simulator,name=$DEVICE,OS=latest" \
             -configuration Debug \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
-            build | xcbeautify || xcodebuild \
-            -project OpenMatch.xcodeproj \
-            -scheme OpenMatch \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
-            -configuration Debug \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
             build
 
       - name: Test
         working-directory: ios
+        env:
+          DEVICE: ${{ steps.sim.outputs.device }}
         run: |
           set -o pipefail
           xcodebuild \
             -project OpenMatch.xcodeproj \
             -scheme OpenMatch \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -destination "platform=iOS Simulator,name=$DEVICE,OS=latest" \
             -configuration Debug \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
             test

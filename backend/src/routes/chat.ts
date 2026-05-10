@@ -67,10 +67,15 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  // WebSocket for live message delivery.
+  // WebSocket for live message delivery. Rate-limit the upgrade handshake
+  // to prevent connection-storm abuse; once connected, message rate is
+  // bounded by the POST route limit above.
   app.get<{ Params: { conversationId: string } }>(
     "/:conversationId/stream",
-    { websocket: true } as never,
+    {
+      websocket: true,
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    } as never,
     async (connection, req) => {
       const conn = connection as unknown as {
         socket: {
