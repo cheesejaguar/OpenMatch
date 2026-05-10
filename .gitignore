@@ -1,0 +1,46 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+*.tsbuildinfo
+dist/
+build/
+coverage/
+.npm/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Prisma
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Xcode / iOS
+ios/OpenMatch.xcodeproj/
+ios/OpenMatch.xcworkspace/
+ios/build/
+ios/DerivedData/
+ios/.build/
+*.xcuserstate
+*.xcuserdata/
+ios/Pods/
+
+# Terraform
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.backup
+infra/**/.terraform.lock.hcl
+
+# Local media storage (dev fallback when no GCS bucket configured)
+backend/.local-media/

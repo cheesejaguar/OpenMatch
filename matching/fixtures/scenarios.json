@@ -1,0 +1,29 @@
+{
+  "comment": "Named scenarios reference users by id from synthetic-users.json.",
+  "scenarios": {
+    "viewerSeekingLongTermMen": {
+      "viewerId": "u001",
+      "preferences": {
+        "minAge": 25,
+        "maxAge": 35,
+        "maxDistanceKm": 40,
+        "interestedGenders": ["Man","NonBinary"],
+        "relationshipGoals": ["LongTerm","LifePartner","Marriage"],
+        "excludeIncompatibleGoals": false,
+        "includeUnansweredOptionalFields": true
+      }
+    },
+    "viewerNarrowFilters": {
+      "viewerId": "u001",
+      "preferences": {
+        "minAge": 30,
+        "maxAge": 32,
+        "maxDistanceKm": 1,
+        "interestedGenders": ["Man"],
+        "relationshipGoals": ["LongTerm"],
+        "excludeIncompatibleGoals": true,
+        "includeUnansweredOptionalFields": false
+      }
+    }
+  }
+}

@@ -1,0 +1,394 @@
+// OpenMatch backend Prisma schema.
+// Maps 1:1 to entities in docs/product/openmatch-design.md §20.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis(version: "3.4")]
+}
+
+// -------- enums --------
+
+enum AccountStatus {
+  active
+  paused
+  banned
+  deleted
+}
+
+enum VisibilityStatus {
+  visible
+  hidden
+}
+
+enum ModerationStatus {
+  clean
+  reviewed_ok
+  under_review
+  restricted
+  removed
+}
+
+enum Gender {
+  Woman
+  Man
+  NonBinary
+  TransWoman
+  TransMan
+  Genderqueer
+  Agender
+  Questioning
+  SelfDescribe
+  PreferNotToSay
+}
+
+enum RelationshipGoal {
+  LongTerm
+  LifePartner
+  ShortTerm
+  Casual
+  Friendship
+  Figuring
+  Marriage
+  NonMono
+  Open
+}
+
+enum LikesVisibility {
+  visible
+  count_only
+  hidden
+}
+
+enum SwipeDecision {
+  like
+  reject
+}
+
+enum LikeStatus {
+  active
+  withdrawn
+  matched
+  rejected
+}
+
+enum MatchStatus {
+  active
+  unmatched
+}
+
+enum ConversationStatus {
+  active
+  closed
+}
+
+enum ReportStatus {
+  open
+  reviewing
+  resolved
+  dismissed
+}
+
+enum ModerationDecision {
+  no_action
+  warning
+  content_removed
+  temporary_suspension
+  permanent_ban
+}
+
+enum AuthProvider {
+  apple
+  email
+  dev
+}
+
+// -------- User & profile --------
+
+model User {
+  id                String        @id @default(cuid())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  status            AccountStatus @default(active)
+  dateOfBirth       DateTime
+  emailHash         String?       @unique
+  phoneHash         String?       @unique
+  authProvider      AuthProvider
+  authSubject       String?       @unique // Apple subject or magic-link identity
+  isAgeVerified     Boolean       @default(false)
+  isBanned          Boolean       @default(false)
+  deletedAt         DateTime?
+
+  profile           Profile?
+  preferences       Preferences?
+  swipesMade        SwipeAction[] @relation("SwipeViewer")
+  swipesReceived    SwipeAction[] @relation("SwipeTarget")
+  likesSent         Like[]        @relation("LikeFrom")
+  likesReceived     Like[]        @relation("LikeTo")
+  matchesA          Match[]       @relation("MatchUserA")
+  matchesB          Match[]       @relation("MatchUserB")
+  unmatchedBy       Match[]       @relation("MatchUnmatcher")
+  blocksMade        Block[]       @relation("Blocker")
+  blocksReceived    Block[]       @relation("Blocked")
+  reportsMade       Report[]      @relation("Reporter")
+  reportsAbout      Report[]      @relation("Reported")
+  messagesSent      Message[]
+  sessions          Session[]
+  authChallenges    AuthChallenge[]
+  deviceTokens      DeviceToken[]
+
+  @@index([status])
+}
+
+model Profile {
+  id                       String           @id @default(cuid())
+  userId                   String           @unique
+  user                     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName              String
+  bio                      String           @default("")
+  gender                   Gender
+  pronouns                 String?
+  ageDisplayEnabled        Boolean          @default(true)
+  // Location precision retained internally; only ever surfaced via the
+  // formatDistance helper. We store both PostGIS geography (for queries)
+  // and the rounded city for display.
+  location                 Unsupported("geography(Point, 4326)")?
+  city                     String?
+  region                   String?
+  country                  String?
+  heightCm                 Int?
+  educationLevel           String?
+  college                  String?
+  jobTitle                 String?
+  companyDisplayEnabled    Boolean          @default(false)
+  company                  String?
+  relationshipGoal         RelationshipGoal?
+  childrenStatus           String?
+  familyPlans              String?
+  drinking                 String?
+  smoking                  String?
+  cannabis                 String?
+  exercise                 String?
+  diet                     String?
+  religion                 String?
+  politics                 String?
+  languages                String[]         @default([])
+  interests                String[]         @default([])
+  verificationStatus       String           @default("unverified")
+  visibilityStatus         VisibilityStatus @default(visible)
+  moderationStatus         ModerationStatus @default(clean)
+  prompts                  Json?
+  lastActiveAt             DateTime         @default(now())
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  photos                   ProfilePhoto[]
+
+  @@index([visibilityStatus, moderationStatus])
+  @@index([city])
+}
+
+model ProfilePhoto {
+  id               String           @id @default(cuid())
+  profileId        String
+  profile          Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  storageKey       String
+  cdnUrl           String
+  sortOrder        Int
+  moderationStatus ModerationStatus @default(clean)
+  width            Int?
+  height           Int?
+  blurhash         String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([profileId, sortOrder])
+}
+
+model Preferences {
+  id                              String             @id @default(cuid())
+  userId                          String             @unique
+  user                            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  minAge                          Int                @default(18)
+  maxAge                          Int                @default(99)
+  maxDistanceKm                   Int                @default(40)
+  interestedGenders               Gender[]           @default([])
+  relationshipGoals               RelationshipGoal[] @default([])
+  heightMinCm                     Int?
+  heightMaxCm                     Int?
+  educationLevels                 String[]           @default([])
+  colleges                        String[]           @default([])
+  lifestyleFilters                Json?
+  includeUnansweredOptionalFields Boolean            @default(true)
+  hardFilters                     Json?
+  softPreferences                 Json?
+  excludeIncompatibleGoals        Boolean            @default(false)
+  likesVisibility                 LikesVisibility    @default(visible)
+  discoveryPaused                 Boolean            @default(false)
+  createdAt                       DateTime           @default(now())
+  updatedAt                       DateTime           @updatedAt
+}
+
+// -------- Swipe / like / match --------
+
+model SwipeAction {
+  id                    String        @id @default(cuid())
+  viewerUserId          String
+  viewer                User          @relation("SwipeViewer", fields: [viewerUserId], references: [id], onDelete: Cascade)
+  targetUserId          String
+  target                User          @relation("SwipeTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  decision              SwipeDecision
+  algorithmVersion      String
+  rankingConfigVersion  String
+  deckSessionId         String
+  createdAt             DateTime      @default(now())
+  undoneAt              DateTime?
+
+  @@index([viewerUserId, targetUserId])
+  @@index([targetUserId, decision])
+}
+
+model Like {
+  id          String     @id @default(cuid())
+  fromUserId  String
+  from        User       @relation("LikeFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId    String
+  to          User       @relation("LikeTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  status      LikeStatus @default(active)
+  createdAt   DateTime   @default(now())
+  withdrawnAt DateTime?
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId, status])
+}
+
+model Match {
+  id                String      @id @default(cuid())
+  userAId           String
+  userA             User        @relation("MatchUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId           String
+  userB             User        @relation("MatchUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  createdAt         DateTime    @default(now())
+  unmatchedAt       DateTime?
+  unmatchedByUserId String?
+  unmatchedBy       User?       @relation("MatchUnmatcher", fields: [unmatchedByUserId], references: [id])
+  status            MatchStatus @default(active)
+  conversation      Conversation?
+
+  @@unique([userAId, userBId])
+  @@index([userAId, status])
+  @@index([userBId, status])
+}
+
+model Conversation {
+  id        String             @id @default(cuid())
+  matchId   String             @unique
+  match     Match              @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  status    ConversationStatus @default(active)
+
+  messages  Message[]
+}
+
+model Message {
+  id               String           @id @default(cuid())
+  conversationId   String
+  conversation     Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUserId     String
+  sender           User             @relation(fields: [senderUserId], references: [id], onDelete: Cascade)
+  body             String
+  createdAt        DateTime         @default(now())
+  deliveredAt      DateTime?
+  readAt           DateTime?
+  deletedAt        DateTime?
+  moderationStatus ModerationStatus @default(clean)
+
+  @@index([conversationId, createdAt])
+}
+
+// -------- Safety --------
+
+model Block {
+  id              String   @id @default(cuid())
+  blockerUserId   String
+  blocker         User     @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blockedUserId   String
+  blocked         User     @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([blockerUserId, blockedUserId])
+  @@index([blockedUserId])
+}
+
+model Report {
+  id                  String              @id @default(cuid())
+  reporterUserId      String
+  reporter            User                @relation("Reporter", fields: [reporterUserId], references: [id], onDelete: Cascade)
+  reportedUserId      String
+  reported            User                @relation("Reported", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  reportedProfileId   String?
+  reportedMessageId   String?
+  reason              String
+  details             String?
+  status              ReportStatus        @default(open)
+  createdAt           DateTime            @default(now())
+  resolvedAt          DateTime?
+  moderatorId         String?
+  resolution          ModerationDecision?
+
+  @@index([status, createdAt])
+}
+
+// -------- Auth --------
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String   @unique
+  userAgent    String?
+  ipHash       String?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+}
+
+model AuthChallenge {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email      String?
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+}
+
+// -------- Transparency --------
+
+model AlgorithmAuditRecord {
+  id                    String   @id @default(cuid())
+  algorithmVersion      String
+  rankingConfigVersion  String
+  changedBy             String
+  changeSummary         String
+  publicChangelogUrl    String?
+  createdAt             DateTime @default(now())
+
+  @@index([createdAt])
+}
