@@ -1,0 +1,61 @@
+{
+  "algorithmVersion": "discovery-v1.0.0",
+  "rankingConfigVersion": "2026-05-01",
+  "weights": {
+    "distance": 0.25,
+    "activity": 0.20,
+    "preferenceOverlap": 0.20,
+    "relationshipGoal": 0.15,
+    "profileCompleteness": 0.10,
+    "fairnessRotation": 0.05,
+    "randomization": 0.05
+  },
+  "constraints": {
+    "minimumAge": 18,
+    "excludeBlockedUsers": true,
+    "excludeModerationRestrictedUsers": true,
+    "respectMutualGenderPreferences": true,
+    "respectHardFilters": true,
+    "rejectStickyDays": 90,
+    "fairnessImpressionCap": 200,
+    "fairnessImpressionWindowHours": 24
+  },
+  "randomization": {
+    "method": "deterministic_daily_seed",
+    "seedInputs": [
+      "viewer_id",
+      "candidate_id",
+      "algorithm_version",
+      "date"
+    ]
+  },
+  "relationshipGoalCompatibility": {
+    "LongTerm":    {"LongTerm":1.0,"LifePartner":0.7,"ShortTerm":0.0,"Casual":0.0,"Friendship":0.0,"Figuring":0.5,"Marriage":0.7,"NonMono":0.5,"Open":0.7},
+    "LifePartner": {"LongTerm":0.7,"LifePartner":1.0,"ShortTerm":0.0,"Casual":0.0,"Friendship":0.0,"Figuring":0.5,"Marriage":1.0,"NonMono":0.5,"Open":0.5},
+    "ShortTerm":   {"LongTerm":0.0,"LifePartner":0.0,"ShortTerm":1.0,"Casual":0.7,"Friendship":0.5,"Figuring":0.5,"Marriage":0.0,"NonMono":0.7,"Open":0.7},
+    "Casual":      {"LongTerm":0.0,"LifePartner":0.0,"ShortTerm":0.7,"Casual":1.0,"Friendship":0.5,"Figuring":0.5,"Marriage":0.0,"NonMono":0.7,"Open":0.7},
+    "Friendship":  {"LongTerm":0.0,"LifePartner":0.0,"ShortTerm":0.5,"Casual":0.5,"Friendship":1.0,"Figuring":0.5,"Marriage":0.0,"NonMono":0.5,"Open":0.5},
+    "Figuring":    {"LongTerm":0.5,"LifePartner":0.5,"ShortTerm":0.5,"Casual":0.5,"Friendship":0.5,"Figuring":1.0,"Marriage":0.5,"NonMono":0.5,"Open":0.7},
+    "Marriage":    {"LongTerm":0.7,"LifePartner":1.0,"ShortTerm":0.0,"Casual":0.0,"Friendship":0.0,"Figuring":0.5,"Marriage":1.0,"NonMono":0.0,"Open":0.5},
+    "NonMono":     {"LongTerm":0.5,"LifePartner":0.5,"ShortTerm":0.7,"Casual":0.7,"Friendship":0.5,"Figuring":0.5,"Marriage":0.0,"NonMono":1.0,"Open":0.7},
+    "Open":        {"LongTerm":0.7,"LifePartner":0.5,"ShortTerm":0.7,"Casual":0.7,"Friendship":0.5,"Figuring":0.7,"Marriage":0.5,"NonMono":0.7,"Open":1.0}
+  },
+  "activityBuckets": {
+    "within24h": 1.0,
+    "within7d":  0.8,
+    "within30d": 0.5,
+    "older":     0.2
+  },
+  "recommendedCompletenessFields": [
+    "photosAtLeastTwo",
+    "displayName",
+    "age",
+    "gender",
+    "bioAtLeast30Chars",
+    "atLeastOnePrompt",
+    "atLeastThreeInterests",
+    "relationshipGoal",
+    "educationLevel",
+    "city"
+  ]
+}

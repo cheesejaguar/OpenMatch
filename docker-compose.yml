@@ -1,0 +1,41 @@
+version: "3.9"
+
+# Local-development services for OpenMatch.
+# In production these are replaced by Cloud SQL (Postgres + PostGIS),
+# Memorystore (Redis), and a real SMTP provider.
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: openmatch
+      POSTGRES_PASSWORD: openmatch
+      POSTGRES_DB: openmatch
+    ports:
+      - "5432:5432"
+    volumes:
+      - openmatch_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openmatch -d openmatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+
+volumes:
+  openmatch_pg:

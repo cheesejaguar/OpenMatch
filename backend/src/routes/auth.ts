@@ -1,0 +1,111 @@
+import type { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
+import {
+  issueSession,
+  revokeSession,
+  rotateRefreshToken,
+  startEmailLogin,
+  verifyEmailLogin,
+} from "../services/auth.service.js";
+import { env } from "../env.js";
+
+const startSchema = z.object({
+  method: z.enum(["email", "apple", "dev"]),
+  email: z.string().email().optional(),
+  appleIdentityToken: z.string().optional(),
+  devUserId: z.string().optional(),
+});
+
+const verifySchema = z.object({
+  challengeId: z.string(),
+  token: z.string(),
+});
+
+const refreshSchema = z.object({ refreshToken: z.string() });
+
+export const authRoutes: FastifyPluginAsync = async (app) => {
+  app.post("/start", async (req, reply) => {
+    const body = startSchema.parse(req.body);
+
+    if (body.method === "email") {
+      if (!body.email) return reply.code(400).send({ error: "email_required" });
+      const result = await startEmailLogin(app.prisma, { email: body.email });
+      return reply.send({
+        challengeId: result.challengeId,
+        message: "Check your email for the sign-in link.",
+        devToken: result.devToken,
+      });
+    }
+
+    if (body.method === "apple") {
+      // Apple SIWA is wired but requires real Apple credentials. Returning
+      // a clear error in dev so it's obvious why the path fails.
+      return reply.code(501).send({
+        error: "apple_not_configured",
+        message:
+          "Configure APPLE_TEAM_ID, APPLE_CLIENT_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY to enable Sign in with Apple.",
+      });
+    }
+
+    if (body.method === "dev") {
+      if (!env.ALLOW_DEV_LOGIN) {
+        return reply.code(403).send({ error: "dev_login_disabled" });
+      }
+      if (!body.devUserId) {
+        return reply.code(400).send({ error: "devUserId_required" });
+      }
+      const user = await app.prisma.user.findUnique({
+        where: { id: body.devUserId },
+      });
+      if (!user) return reply.code(404).send({ error: "user_not_found" });
+      const session = await issueSession(app.prisma, user.id, (p) =>
+        app.jwt.sign(p),
+      );
+      return reply.send({ ...session, userId: user.id, isNewUser: false });
+    }
+
+    return reply.code(400).send({ error: "unknown_method" });
+  });
+
+  app.post("/verify", async (req, reply) => {
+    const body = verifySchema.parse(req.body);
+    const result = await verifyEmailLogin(app.prisma, body);
+    const session = await issueSession(app.prisma, result.userId, (p) =>
+      app.jwt.sign(p),
+    );
+    return reply.send({
+      ...session,
+      userId: result.userId,
+      isNewUser: result.isNewUser,
+    });
+  });
+
+  // Also accept GET so the magic-link in email works in a browser.
+  app.get("/verify", async (req, reply) => {
+    const params = verifySchema.parse(req.query);
+    const result = await verifyEmailLogin(app.prisma, params);
+    const session = await issueSession(app.prisma, result.userId, (p) =>
+      app.jwt.sign(p),
+    );
+    return reply.send({
+      ...session,
+      userId: result.userId,
+      isNewUser: result.isNewUser,
+    });
+  });
+
+  app.post("/refresh", async (req, reply) => {
+    const body = refreshSchema.parse(req.body);
+    const next = await rotateRefreshToken(app.prisma, body.refreshToken, (p) =>
+      app.jwt.sign(p),
+    );
+    if (!next) return reply.code(401).send({ error: "invalid_refresh_token" });
+    return reply.send(next);
+  });
+
+  app.post("/logout", async (req, reply) => {
+    const body = refreshSchema.parse(req.body);
+    await revokeSession(app.prisma, body.refreshToken);
+    return reply.code(204).send();
+  });
+};
