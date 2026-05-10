@@ -71,6 +71,13 @@ jobs:
             -derivedDataPath build/DerivedData \
             build 2>&1 | tee /tmp/xcodebuild.log
 
+      - name: Annotate compiler errors on failure
+        if: failure()
+        run: |
+          while IFS= read -r line; do
+            echo "::error::${line}"
+          done < <(grep -E "error:|\\*\\* BUILD FAILED \\*\\*" /tmp/xcodebuild.log | head -50)
+
       - name: Publish build log on failure
         if: failure()
         run: |
@@ -87,6 +94,15 @@ jobs:
             tail -n 200 /tmp/xcodebuild.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Paste build log to 0x0.st on failure
+        if: failure()
+        run: |
+          URL=$(curl -sS -F "file=@/tmp/xcodebuild.log" -F "expires=24" https://0x0.st || echo "(paste failed)")
+          echo "Build log pasted to: $URL"
+          echo "::notice title=Build log URL::$URL"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Full log mirror: $URL" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload full build log
         if: always()
