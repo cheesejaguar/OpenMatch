@@ -1,6 +1,6 @@
 import SwiftUI
 
-@MainActor
+
 final class AlgorithmViewModel: ObservableObject {
     @Published var data: AlgorithmTransparencyDTO?
     @Published var error: String?

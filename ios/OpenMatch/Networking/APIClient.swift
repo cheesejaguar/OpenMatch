@@ -16,7 +16,7 @@ enum APIError: Error, LocalizedError {
     }
 }
 
-@MainActor
+
 final class APIClient: ObservableObject {
     let baseURL: URL
     @Published private(set) var hasSession: Bool
@@ -44,8 +44,6 @@ final class APIClient: ObservableObject {
         self.hasSession = self.accessToken != nil
     }
 
-    // MARK: - Session management
-
     func setSession(_ s: SessionResponse) {
         accessToken = s.accessToken
         refreshToken = s.refreshToken
@@ -65,8 +63,6 @@ final class APIClient: ObservableObject {
         Keychain.shared.delete(.userId)
         hasSession = false
     }
-
-    // MARK: - Public auth endpoints
 
     func startLogin(email: String) async throws -> StartLoginResponse {
         try await post("/api/v1/auth/start", body: StartLoginRequest(
@@ -96,8 +92,6 @@ final class APIClient: ObservableObject {
         setSession(s)
         return s
     }
-
-    // MARK: - Core domain
 
     func loadDeck(limit: Int = 10) async throws -> DeckResponseDTO {
         try await get("/api/v1/discovery/deck?limit=\(limit)")
@@ -155,8 +149,6 @@ final class APIClient: ObservableObject {
     func algorithm() async throws -> AlgorithmTransparencyDTO {
         try await get("/api/v1/transparency/algorithm/current")
     }
-
-    // MARK: - Internals
 
     private struct EmptyBody: Codable {}
     private struct EmptyResponse: Codable {}

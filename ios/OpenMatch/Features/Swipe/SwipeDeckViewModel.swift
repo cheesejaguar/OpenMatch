@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-@MainActor
+
 final class SwipeDeckViewModel: ObservableObject {
     @Published var cards: [ProfileCardModel] = []
     @Published var undoStack: [PendingSwipeAction] = []
@@ -71,7 +71,6 @@ final class SwipeDeckViewModel: ObservableObject {
             }
         } catch {
             self.error = error.localizedDescription
-            // Optimistic UI: keep the user moving even if the network blip.
         }
     }
 

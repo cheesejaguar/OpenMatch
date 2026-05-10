@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-@MainActor
+
 final class AppState: ObservableObject {
     enum AuthState: Equatable {
         case loading

@@ -20,20 +20,25 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
-    name: xcodebuild build + test
+  build:
+    name: xcodebuild build (generic simulator)
     runs-on: macos-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          which xcodegen || echo "xcodegen not installed yet"
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Cache SwiftPM
+      - name: Cache SwiftPM and DerivedData
         uses: actions/cache@v4
         with:
           path: |
@@ -44,61 +49,63 @@ jobs:
 
       - name: Generate Xcode project
         working-directory: ios
-        run: make generate
+        run: xcodegen generate
 
-      # The simulator name on macos-latest changes with each Xcode release
-      # (iPhone 15 → iPhone 16 → ...). Resolve the newest available iPhone
-      # simulator dynamically so this workflow doesn't break when GitHub
-      # rolls a new image.
-      - name: Resolve iPhone simulator
-        id: sim
-        run: |
-          xcrun simctl list devices available
-          DEVICE=$(xcrun simctl list devices available -j \
-            | python3 -c '
-          import json, sys, re
-          data = json.load(sys.stdin)
-          best = None
-          best_num = -1
-          for runtime, devs in data["devices"].items():
-              if "iOS" not in runtime:
-                  continue
-              for d in devs:
-                  name = d.get("name", "")
-                  m = re.match(r"^iPhone (\d+)(?:\s|$)", name)
-                  if not m or not d.get("isAvailable", True):
-                      continue
-                  num = int(m.group(1))
-                  if num > best_num:
-                      best_num = num
-                      best = name
-          print(best or "iPhone 15")
-          ')
-          echo "Selected simulator: $DEVICE"
-          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+      - name: List schemes
+        working-directory: ios
+        run: xcodebuild -project OpenMatch.xcodeproj -list
 
       - name: Build
         working-directory: ios
-        env:
-          DEVICE: ${{ steps.sim.outputs.device }}
         run: |
-          set -o pipefail
           xcodebuild \
             -project OpenMatch.xcodeproj \
             -scheme OpenMatch \
-            -destination "platform=iOS Simulator,name=$DEVICE,OS=latest" \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build/DerivedData \
             build
+
+  test:
+    name: xcodebuild test (booted simulator)
+    runs-on: macos-latest
+    needs: build
+    timeout-minutes: 30
+    if: ${{ success() }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          xcrun simctl list devices available | tee /tmp/simlist.txt
+          DEVICE=$(grep -E "iPhone [0-9]+( Pro| Plus| Pro Max)?( \(.*\))?" /tmp/simlist.txt \
+            | grep -v "unavailable" \
+            | head -1 \
+            | sed -E 's/^[[:space:]]+([^(]+)[[:space:]]+\(.*$/\1/' \
+            | xargs)
+          if [ -z "$DEVICE" ]; then
+            DEVICE="iPhone 16"
+          fi
+          echo "Selected simulator: '$DEVICE'"
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
 
       - name: Test
         working-directory: ios
         env:
           DEVICE: ${{ steps.sim.outputs.device }}
         run: |
-          set -o pipefail
           xcodebuild \
             -project OpenMatch.xcodeproj \
             -scheme OpenMatch \
