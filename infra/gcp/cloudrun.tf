@@ -102,17 +102,23 @@ resource "google_cloud_run_v2_service" "api" {
 
 resource "google_secret_manager_secret" "database_url" {
   secret_id = "${var.service_name}-database-url"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
 }
 
 resource "google_secret_manager_secret" "redis_url" {
   secret_id = "${var.service_name}-redis-url"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
 }
 
 resource "google_secret_manager_secret" "jwt_secret" {
   secret_id = "${var.service_name}-jwt-secret"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
 }
 
 resource "google_secret_manager_secret_iam_member" "run_db" {

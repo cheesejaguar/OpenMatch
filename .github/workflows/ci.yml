@@ -35,11 +35,14 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate --schema backend/prisma/schema.prisma
 
-      - name: Typecheck
-        run: npm run typecheck
-
+      # @openmatch/backend imports the @openmatch/matching workspace,
+      # which resolves to matching/dist/index.d.ts via its "types" field.
+      # Build matching first so the backend's tsc --noEmit can resolve it.
       - name: Build matching package
         run: npm run build -w @openmatch/matching
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Build backend
         run: npm run build -w @openmatch/backend
