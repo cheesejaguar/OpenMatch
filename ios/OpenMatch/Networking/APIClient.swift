@@ -154,7 +154,9 @@ final class APIClient: ObservableObject {
     private struct EmptyResponse: Codable {}
 
     private func get<T: Decodable>(_ path: String) async throws -> T {
-        try await request(path: path, method: "GET", body: nil)
+        // Explicit type witness so Swift can infer `B` when there is no body.
+        let nilBody: EmptyBody? = nil
+        return try await request(path: path, method: "GET", body: nilBody)
     }
 
     private func post<B: Encodable, T: Decodable>(_ path: String, body: B) async throws -> T {
