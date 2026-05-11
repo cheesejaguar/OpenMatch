@@ -1,0 +1,148 @@
+// Admin / moderation data-model additions referenced by the OpenMatch Admin
+// Dashboard PRD §17. These models are defined separately so they can be
+// reviewed by trust-and-safety + privacy reviewers ahead of merging into
+// the main schema.prisma during Phase 1 (PRD §20.2).
+
+// To enable, copy these models into backend/prisma/schema.prisma and run
+// `npm run prisma:migrate -w @openmatch/backend`.
+
+// -------- Admin identity --------
+
+// model AdminUser {
+//   id                       String   @id @default(cuid())
+//   identityProviderSubject  String   @unique
+//   email                    String   @unique
+//   displayName              String
+//   status                   String   @default("active") // active | disabled
+//   createdAt                DateTime @default(now())
+//   updatedAt                DateTime @updatedAt
+//   lastLoginAt              DateTime?
+//
+//   roles                    AdminUserRole[]
+//   audits                   AdminAuditLog[] @relation("AuditActor")
+//   moderationActions        ModerationAction[] @relation("ModerationActor")
+//   bansIssued               UserBan[]      @relation("BanIssuer")
+//   bansLifted               UserBan[]      @relation("BanLifter")
+//   roleAssignmentsMade      AdminUserRole[] @relation("RoleAssigner")
+//   notesCreated             AdminInternalNote[]
+//   sensitiveAccessGrants    SensitiveAccessGrant[]
+// }
+
+// model AdminRole {
+//   id          String   @id @default(cuid())
+//   name        String   @unique
+//   description String
+//   permissions String[] @default([])
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+//
+//   members     AdminUserRole[]
+// }
+
+// model AdminUserRole {
+//   adminUserId           String
+//   adminUser             AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+//   adminRoleId           String
+//   adminRole             AdminRole @relation(fields: [adminRoleId], references: [id], onDelete: Cascade)
+//   assignedByAdminUserId String
+//   assignedBy            AdminUser @relation("RoleAssigner", fields: [assignedByAdminUserId], references: [id])
+//   createdAt             DateTime  @default(now())
+//
+//   @@id([adminUserId, adminRoleId])
+// }
+
+// -------- Moderation --------
+
+// model ModerationAction {
+//   id                      String   @id @default(cuid())
+//   targetUserId            String?
+//   targetProfileId         String?
+//   targetPhotoId           String?
+//   targetMessageId         String?
+//   reportId                String?
+//   actionType              String   // no_action | warning | content_removed |
+//                                    // temporary_suspension | permanent_ban |
+//                                    // photo_removed | escalated | dismissed | note_added
+//   reasonCode              String?
+//   internalNote            String
+//   userFacingExplanation   String?
+//   createdByAdminUserId    String
+//   createdBy               AdminUser @relation("ModerationActor", fields: [createdByAdminUserId], references: [id])
+//   createdAt               DateTime  @default(now())
+//
+//   @@index([targetUserId])
+//   @@index([reportId])
+// }
+
+// model UserBan {
+//   id                       String    @id @default(cuid())
+//   userId                   String
+//   banType                  String    // temporary | permanent | safety_hold
+//   status                   String    @default("active") // active | lifted
+//   reasonCode               String
+//   internalNote             String
+//   userFacingExplanation    String?
+//   bannedByAdminUserId      String
+//   bannedBy                 AdminUser @relation("BanIssuer", fields: [bannedByAdminUserId], references: [id])
+//   bannedAt                 DateTime  @default(now())
+//   expiresAt                DateTime?
+//   unbannedByAdminUserId    String?
+//   unbannedBy               AdminUser? @relation("BanLifter", fields: [unbannedByAdminUserId], references: [id])
+//   unbannedAt               DateTime?
+//   unbanReason              String?
+//
+//   @@index([userId, status])
+// }
+
+// model AdminInternalNote {
+//   id                   String    @id @default(cuid())
+//   targetEntityType     String    // user | report | conversation
+//   targetEntityId       String
+//   body                 String
+//   createdByAdminUserId String
+//   createdBy            AdminUser @relation(fields: [createdByAdminUserId], references: [id])
+//   createdAt            DateTime  @default(now())
+//
+//   @@index([targetEntityType, targetEntityId])
+// }
+
+// -------- Audit & access grants --------
+
+// model AdminAuditLog {
+//   id                  String    @id @default(cuid())
+//   adminUserId         String
+//   adminUser           AdminUser @relation("AuditActor", fields: [adminUserId], references: [id])
+//   adminRolesAtAction  String[]
+//   eventType           String
+//   targetEntityType    String?
+//   targetEntityId      String?
+//   accessReason        String?
+//   reportId            String?
+//   moderationActionId  String?
+//   internalNote        String?
+//   requestId           String?
+//   ipAddress           String?
+//   userAgent           String?
+//   metadata            Json?
+//   createdAt           DateTime  @default(now())
+//
+//   @@index([adminUserId, createdAt])
+//   @@index([targetEntityId])
+//   @@index([eventType, createdAt])
+// }
+
+// model SensitiveAccessGrant {
+//   id                String   @id @default(cuid())
+//   adminUserId       String
+//   adminUser         AdminUser @relation(fields: [adminUserId], references: [id])
+//   targetEntityType  String   // conversation | user_photos | user_full
+//   targetEntityId    String
+//   reason            String
+//   note              String?
+//   reportId          String?
+//   expiresAt         DateTime
+//   createdAt         DateTime @default(now())
+//
+//   @@index([adminUserId, expiresAt])
+//   @@index([targetEntityType, targetEntityId])
+// }

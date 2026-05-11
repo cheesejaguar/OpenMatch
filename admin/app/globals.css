@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-ink-50 text-ink-800 antialiased;
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      "Helvetica Neue",
+      Arial,
+      sans-serif;
+  }
+
+  a {
+    @apply text-accent hover:underline;
+  }
+
+  table {
+    @apply w-full text-sm;
+  }
+  th {
+    @apply bg-ink-100 text-left font-medium text-ink-600 px-3 py-2 border-b border-ink-200;
+  }
+  td {
+    @apply px-3 py-2 border-b border-ink-100 align-top;
+  }
+  tr:hover td {
+    @apply bg-ink-50;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium
+      border border-ink-200 bg-white text-ink-800 hover:bg-ink-50
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-white border-accent hover:bg-blue-600;
+  }
+  .btn-danger {
+    @apply btn bg-danger text-white border-danger hover:bg-red-700;
+  }
+  .btn-ghost {
+    @apply btn border-transparent bg-transparent hover:bg-ink-100;
+  }
+  .card {
+    @apply rounded-lg bg-white border border-ink-200 shadow-sm;
+  }
+  .field {
+    @apply block w-full rounded-md border border-ink-200 px-3 py-1.5 text-sm
+      focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent;
+  }
+  .label {
+    @apply block text-xs font-medium uppercase tracking-wide text-ink-500 mb-1;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+}
