@@ -15,9 +15,15 @@ export const realtimeRoutes: FastifyPluginAsync = async (app) => {
     }
     const userId = (_req as { userId?: string }).userId!;
 
+    // Scope strictly to live conversations: an active match the caller is
+    // a member of. Unmatched / closed conversations must not grant subscribe
+    // capability, otherwise stale Ably channels remain reachable.
     const conversations = await app.prisma.conversation.findMany({
       where: {
-        match: { OR: [{ userAId: userId }, { userBId: userId }] },
+        match: {
+          status: "active",
+          OR: [{ userAId: userId }, { userBId: userId }],
+        },
       },
       select: { id: true },
     });

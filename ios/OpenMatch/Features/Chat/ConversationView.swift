@@ -1,24 +1,27 @@
 import SwiftUI
 
 
+@MainActor
 final class ConversationViewModel: ObservableObject {
     @Published var messages: [MessageDTO] = []
     @Published var draft: String = ""
     @Published var error: String?
     let conversationId: String
-    private let api: APIClient
-    init(api: APIClient, conversationId: String) {
-        self.api = api
+    var api: APIClient?
+
+    init(conversationId: String) {
         self.conversationId = conversationId
     }
 
     func load() async {
+        guard let api else { return }
         do { messages = try await api.messages(conversationId: conversationId) } catch {
             self.error = error.localizedDescription
         }
     }
 
     func send() async {
+        guard let api else { return }
         let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
         draft = ""
@@ -40,12 +43,7 @@ struct ConversationView: View {
     init(conversationId: String, title: String) {
         self.conversationId = conversationId
         self.title = title
-        _vm = StateObject(
-            wrappedValue: ConversationViewModel(
-                api: APIClient(baseURL: APIConfig.defaultBaseURL),
-                conversationId: conversationId
-            )
-        )
+        _vm = StateObject(wrappedValue: ConversationViewModel(conversationId: conversationId))
     }
 
     var body: some View {
@@ -90,7 +88,18 @@ struct ConversationView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await vm.load() }
+        .task {
+            vm.api = api
+            await vm.load()
+        }
+        .alert("Message error", isPresented: .init(
+            get: { vm.error != nil },
+            set: { _ in vm.error = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(vm.error ?? "")
+        }
     }
 }
 

@@ -56,6 +56,10 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
               : 0;
           return {
             profileId: card.profileId,
+            // The owning user id is exposed so clients can call block/report
+            // without an extra round-trip. It's already known to anyone who
+            // matches or likes this profile; no additional disclosure here.
+            userId: profile?.userId ?? "",
             displayName: profile?.displayName ?? "",
             bio: profile?.bio ?? "",
             gender: profile?.gender,

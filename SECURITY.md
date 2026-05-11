@@ -4,7 +4,7 @@ OpenMatch handles sensitive user data — photos, location, messages, identity. 
 
 ## Reporting a vulnerability
 
-**Do not** open a public issue. Send a report to **security@openmatch.example** (replace with the project's real address before public launch) or use GitHub's private security advisory feature on this repository.
+**Do not** open a public issue. Use [GitHub's private security advisory](https://github.com/cheesejaguar/openmatch/security/advisories/new) on this repository — that's the canonical channel and reaches the maintainers directly. A dedicated email address will be published once the project has a custodial team to monitor it; until then, the GitHub advisory flow is the only supported reporting path.
 
 Please include:
 
@@ -18,11 +18,11 @@ We will acknowledge your report within **3 business days** and aim to ship a fix
 ## What's in scope
 
 - The iOS app (`/ios`).
-- The backend (`/backend`).
+- The backend (`/backend`) deployed as Vercel Functions.
 - The matching package (`/matching`).
-- Infrastructure-as-code (`/infra`) — only credential leakage or insecure defaults; deployment of customer-owned infra is the customer's responsibility.
+- Deployment configuration (`vercel.json`, `.github/workflows/`) — only credential leakage or insecure defaults; deployment of customer-owned infra is the customer's responsibility.
 
-Out of scope: third-party services (App Store, GCP), denial-of-service that requires unrealistic resources, social engineering of maintainers, and findings on outdated forks.
+Out of scope: third-party services (App Store, Vercel, Neon, Upstash, Ably), denial-of-service that requires unrealistic resources, social engineering of maintainers, and findings on outdated forks.
 
 ## Disclosure
 
@@ -35,12 +35,14 @@ We follow coordinated disclosure. Once a fix is shipped (or a mitigation is in p
 ## Hardening already in place
 
 - TLS for all network traffic.
-- Short-lived JWT access tokens with rotating refresh tokens.
+- Short-lived JWT access tokens (15 min) with rotating refresh tokens (30 days, revoked on use).
 - Tokens stored in iOS Keychain.
-- Photos served via signed, expiring URLs.
+- Photos uploaded directly to Vercel Blob via one-shot, scoped, short-lived tokens — the API never proxies binary content.
 - Location stored at PostGIS precision internally but only ever exposed as bucketed text ("8 miles away") to other users.
-- Rate limits on likes, messages, and authentication endpoints.
+- Per-route rate limits on auth, swipes, messaging, blocks, and reports — backed by Upstash Redis so limits survive across stateless function invocations.
+- Realtime chat tokens issued via Ably with capabilities scoped strictly to the caller's active conversations.
+- Email magic-link tokens are 256-bit, single-use, expire in 15 minutes, and are stored hashed.
 - No third-party advertising or cross-app tracking SDKs.
-- Moderator access to private data is logged and requires a justification.
+- Opportunistic cleanup of expired auth challenges and revoked sessions on every use.
 
 See `docs/privacy/principles.md` for the privacy model and `docs/safety/community-guidelines.md` for the trust-and-safety policy.

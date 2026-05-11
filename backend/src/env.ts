@@ -36,6 +36,10 @@ const schema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
 
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
+  // Public base URL the API answers on. Used to build absolute links in
+  // outgoing email (magic links, etc.). In production set this to the
+  // Vercel/Custom domain, e.g. https://api.openmatch.app.
+  APP_BASE_URL: z.string().url().default("http://localhost:8080"),
   ALLOW_DEV_LOGIN: z
     .string()
     .default("false")

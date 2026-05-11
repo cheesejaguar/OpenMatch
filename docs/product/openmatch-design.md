@@ -588,9 +588,9 @@ Buttons always available; VoiceOver labels for everything; Dynamic Type; contras
 
 Auth, Profile, Media, Discovery, Swipe, Match, Likes, Chat, Notification, Moderation, Transparency. MVP: modular monolith; split later.
 
-Stack: API server, PostgreSQL with PostGIS, Redis, object storage, CDN, WebSocket service, APNs, background worker, moderation queue.
+Stack (current): Vercel Functions (Node 20, Fastify) for the API; Neon Postgres + PostGIS for the database; Upstash Redis (REST) for cache and rate-limit state; Vercel Blob for photo storage; Ably for realtime chat fan-out; SMTP/Resend for transactional email; APNs for push (planned). All data services are managed (no Kubernetes/Terraform on the critical path). Legacy GCP Terraform lives in `infra/legacy-gcp/` for one release cycle to support data migration.
 
-Open-source backend OK; secrets and prod config remain private. REST + WebSocket + OpenAPI for MVP; `/api/v1/...`.
+Open-source backend OK; secrets and prod config (env vars, Ably / Upstash / Neon / Blob tokens) remain private. REST + OpenAPI for the API surface; realtime chat is a separate transport (Ably channels with capability-scoped tokens). All routes live under `/api/v1/...`.
 
 ## 20. Data Model
 

@@ -148,6 +148,7 @@ export async function buildDeck(input: BuildDeckInput) {
     JOIN "Preferences" pref ON pref."userId" = p."userId"
     WHERE p."userId" <> $1
       AND p."visibilityStatus" = 'visible'
+      AND p."moderationStatus" = 'clean'
       AND u."status" = 'active'
       AND ST_DWithin(
         p."location",

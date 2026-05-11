@@ -4,34 +4,44 @@ import { z } from "zod";
 import { handlePhotoUpload } from "../lib/media.js";
 
 const updateSchema = z.object({
-  displayName: z.string().min(1).max(50).optional(),
+  displayName: z.string().trim().min(1).max(50).optional(),
   bio: z.string().max(500).optional(),
-  gender: z.string().optional(),
-  pronouns: z.string().optional(),
-  city: z.string().optional(),
-  region: z.string().optional(),
-  country: z.string().optional(),
+  gender: z.string().min(1).max(40).optional(),
+  pronouns: z.string().max(40).optional(),
+  city: z.string().max(120).optional(),
+  region: z.string().max(120).optional(),
+  country: z.string().max(120).optional(),
   heightCm: z.number().int().min(120).max(230).optional(),
-  educationLevel: z.string().optional(),
-  college: z.string().optional(),
-  jobTitle: z.string().optional(),
+  educationLevel: z.string().max(60).optional(),
+  college: z.string().max(120).optional(),
+  jobTitle: z.string().max(120).optional(),
   companyDisplayEnabled: z.boolean().optional(),
-  company: z.string().optional(),
-  relationshipGoal: z.string().optional(),
-  childrenStatus: z.string().optional(),
-  familyPlans: z.string().optional(),
-  drinking: z.string().optional(),
-  smoking: z.string().optional(),
-  cannabis: z.string().optional(),
-  exercise: z.string().optional(),
-  diet: z.string().optional(),
-  religion: z.string().optional(),
-  politics: z.string().optional(),
-  languages: z.array(z.string()).optional(),
-  interests: z.array(z.string()).optional(),
-  prompts: z.array(z.object({ question: z.string(), answer: z.string() })).optional(),
+  company: z.string().max(120).optional(),
+  relationshipGoal: z.string().max(60).optional(),
+  childrenStatus: z.string().max(60).optional(),
+  familyPlans: z.string().max(60).optional(),
+  drinking: z.string().max(60).optional(),
+  smoking: z.string().max(60).optional(),
+  cannabis: z.string().max(60).optional(),
+  exercise: z.string().max(60).optional(),
+  diet: z.string().max(60).optional(),
+  religion: z.string().max(60).optional(),
+  politics: z.string().max(60).optional(),
+  languages: z.array(z.string().max(60)).max(20).optional(),
+  interests: z.array(z.string().max(60)).max(30).optional(),
+  prompts: z
+    .array(
+      z.object({
+        question: z.string().min(1).max(200),
+        answer: z.string().min(1).max(500),
+      }),
+    )
+    .max(6)
+    .optional(),
   visibilityStatus: z.enum(["visible", "hidden"]).optional(),
-  location: z.object({ lat: z.number(), lng: z.number() }).optional(),
+  location: z
+    .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
+    .optional(),
   dateOfBirth: z.string().optional(), // ISO; only accepted at first onboarding
 });
 

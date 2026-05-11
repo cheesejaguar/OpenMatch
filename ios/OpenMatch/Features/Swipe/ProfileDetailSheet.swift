@@ -47,8 +47,10 @@ struct ProfileDetailSheet: View {
                     .padding(14)
                     .background(OMColor.surfaceMuted, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                    SafetyActions(profileId: card.profileId)
-                        .padding(.top, 8)
+                    SafetyActions(profileId: card.profileId, userId: card.userId) {
+                        dismiss()
+                    }
+                    .padding(.top, 8)
                 }
                 .padding(20)
             }

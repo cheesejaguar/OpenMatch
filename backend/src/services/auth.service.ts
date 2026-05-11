@@ -38,6 +38,19 @@ export async function startEmailLogin(
 
   const existing = await prisma.user.findFirst({ where: { emailHash } });
 
+  // Opportunistic cleanup: delete this user's expired/consumed challenges so
+  // the table doesn't bloat. Cheap because of the userId index. Safe to
+  // race with concurrent challenges — we only remove rows that are no
+  // longer usable.
+  if (existing) {
+    await prisma.authChallenge.deleteMany({
+      where: {
+        userId: existing.id,
+        OR: [{ expiresAt: { lt: new Date() } }, { consumedAt: { not: null } }],
+      },
+    });
+  }
+
   const challenge = await prisma.authChallenge.create({
     data: {
       email: input.email,
@@ -47,7 +60,7 @@ export async function startEmailLogin(
     },
   });
 
-  const link = `http://localhost:${env.PORT}/api/v1/auth/verify?challengeId=${challenge.id}&token=${token}`;
+  const link = `${env.APP_BASE_URL.replace(/\/+$/, "")}/api/v1/auth/verify?challengeId=${challenge.id}&token=${token}`;
   await getMailer()
     .sendMail({
       from: env.SMTP_FROM,
@@ -147,6 +160,21 @@ export async function rotateRefreshToken(
     where: { id: session.id },
     data: { revokedAt: new Date() },
   });
+
+  // Opportunistic cleanup of this user's already-expired or long-revoked
+  // sessions so the table doesn't grow unbounded. Cheap with the userId
+  // index. Keeps very recent revocations around for forensics.
+  const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+  await prisma.session.deleteMany({
+    where: {
+      userId: session.userId,
+      OR: [
+        { expiresAt: { lt: new Date() } },
+        { revokedAt: { lt: new Date(Date.now() - SEVEN_DAYS) } },
+      ],
+    },
+  });
+
   return issueSession(prisma, session.userId, signAccess);
 }
 

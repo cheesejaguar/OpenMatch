@@ -14,7 +14,7 @@ struct SwipeDeckView: View {
         if let vm = viewModel {
             _vm = StateObject(wrappedValue: vm)
         } else {
-            _vm = StateObject(wrappedValue: SwipeDeckViewModel(api: APIClient(baseURL: APIConfig.defaultBaseURL)))
+            _vm = StateObject(wrappedValue: SwipeDeckViewModel())
         }
     }
 
@@ -55,7 +55,8 @@ struct SwipeDeckView: View {
                 }
             }
             .task {
-                // Refresh the API client reference once env-injected.
+                // Inject the shared API client once it's env-available.
+                vm.api = api
                 vm.cards.removeAll(keepingCapacity: true)
                 await vm.load()
             }

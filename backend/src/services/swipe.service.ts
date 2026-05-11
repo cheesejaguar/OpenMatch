@@ -12,7 +12,9 @@ export interface RecordSwipeInput {
 }
 
 export interface RecordSwipeResult {
-  swipeId: string;
+  // null means the swipe was a silent no-op (e.g. against a blocked user)
+  // and there is nothing to undo.
+  swipeId: string | null;
   matched: boolean;
   matchId?: string;
 }
@@ -37,8 +39,10 @@ export async function recordSwipe(
     },
   });
   if (isBlocked) {
-    const placeholderId = `noop-${Date.now()}`;
-    return { swipeId: placeholderId, matched: false };
+    // Silent no-op: don't record the swipe, don't reveal the block to the
+    // swiper, and return null so the client cannot attempt to "undo" a
+    // non-existent row.
+    return { swipeId: null, matched: false };
   }
 
   return prisma.$transaction(async (tx) => {

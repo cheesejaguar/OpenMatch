@@ -7,6 +7,7 @@ enum SwipeDecision: String, Codable {
 
 struct ProfileCardModel: Identifiable, Equatable {
     let profileId: String
+    let userId: String
     let displayName: String
     let bio: String
     let distanceText: String
@@ -21,6 +22,7 @@ struct ProfileCardModel: Identifiable, Equatable {
 
     init(from card: DeckCardDTO) {
         self.profileId = card.profileId
+        self.userId = card.userId
         self.displayName = card.displayName
         self.bio = card.bio
         self.distanceText = card.distanceText
