@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { currentConfig } from "../src/config.js";
 import { checkEligibility } from "../src/eligibility.js";
-import { FIXED_NOW, emptyBlocks, emptySwipes, makeCandidates, makeViewer } from "./helpers.js";
+import { emptyBlocks, emptySwipes, FIXED_NOW, makeCandidates, makeViewer } from "./helpers.js";
 
 describe("eligibility", () => {
   it("excludes self", () => {

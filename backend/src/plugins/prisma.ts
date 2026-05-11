@@ -1,4 +1,4 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
+import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@prisma/client";
 import fp from "fastify-plugin";
@@ -21,8 +21,7 @@ type GlobalWithPrisma = typeof globalThis & { __omPrisma?: PrismaClient };
 const g = globalThis as GlobalWithPrisma;
 
 function buildClient(): PrismaClient {
-  const pool = new Pool({ connectionString: env.DATABASE_URL });
-  const adapter = new PrismaNeon(pool);
+  const adapter = new PrismaNeon({ connectionString: env.DATABASE_URL });
   return new PrismaClient({ adapter });
 }
 

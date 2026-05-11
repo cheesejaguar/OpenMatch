@@ -33,7 +33,8 @@ jobs:
         run: npm run format:check
 
       - name: Generate Prisma client
-        run: npx prisma generate --schema backend/prisma/schema.prisma
+        run: npx prisma generate
+        working-directory: backend
 
       # @openmatch/backend imports the @openmatch/matching workspace,
       # which resolves to matching/dist/index.d.ts via its "types" field.
@@ -101,10 +102,12 @@ jobs:
       - run: npm ci
 
       - name: Generate Prisma client
-        run: npx prisma generate --schema backend/prisma/schema.prisma
+        run: npx prisma generate
+        working-directory: backend
 
       - name: Apply Prisma migrations
-        run: npx prisma migrate deploy --schema backend/prisma/schema.prisma
+        run: npx prisma migrate deploy
+        working-directory: backend
 
       - name: Run backend tests
         run: npm test -w @openmatch/backend

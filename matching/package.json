@@ -13,7 +13,12 @@
     },
     "./config": "./algorithm_config.json"
   },
-  "files": ["dist", "algorithm_config.json", "README.md", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "algorithm_config.json",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",

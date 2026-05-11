@@ -1,3 +1,4 @@
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import users from "../../matching/fixtures/synthetic-users.json" with { type: "json" };
 
@@ -17,7 +18,8 @@ interface RawUser {
   moderationStatus: string;
 }
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg(process.env.DATABASE_URL ?? "");
+const prisma = new PrismaClient({ adapter });
 
 function dobForAge(years: number, today = new Date()): Date {
   const d = new Date(today);
