@@ -216,6 +216,12 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate --schema backend/prisma/schema.prisma
 
+      # backend/src/server.ts imports @openmatch/matching, whose package
+      # entry is matching/dist/index.js. Build it before vitest spins up
+      # the server in tests.
+      - name: Build matching package
+        run: npm run build -w @openmatch/matching
+
       - name: Apply Prisma migrations
         run: |
           set +e
