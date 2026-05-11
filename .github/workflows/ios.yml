@@ -1,0 +1,184 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: xcodebuild build (generic simulator)
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          which xcodegen || echo "xcodegen not installed yet"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Cache SwiftPM and DerivedData
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/Developer/Xcode/DerivedData
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('ios/project.yml') }}
+          restore-keys: swiftpm-${{ runner.os }}-
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: List schemes
+        working-directory: ios
+        run: xcodebuild -project OpenMatch.xcodeproj -list
+
+      - name: Build
+        id: build
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project OpenMatch.xcodeproj \
+            -scheme OpenMatch \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build/DerivedData \
+            build 2>&1 | tee /tmp/xcodebuild.log
+
+      - name: Annotate compiler errors on failure
+        if: failure()
+        run: |
+          while IFS= read -r line; do
+            echo "::error::${line}"
+          done < <(grep -E "error:|\\*\\* BUILD FAILED \\*\\*" /tmp/xcodebuild.log | head -50)
+
+      - name: Publish build log on failure
+        if: failure()
+        run: |
+          {
+            echo "## xcodebuild build failed"
+            echo ""
+            echo "### error/warning lines"
+            echo '```'
+            grep -E "error:|warning:|\*\* BUILD FAILED \*\*" /tmp/xcodebuild.log | head -200 || true
+            echo '```'
+            echo ""
+            echo "### last 200 lines of full log"
+            echo '```'
+            tail -n 200 /tmp/xcodebuild.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: /tmp/xcodebuild.log
+          retention-days: 7
+
+  test:
+    name: xcodebuild test (booted simulator)
+    runs-on: macos-latest
+    needs: build
+    timeout-minutes: 30
+    if: ${{ success() }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          xcrun simctl list devices available | tee /tmp/simlist.txt
+          DEVICE=$(grep -E "iPhone [0-9]+( Pro| Plus| Pro Max)?( \(.*\))?" /tmp/simlist.txt \
+            | grep -v "unavailable" \
+            | head -1 \
+            | sed -E 's/^[[:space:]]+([^(]+)[[:space:]]+\(.*$/\1/' \
+            | xargs)
+          if [ -z "$DEVICE" ]; then
+            DEVICE="iPhone 16"
+          fi
+          echo "Selected simulator: '$DEVICE'"
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        working-directory: ios
+        env:
+          DEVICE: ${{ steps.sim.outputs.device }}
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project OpenMatch.xcodeproj \
+            -scheme OpenMatch \
+            -destination "platform=iOS Simulator,name=$DEVICE,OS=latest" \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            test 2>&1 | tee /tmp/xcodebuild-test.log
+
+      - name: Annotate test failures
+        if: failure()
+        run: |
+          while IFS= read -r line; do
+            echo "::error::${line}"
+          done < <(grep -E "error:|Test Case.*failed|\\*\\* TEST FAILED \\*\\*" /tmp/xcodebuild-test.log | head -50)
+
+      - name: Publish test log on failure
+        if: failure()
+        run: |
+          {
+            echo "## xcodebuild test failed"
+            echo ""
+            echo "### errors and failed test cases"
+            echo '```'
+            grep -E "error:|Test Case.*failed|\*\* TEST FAILED \*\*|failed:" /tmp/xcodebuild-test.log | head -200 || true
+            echo '```'
+            echo ""
+            echo "### last 300 lines of full log"
+            echo '```'
+            tail -n 300 /tmp/xcodebuild-test.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-test-log
+          path: /tmp/xcodebuild-test.log
+          retention-days: 7

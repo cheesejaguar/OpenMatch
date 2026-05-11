@@ -66,10 +66,7 @@ export async function unblockUser(
   });
 }
 
-export async function listBlockedUsers(
-  prisma: PrismaClient,
-  blockerUserId: string,
-) {
+export async function listBlockedUsers(prisma: PrismaClient, blockerUserId: string) {
   return prisma.block.findMany({
     where: { blockerUserId },
     orderBy: { createdAt: "desc" },

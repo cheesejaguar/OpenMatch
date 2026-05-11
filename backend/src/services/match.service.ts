@@ -22,11 +22,7 @@ export async function listMatches(prisma: PrismaClient, userId: string) {
   });
 }
 
-export async function unmatch(
-  prisma: PrismaClient,
-  matchId: string,
-  byUserId: string,
-) {
+export async function unmatch(prisma: PrismaClient, matchId: string, byUserId: string) {
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) return { unmatched: false };
   if (match.userAId !== byUserId && match.userBId !== byUserId) {

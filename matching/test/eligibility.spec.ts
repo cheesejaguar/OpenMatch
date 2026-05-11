@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { checkEligibility } from "../src/eligibility.js";
 import { currentConfig } from "../src/config.js";
-import {
-  emptyBlocks,
-  emptySwipes,
-  FIXED_NOW,
-  makeCandidates,
-  makeViewer,
-} from "./helpers.js";
+import { checkEligibility } from "../src/eligibility.js";
+import { FIXED_NOW, emptyBlocks, emptySwipes, makeCandidates, makeViewer } from "./helpers.js";
 
 describe("eligibility", () => {
   it("excludes self", () => {
@@ -66,9 +60,7 @@ describe("eligibility", () => {
   it("excludes users under moderation review", () => {
     const viewer = makeViewer("viewerSeekingLongTermMen");
     const candidates = makeCandidates(viewer);
-    const target = candidates.find(
-      (c) => c.profile.moderationStatus === "under_review",
-    );
+    const target = candidates.find((c) => c.profile.moderationStatus === "under_review");
     expect(target).toBeDefined();
     const r = checkEligibility({
       viewer,
@@ -161,9 +153,7 @@ describe("eligibility", () => {
     const viewer = makeViewer("viewerSeekingLongTermMen");
     const candidates = makeCandidates(viewer);
     const target = candidates.find(
-      (c) =>
-        c.profile.gender === "Man" &&
-        c.distanceKm <= viewer.preferences.maxDistanceKm,
+      (c) => c.profile.gender === "Man" && c.distanceKm <= viewer.preferences.maxDistanceKm,
     )!;
     const r = checkEligibility({
       viewer,
@@ -197,12 +187,7 @@ describe("eligibility", () => {
         c.profile.interestedInGenders.includes("Woman"),
     )!;
     const longAgo = new Date(
-      FIXED_NOW.getTime() -
-        (currentConfig.constraints.rejectStickyDays + 5) *
-          24 *
-          60 *
-          60 *
-          1000,
+      FIXED_NOW.getTime() - (currentConfig.constraints.rejectStickyDays + 5) * 24 * 60 * 60 * 1000,
     );
     const r = checkEligibility({
       viewer,
@@ -227,9 +212,7 @@ describe("eligibility", () => {
     const viewer = makeViewer("viewerSeekingLongTermMen");
     const candidates = makeCandidates(viewer);
     const target = candidates.find(
-      (c) =>
-        c.profile.gender === "Man" &&
-        c.distanceKm <= viewer.preferences.maxDistanceKm,
+      (c) => c.profile.gender === "Man" && c.distanceKm <= viewer.preferences.maxDistanceKm,
     )!;
     const r = checkEligibility({
       viewer,

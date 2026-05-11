@@ -8,14 +8,17 @@ final class OpenMatchUITests: XCTestCase {
     func testAppLaunchesAndShowsWelcomeOrTabs() throws {
         let app = XCUIApplication()
         app.launch()
-        // Wait for either the Welcome view or the swipe tab to be available,
-        // depending on whether the keychain has cached credentials.
+
+        // The app may show the Welcome screen (no cached credentials) or
+        // jump straight to the Swipe tab (credentials in Keychain).
+        // Either is a valid post-launch state — wait for EITHER, not both.
         let welcome = app.staticTexts["OpenMatch"]
         let swipeTab = app.tabBars.buttons["Swipe"]
-        let predicate = NSPredicate(format: "exists == true")
-        let exp = expectation(for: predicate, evaluatedWith: welcome, handler: nil)
-        let exp2 = expectation(for: predicate, evaluatedWith: swipeTab, handler: nil)
-        wait(for: [exp, exp2], timeout: 8, enforceOrder: false)
-        XCTAssertTrue(welcome.exists || swipeTab.exists)
+        let deadline = Date(timeIntervalSinceNow: 30)
+        while Date() < deadline {
+            if welcome.exists || swipeTab.exists { return }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTFail("Neither the Welcome screen nor the Swipe tab appeared within 30 seconds")
     }
 }

@@ -1,9 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 
-export async function listConversations(
-  prisma: PrismaClient,
-  userId: string,
-) {
+export async function listConversations(prisma: PrismaClient, userId: string) {
   return prisma.conversation.findMany({
     where: {
       match: {
@@ -39,11 +36,7 @@ export async function authorizedForConversation(
   return c.match.userAId === userId || c.match.userBId === userId;
 }
 
-export async function listMessages(
-  prisma: PrismaClient,
-  conversationId: string,
-  userId: string,
-) {
+export async function listMessages(prisma: PrismaClient, conversationId: string, userId: string) {
   if (!(await authorizedForConversation(prisma, conversationId, userId))) {
     return null;
   }

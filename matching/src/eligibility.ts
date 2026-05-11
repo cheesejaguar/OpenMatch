@@ -10,26 +10,16 @@ import type {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function notSelf(viewer: Viewer, candidate: Candidate): EligibilityResult {
-  return viewer.userId === candidate.profile.userId
-    ? { ok: false, reason: "self" }
-    : { ok: true };
+  return viewer.userId === candidate.profile.userId ? { ok: false, reason: "self" } : { ok: true };
 }
 
-function blockedEither(
-  viewer: Viewer,
-  candidate: Candidate,
-  blocks: Block[],
-): EligibilityResult {
+function blockedEither(viewer: Viewer, candidate: Candidate, blocks: Block[]): EligibilityResult {
   const byViewer = blocks.some(
-    (b) =>
-      b.blockerId === viewer.userId &&
-      b.blockedId === candidate.profile.userId,
+    (b) => b.blockerId === viewer.userId && b.blockedId === candidate.profile.userId,
   );
   if (byViewer) return { ok: false, reason: "blocked_by_viewer" };
   const byCandidate = blocks.some(
-    (b) =>
-      b.blockerId === candidate.profile.userId &&
-      b.blockedId === viewer.userId,
+    (b) => b.blockerId === candidate.profile.userId && b.blockedId === viewer.userId,
   );
   if (byCandidate) return { ok: false, reason: "blocked_by_candidate" };
   return { ok: true };
@@ -47,20 +37,14 @@ function candidateVisible(candidate: Candidate): EligibilityResult {
     : { ok: false, reason: "candidate_not_visible" };
 }
 
-function moderationOk(
-  candidate: Candidate,
-  config: AlgorithmConfig,
-): EligibilityResult {
+function moderationOk(candidate: Candidate, config: AlgorithmConfig): EligibilityResult {
   if (!config.constraints.excludeModerationRestrictedUsers) return { ok: true };
   const status = candidate.profile.moderationStatus;
   if (status === "clean" || status === "reviewed_ok") return { ok: true };
   return { ok: false, reason: "moderation_restriction" };
 }
 
-function withinDistance(
-  viewer: Viewer,
-  candidate: Candidate,
-): EligibilityResult {
+function withinDistance(viewer: Viewer, candidate: Candidate): EligibilityResult {
   if (candidate.distanceKm > viewer.preferences.maxDistanceKm) {
     return { ok: false, reason: "out_of_distance_range" };
   }
@@ -99,26 +83,17 @@ function genderMutuallyAcceptable(
 ): EligibilityResult {
   if (!config.constraints.respectMutualGenderPreferences) return { ok: true };
   const viewerInterested = viewer.preferences.interestedGenders;
-  if (
-    viewerInterested.length > 0 &&
-    !viewerInterested.includes(candidate.profile.gender)
-  ) {
+  if (viewerInterested.length > 0 && !viewerInterested.includes(candidate.profile.gender)) {
     return { ok: false, reason: "incompatible_gender_preference" };
   }
   const candidateInterested = candidate.profile.interestedInGenders;
-  if (
-    candidateInterested.length > 0 &&
-    !candidateInterested.includes(viewer.profile.gender)
-  ) {
+  if (candidateInterested.length > 0 && !candidateInterested.includes(viewer.profile.gender)) {
     return { ok: false, reason: "incompatible_gender_preference" };
   }
   return { ok: true };
 }
 
-function goalsCompatibleIfRequired(
-  viewer: Viewer,
-  candidate: Candidate,
-): EligibilityResult {
+function goalsCompatibleIfRequired(viewer: Viewer, candidate: Candidate): EligibilityResult {
   if (!viewer.preferences.excludeIncompatibleGoals) return { ok: true };
   const wanted = viewer.preferences.relationshipGoals;
   if (wanted.length === 0) return { ok: true };
@@ -130,9 +105,7 @@ function goalsCompatibleIfRequired(
       ? { ok: true }
       : { ok: false, reason: "incompatible_goal_filter" };
   }
-  return wanted.includes(goal)
-    ? { ok: true }
-    : { ok: false, reason: "incompatible_goal_filter" };
+  return wanted.includes(goal) ? { ok: true } : { ok: false, reason: "incompatible_goal_filter" };
 }
 
 function notRecentlyActedUpon(

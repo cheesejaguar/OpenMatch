@@ -1,6 +1,6 @@
 import SwiftUI
 
-@MainActor
+
 final class LookingForViewModel: ObservableObject {
     @Published var prefs: PreferencesDTO?
     @Published var error: String?

@@ -28,10 +28,7 @@ describe("haversineKm", () => {
     ).toBeCloseTo(0, 5);
   });
   it("returns a reasonable distance between San Jose and San Francisco", () => {
-    const d = haversineKm(
-      { lat: 37.3382, lng: -121.8863 },
-      { lat: 37.7749, lng: -122.4194 },
-    );
+    const d = haversineKm({ lat: 37.3382, lng: -121.8863 }, { lat: 37.7749, lng: -122.4194 });
     expect(d).toBeGreaterThan(60);
     expect(d).toBeLessThan(80);
   });

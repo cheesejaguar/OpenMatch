@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getDiscoveryDeck } from "../src/deck.js";
 import { currentConfig } from "../src/config.js";
-import {
-  emptyBlocks,
-  emptySwipes,
-  FIXED_NOW,
-  makeCandidates,
-  makeViewer,
-} from "./helpers.js";
+import { getDiscoveryDeck } from "../src/deck.js";
+import { FIXED_NOW, emptyBlocks, emptySwipes, makeCandidates, makeViewer } from "./helpers.js";
 
 describe("getDiscoveryDeck", () => {
   it("returns the algorithm version and ranking config version", () => {
@@ -113,9 +107,7 @@ describe("getDiscoveryDeck", () => {
       limit: 10,
       deckSessionId: "s",
     });
-    expect(a.cards.map((c) => c.userId)).toEqual(
-      b.cards.map((c) => c.userId),
-    );
+    expect(a.cards.map((c) => c.userId)).toEqual(b.cards.map((c) => c.userId));
   });
 
   it("returns an empty deck when filters are narrow enough", () => {

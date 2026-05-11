@@ -1,6 +1,6 @@
-import nodemailer from "nodemailer";
 import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import nodemailer from "nodemailer";
 import { env } from "../env.js";
 import { hashIdentity } from "../lib/media.js";
 
@@ -53,8 +53,7 @@ export async function startEmailLogin(
       from: env.SMTP_FROM,
       to: input.email,
       subject: "Your OpenMatch sign-in link",
-      text:
-        `Sign in to OpenMatch by visiting this link within ${env.MAGIC_LINK_TTL_SECONDS / 60} minutes:\n\n${link}\n\nIf you didn't request this, ignore this email.`,
+      text: `Sign in to OpenMatch by visiting this link within ${env.MAGIC_LINK_TTL_SECONDS / 60} minutes:\n\n${link}\n\nIf you didn't request this, ignore this email.`,
     })
     .catch(() => {
       // In tests / when SMTP isn't reachable we silently swallow.
@@ -81,8 +80,7 @@ export async function verifyEmailLogin(
     where: { id: input.challengeId },
   });
   if (!challenge) throw Object.assign(new Error("invalid_challenge"), { statusCode: 400 });
-  if (challenge.consumedAt)
-    throw Object.assign(new Error("challenge_used"), { statusCode: 400 });
+  if (challenge.consumedAt) throw Object.assign(new Error("challenge_used"), { statusCode: 400 });
   if (challenge.expiresAt.getTime() < Date.now())
     throw Object.assign(new Error("challenge_expired"), { statusCode: 400 });
   if (challenge.tokenHash !== hashToken(input.token))
@@ -152,10 +150,7 @@ export async function rotateRefreshToken(
   return issueSession(prisma, session.userId, signAccess);
 }
 
-export async function revokeSession(
-  prisma: PrismaClient,
-  refreshToken: string,
-): Promise<void> {
+export async function revokeSession(prisma: PrismaClient, refreshToken: string): Promise<void> {
   await prisma.session.updateMany({
     where: { refreshToken: hashToken(refreshToken) },
     data: { revokedAt: new Date() },

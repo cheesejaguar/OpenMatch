@@ -28,20 +28,11 @@ export type RelationshipGoal =
   | "NonMono"
   | "Open";
 
-export type ActivityBucket =
-  | "within24h"
-  | "within7d"
-  | "within30d"
-  | "older";
+export type ActivityBucket = "within24h" | "within7d" | "within30d" | "older";
 
 export type AccountStatus = "active" | "paused" | "banned" | "deleted";
 export type VisibilityStatus = "visible" | "hidden";
-export type ModerationStatus =
-  | "clean"
-  | "reviewed_ok"
-  | "under_review"
-  | "restricted"
-  | "removed";
+export type ModerationStatus = "clean" | "reviewed_ok" | "under_review" | "restricted" | "removed";
 
 export interface LatLng {
   lat: number;
@@ -161,10 +152,7 @@ export interface AlgorithmConfig {
     method: string;
     seedInputs: string[];
   };
-  relationshipGoalCompatibility: Record<
-    RelationshipGoal,
-    Record<RelationshipGoal, number>
-  >;
+  relationshipGoalCompatibility: Record<RelationshipGoal, Record<RelationshipGoal, number>>;
   activityBuckets: Record<ActivityBucket, number>;
   recommendedCompletenessFields: string[];
 }

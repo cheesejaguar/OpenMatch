@@ -16,7 +16,7 @@ enum APIError: Error, LocalizedError {
     }
 }
 
-@MainActor
+
 final class APIClient: ObservableObject {
     let baseURL: URL
     @Published private(set) var hasSession: Bool
@@ -44,8 +44,6 @@ final class APIClient: ObservableObject {
         self.hasSession = self.accessToken != nil
     }
 
-    // MARK: - Session management
-
     func setSession(_ s: SessionResponse) {
         accessToken = s.accessToken
         refreshToken = s.refreshToken
@@ -65,8 +63,6 @@ final class APIClient: ObservableObject {
         Keychain.shared.delete(.userId)
         hasSession = false
     }
-
-    // MARK: - Public auth endpoints
 
     func startLogin(email: String) async throws -> StartLoginResponse {
         try await post("/api/v1/auth/start", body: StartLoginRequest(
@@ -96,8 +92,6 @@ final class APIClient: ObservableObject {
         setSession(s)
         return s
     }
-
-    // MARK: - Core domain
 
     func loadDeck(limit: Int = 10) async throws -> DeckResponseDTO {
         try await get("/api/v1/discovery/deck?limit=\(limit)")
@@ -156,13 +150,13 @@ final class APIClient: ObservableObject {
         try await get("/api/v1/transparency/algorithm/current")
     }
 
-    // MARK: - Internals
-
     private struct EmptyBody: Codable {}
     private struct EmptyResponse: Codable {}
 
     private func get<T: Decodable>(_ path: String) async throws -> T {
-        try await request(path: path, method: "GET", body: nil)
+        // Explicit type witness so Swift can infer `B` when there is no body.
+        let nilBody: EmptyBody? = nil
+        return try await request(path: path, method: "GET", body: nilBody)
     }
 
     private func post<B: Encodable, T: Decodable>(_ path: String, body: B) async throws -> T {

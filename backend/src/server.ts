@@ -1,22 +1,22 @@
-import Fastify from "fastify";
-import sensible from "@fastify/sensible";
 import cors from "@fastify/cors";
-import websocket from "@fastify/websocket";
+import sensible from "@fastify/sensible";
 import swagger from "@fastify/swagger";
+import websocket from "@fastify/websocket";
+import Fastify from "fastify";
 import { env } from "./env.js";
-import prismaPlugin from "./plugins/prisma.js";
-import redisPlugin from "./plugins/redis.js";
 import authPlugin from "./plugins/auth.js";
+import prismaPlugin from "./plugins/prisma.js";
 import ratelimitPlugin from "./plugins/ratelimit.js";
+import redisPlugin from "./plugins/redis.js";
 import { authRoutes } from "./routes/auth.js";
-import { profileRoutes } from "./routes/profile.js";
-import { preferencesRoutes } from "./routes/preferences.js";
+import { chatRoutes } from "./routes/chat.js";
 import { discoveryRoutes } from "./routes/discovery.js";
-import { swipesRoutes } from "./routes/swipes.js";
 import { likesRoutes } from "./routes/likes.js";
 import { matchesRoutes } from "./routes/matches.js";
-import { chatRoutes } from "./routes/chat.js";
+import { preferencesRoutes } from "./routes/preferences.js";
+import { profileRoutes } from "./routes/profile.js";
 import { safetyRoutes } from "./routes/safety.js";
+import { swipesRoutes } from "./routes/swipes.js";
 import { transparencyRoutes } from "./routes/transparency.js";
 
 export async function buildServer() {

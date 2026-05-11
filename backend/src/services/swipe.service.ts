@@ -22,9 +22,7 @@ export async function recordSwipe(
   input: RecordSwipeInput,
 ): Promise<RecordSwipeResult> {
   if (input.viewerUserId === input.targetUserId) {
-    const err: NodeJS.ErrnoException & { statusCode?: number } = new Error(
-      "cannot_swipe_self",
-    );
+    const err: NodeJS.ErrnoException & { statusCode?: number } = new Error("cannot_swipe_self");
     err.statusCode = 400;
     throw err;
   }
@@ -90,10 +88,7 @@ export async function recordSwipe(
 
     // Order user ids canonically so the (userA, userB) unique constraint
     // never depends on who liked first.
-    const [userAId, userBId] = [
-      input.viewerUserId,
-      input.targetUserId,
-    ].sort() as [string, string];
+    const [userAId, userBId] = [input.viewerUserId, input.targetUserId].sort() as [string, string];
 
     const match = await tx.match.upsert({
       where: { userAId_userBId: { userAId, userBId } },

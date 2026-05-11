@@ -1,6 +1,6 @@
 import SwiftUI
 
-@MainActor
+
 final class ConversationViewModel: ObservableObject {
     @Published var messages: [MessageDTO] = []
     @Published var draft: String = ""

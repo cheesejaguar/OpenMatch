@@ -73,9 +73,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       if (Number.isNaN(dob.getTime())) {
         return reply.code(400).send({ error: "invalid_dob" });
       }
-      const age = Math.floor(
-        (Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25),
-      );
+      const age = Math.floor((Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
       if (age < 18) {
         return reply.code(403).send({ error: "underage" });
       }
@@ -110,17 +108,13 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     return profile;
   });
 
-  app.get<{ Params: { profileId: string } }>(
-    "/:profileId",
-    async (req, reply) => {
-      const profile = await app.prisma.profile.findUnique({
-        where: { id: req.params.profileId },
-        include: { photos: { orderBy: { sortOrder: "asc" } } },
-      });
-      if (!profile) return reply.code(404).send({ error: "not_found" });
-      if (profile.visibilityStatus === "hidden")
-        return reply.code(404).send({ error: "not_found" });
-      return profile;
-    },
-  );
+  app.get<{ Params: { profileId: string } }>("/:profileId", async (req, reply) => {
+    const profile = await app.prisma.profile.findUnique({
+      where: { id: req.params.profileId },
+      include: { photos: { orderBy: { sortOrder: "asc" } } },
+    });
+    if (!profile) return reply.code(404).send({ error: "not_found" });
+    if (profile.visibilityStatus === "hidden") return reply.code(404).send({ error: "not_found" });
+    return profile;
+  });
 };

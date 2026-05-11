@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-build:
+    name: Lint, typecheck, build (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint (Biome)
+        run: npm run lint
+
+      - name: Format check (Biome)
+        run: npm run format:check
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema backend/prisma/schema.prisma
+
+      # @openmatch/backend imports the @openmatch/matching workspace,
+      # which resolves to matching/dist/index.d.ts via its "types" field.
+      # Build matching first so the backend's tsc --noEmit can resolve it.
+      - name: Build matching package
+        run: npm run build -w @openmatch/matching
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build backend
+        run: npm run build -w @openmatch/backend
+
+  test-matching:
+    name: Test @openmatch/matching
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test -w @openmatch/matching
+
+  test-backend:
+    name: Test @openmatch/backend (Postgres + PostGIS)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: openmatch
+          POSTGRES_PASSWORD: openmatch
+          POSTGRES_DB: openmatch
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openmatch -d openmatch"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://openmatch:openmatch@localhost:5432/openmatch?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-only-secret-not-a-real-secret-do-not-use
+      NODE_ENV: test
+      ALLOW_DEV_LOGIN: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema backend/prisma/schema.prisma
+
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy --schema backend/prisma/schema.prisma
+
+      - name: Run backend tests
+        run: npm test -w @openmatch/backend

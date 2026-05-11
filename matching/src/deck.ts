@@ -2,12 +2,7 @@ import { currentConfig } from "./config.js";
 import { checkEligibility } from "./eligibility.js";
 import { explain } from "./explain.js";
 import { scoreCandidate } from "./scoring.js";
-import type {
-  Candidate,
-  DeckRequest,
-  DeckResponse,
-  ScoreBreakdown,
-} from "./types.js";
+import type { Candidate, DeckRequest, DeckResponse, ScoreBreakdown } from "./types.js";
 
 interface RankedEntry {
   candidate: Candidate;
@@ -18,9 +13,7 @@ interface RankedEntry {
 // by score. We slide forward the next dissimilar candidate when we'd
 // otherwise place two consecutive cards from the same age bucket AND the
 // same city.
-function applyFairnessAndDiversityRules(
-  ranked: RankedEntry[],
-): RankedEntry[] {
+function applyFairnessAndDiversityRules(ranked: RankedEntry[]): RankedEntry[] {
   if (ranked.length < 3) return ranked;
   const out: RankedEntry[] = [];
   const remaining = [...ranked];
@@ -38,11 +31,9 @@ function applyFairnessAndDiversityRules(
 }
 
 function isTooSimilar(a: RankedEntry, b: RankedEntry): boolean {
-  const sameAgeBucket =
-    ageBucket(a.candidate.profile.age) === ageBucket(b.candidate.profile.age);
+  const sameAgeBucket = ageBucket(a.candidate.profile.age) === ageBucket(b.candidate.profile.age);
   const sameCity =
-    a.candidate.profile.city !== null &&
-    a.candidate.profile.city === b.candidate.profile.city;
+    a.candidate.profile.city !== null && a.candidate.profile.city === b.candidate.profile.city;
   return sameAgeBucket && sameCity;
 }
 
@@ -64,21 +55,13 @@ export function getDiscoveryDeck(req: DeckRequest): DeckResponse {
       config,
     });
     if (!elig.ok) continue;
-    const breakdown = scoreCandidate(
-      req.viewer,
-      candidate,
-      config,
-      req.now,
-    );
+    const breakdown = scoreCandidate(req.viewer, candidate, config, req.now);
     eligible.push({ candidate, breakdown });
   }
 
   eligible.sort((a, b) => b.breakdown.total - a.breakdown.total);
 
-  const diversified = applyFairnessAndDiversityRules(eligible).slice(
-    0,
-    req.limit,
-  );
+  const diversified = applyFairnessAndDiversityRules(eligible).slice(0, req.limit);
 
   return {
     algorithmVersion: config.algorithmVersion,

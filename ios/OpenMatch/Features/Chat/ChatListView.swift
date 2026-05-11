@@ -1,6 +1,6 @@
 import SwiftUI
 
-@MainActor
+
 final class ChatListViewModel: ObservableObject {
     @Published var matches: [MatchDTO] = []
     @Published var error: String?

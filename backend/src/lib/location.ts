@@ -11,25 +11,22 @@ export interface FormattedDistance {
   text: string;
 }
 
-export function formatDistance(km: number, locale: "imperial" | "metric" = "imperial"): FormattedDistance {
+export function formatDistance(
+  km: number,
+  locale: "imperial" | "metric" = "imperial",
+): FormattedDistance {
   const miles = km * 0.621371;
   if (locale === "metric") {
     const kmRounded = bucketKm(km);
     return {
       miles,
-      text:
-        kmRounded === 0
-          ? "Nearby"
-          : kmRounded === 1
-            ? "Within 1 km"
-            : `${kmRounded} km away`,
+      text: kmRounded === 0 ? "Nearby" : kmRounded === 1 ? "Within 1 km" : `${kmRounded} km away`,
     };
   }
   const m = bucketMiles(miles);
   return {
     miles,
-    text:
-      m === 0 ? "Nearby" : m === 1 ? "Within 1 mile" : `${m} miles away`,
+    text: m === 0 ? "Nearby" : m === 1 ? "Within 1 mile" : `${m} miles away`,
   };
 }
 
@@ -61,8 +58,6 @@ export function haversineKm(
   const dLng = toRad(b.lng - a.lng);
   const x =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) *
-      Math.cos(toRad(b.lat)) *
-      Math.sin(dLng / 2) ** 2;
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(x));
 }

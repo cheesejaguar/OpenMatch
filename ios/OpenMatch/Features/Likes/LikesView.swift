@@ -1,6 +1,6 @@
 import SwiftUI
 
-@MainActor
+
 final class LikesViewModel: ObservableObject {
     @Published var visibility: LikesVisibility = .visible
     @Published var count: Int = 0

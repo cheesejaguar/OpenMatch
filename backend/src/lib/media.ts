@@ -1,6 +1,6 @@
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { randomUUID, createHash } from "node:crypto";
 import { env } from "../env.js";
 
 // Media abstraction. Production = GCS signed URLs.
@@ -19,10 +19,7 @@ export interface UploadTicket {
   expiresAt: Date;
 }
 
-export async function createUploadTicket(
-  profileId: string,
-  ext: string,
-): Promise<UploadTicket> {
+export async function createUploadTicket(profileId: string, ext: string): Promise<UploadTicket> {
   const safeExt = /^[a-z0-9]{2,5}$/i.test(ext) ? ext.toLowerCase() : "jpg";
   const storageKey = `profiles/${profileId}/${randomUUID()}.${safeExt}`;
 
@@ -48,10 +45,7 @@ export async function createUploadTicket(
   };
 }
 
-export async function writeLocal(
-  storageKey: string,
-  body: Buffer,
-): Promise<void> {
+export async function writeLocal(storageKey: string, body: Buffer): Promise<void> {
   const full = path.join(LOCAL_DIR, storageKey);
   await fs.mkdir(path.dirname(full), { recursive: true });
   await fs.writeFile(full, body);
@@ -67,7 +61,5 @@ export async function readLocal(storageKey: string): Promise<Buffer | null> {
 }
 
 export function hashIdentity(value: string): string {
-  return createHash("sha256")
-    .update(value.trim().toLowerCase())
-    .digest("hex");
+  return createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
