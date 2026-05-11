@@ -16,11 +16,16 @@ final class AppState: ObservableObject {
 
     let api: APIClient
 
-    init(api: APIClient = APIClient(baseURL: APIConfig.defaultBaseURL)) {
-        self.api = api
-        self.auth = api.hasSession ? .loggedIn(userId: api.cachedUserId ?? "self") : .loggedOut
-        if api.hasSession {
-            RealtimeService.shared.connect(api: api)
+    // The default APIClient must be constructed inside the body — its
+    // init is @MainActor-isolated and Swift evaluates default parameter
+    // expressions in a nonisolated context at the call site, even though
+    // AppState itself is @MainActor.
+    init(api: APIClient? = nil) {
+        let client = api ?? APIClient(baseURL: APIConfig.defaultBaseURL)
+        self.api = client
+        self.auth = client.hasSession ? .loggedIn(userId: client.cachedUserId ?? "self") : .loggedOut
+        if client.hasSession {
+            RealtimeService.shared.connect(api: client)
         }
     }
 
