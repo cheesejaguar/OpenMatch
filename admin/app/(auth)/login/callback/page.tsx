@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { adminPublicFetch } from "../../../../lib/api/admin-client";
+import { adminFetchWithToken, adminPublicFetch } from "../../../../lib/api/admin-client";
 import { setSessionCookie } from "../../../../lib/auth/session";
 
 interface VerifyResponse {
@@ -31,17 +31,14 @@ export default async function CallbackPage({ searchParams }: Params) {
   if (verify.status !== 200) {
     redirect("/login?error=verify_failed");
   }
-  // We've got an admin access token. Call /me to load roles and
-  // permissions so we can embed them in the session cookie (and avoid an
-  // extra hop on every page render).
-  const me = await fetch(
-    new URL("/api/v1/admin/auth/me", process.env.ADMIN_API_BASE_URL ?? "http://localhost:8080"),
-    {
-      headers: { authorization: `Bearer ${verify.data.accessToken}` },
-      cache: "no-store",
-    },
+  // We've got an admin access token but no session cookie yet, so call
+  // /me with an explicit bearer through the same anchored URL builder
+  // used elsewhere.
+  const meRes = await adminFetchWithToken<MeResponse>(
+    "/api/v1/admin/auth/me",
+    verify.data.accessToken,
   );
-  const meData = (await me.json()) as MeResponse;
+  const meData = meRes.data;
   await setSessionCookie({
     adminUserId: meData.adminUserId,
     email: meData.email,

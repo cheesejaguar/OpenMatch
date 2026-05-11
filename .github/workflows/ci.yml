@@ -24,7 +24,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - run: npm ci
+      - name: Diagnostic versions
+        run: node --version && npm --version
+      - run: npm ci --foreground-scripts
 
       - name: Lint (Biome)
         run: npm run lint
@@ -58,7 +60,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - run: npm ci
+      - name: Diagnostic versions
+        run: node --version && npm --version
+      - run: npm ci --foreground-scripts
 
       - name: Generate Prisma client (for shared types)
         run: npx prisma generate --schema backend/prisma/schema.prisma
@@ -80,7 +84,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - run: npm ci
+      - name: Diagnostic versions
+        run: node --version && npm --version
+      - run: npm ci --foreground-scripts
 
       - run: npm test -w @openmatch/matching
 
@@ -120,7 +126,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - run: npm ci
+      - name: Diagnostic versions
+        run: node --version && npm --version
+      - run: npm ci --foreground-scripts
 
       - name: Generate Prisma client
         run: npx prisma generate --schema backend/prisma/schema.prisma

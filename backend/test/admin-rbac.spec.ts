@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { buildServer } from "../src/server.js";
-import { ADMIN_ROLE_DEFINITIONS } from "../src/lib/admin/roles.js";
 import { PERMISSIONS } from "../src/lib/admin/permissions.js";
+import { ADMIN_ROLE_DEFINITIONS } from "../src/lib/admin/roles.js";
+import { buildServer } from "../src/server.js";
 import { createUser, resetDb, testPrisma } from "./helpers/db.js";
 
 // End-to-end admin smoke: login by issuing an access token directly,
