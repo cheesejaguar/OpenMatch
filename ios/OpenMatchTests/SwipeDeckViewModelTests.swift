@@ -5,13 +5,13 @@ import XCTest
 final class SwipeDeckModelsTests: XCTestCase {
     func testCardEquality() {
         let dto1 = DeckCardDTO(
-            profileId: "p1", displayName: "A", bio: "", gender: nil,
+            profileId: "p1", userId: "u1", displayName: "A", bio: "", gender: nil,
             pronouns: nil, relationshipGoal: nil, city: nil,
             distanceText: "Nearby", photos: [], interests: [],
             explanation: ExplanationDTO(summary: "", keys: [])
         )
         let dto2 = DeckCardDTO(
-            profileId: "p1", displayName: "A different name", bio: "x", gender: nil,
+            profileId: "p1", userId: "u-different", displayName: "A different name", bio: "x", gender: nil,
             pronouns: nil, relationshipGoal: nil, city: nil,
             distanceText: "Far", photos: [], interests: [],
             explanation: ExplanationDTO(summary: "x", keys: [])
@@ -23,7 +23,7 @@ final class SwipeDeckModelsTests: XCTestCase {
 
     func testPendingSwipeActionId() {
         let dto = DeckCardDTO(
-            profileId: "p1", displayName: "A", bio: "", gender: nil,
+            profileId: "p1", userId: "u1", displayName: "A", bio: "", gender: nil,
             pronouns: nil, relationshipGoal: nil, city: nil,
             distanceText: "Nearby", photos: [], interests: [],
             explanation: ExplanationDTO(summary: "", keys: [])

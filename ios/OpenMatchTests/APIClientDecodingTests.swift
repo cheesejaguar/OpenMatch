@@ -11,6 +11,7 @@ final class APIClientDecodingTests: XCTestCase {
           "cards": [
             {
               "profileId": "p1",
+              "userId": "u1",
               "displayName": "Sam",
               "bio": "Hi there",
               "gender": "Man",
