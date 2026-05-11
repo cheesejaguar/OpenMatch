@@ -158,6 +158,30 @@ final class APIClient: ObservableObject {
         try await self.patch("/api/v1/profile/me/profile", body: patch)
     }
 
+    // MARK: - Profile photos
+
+    // Server-mediated upload. We send the compressed JPEG bytes as
+    // multipart/form-data; the backend stores them in Vercel Blob and
+    // persists a ProfilePhoto row, which we return.
+    func uploadPhoto(data: Data, mimeType: String = "image/jpeg") async throws -> PhotoDTO {
+        try await uploadMultipart(
+            "/api/v1/profile/me/photos",
+            fileFieldName: "file",
+            filename: "photo.jpg",
+            mimeType: mimeType,
+            data: data
+        )
+    }
+
+    func deletePhoto(id: String) async throws {
+        let _: EmptyResponse = try await delete("/api/v1/profile/me/photos/\(id)")
+    }
+
+    func reorderPhotos(_ photoIds: [String]) async throws -> [PhotoDTO] {
+        struct B: Codable { let photoIds: [String] }
+        return try await put("/api/v1/profile/me/photos/order", body: B(photoIds: photoIds))
+    }
+
     // MARK: - Preferences
 
     func preferences() async throws -> PreferencesDTO {
@@ -220,9 +244,84 @@ final class APIClient: ObservableObject {
         try await request(path: path, method: "PATCH", body: body)
     }
 
+    private func put<B: Encodable, T: Decodable>(_ path: String, body: B) async throws -> T {
+        try await request(path: path, method: "PUT", body: body)
+    }
+
     private func delete<T: Decodable>(_ path: String) async throws -> T {
         let nilBody: EmptyBody? = nil
         return try await request(path: path, method: "DELETE", body: nilBody)
+    }
+
+    // Multipart/form-data upload. Hand-rolled because @fastify/multipart
+    // wants a real multipart envelope and URLSession's `upload(for:from:)`
+    // alone doesn't produce one.
+    private func uploadMultipart<T: Decodable>(
+        _ path: String,
+        fileFieldName: String,
+        filename: String,
+        mimeType: String,
+        data: Data,
+        isRetry: Bool = false
+    ) async throws -> T {
+        guard let url = URL(string: path, relativeTo: baseURL) else {
+            throw APIError.transport(URLError(.badURL))
+        }
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        var body = Data()
+        let CRLF = "\r\n"
+        body.append("--\(boundary)\(CRLF)".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"\(fileFieldName)\"; filename=\"\(filename)\"\(CRLF)".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\(CRLF)\(CRLF)".data(using: .utf8)!)
+        body.append(data)
+        body.append("\(CRLF)--\(boundary)--\(CRLF)".data(using: .utf8)!)
+
+        let respData: Data
+        let http: HTTPURLResponse
+        do {
+            let (d, response) = try await session.upload(for: req, from: body)
+            respData = d
+            guard let h = response as? HTTPURLResponse else {
+                throw APIError.transport(URLError(.badServerResponse))
+            }
+            http = h
+        } catch let err as APIError {
+            throw err
+        } catch {
+            throw APIError.transport(error)
+        }
+
+        if http.statusCode == 401 && !isRetry && refreshToken != nil {
+            let refreshed = await refreshIfNeeded()
+            if refreshed {
+                return try await uploadMultipart(
+                    path,
+                    fileFieldName: fileFieldName,
+                    filename: filename,
+                    mimeType: mimeType,
+                    data: data,
+                    isRetry: true
+                )
+            }
+            clearSession()
+            throw APIError.notAuthenticated
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let msg = String(data: respData, encoding: .utf8)
+            throw APIError.http(http.statusCode, msg)
+        }
+        do {
+            return try decoder.decode(T.self, from: respData)
+        } catch {
+            throw APIError.decoding(String(describing: error))
+        }
     }
 
     private func request<B: Encodable, T: Decodable>(

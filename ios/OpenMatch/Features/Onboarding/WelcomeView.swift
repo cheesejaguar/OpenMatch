@@ -111,7 +111,7 @@ struct WelcomeView: View {
         guard let cid = challengeId else { return }
         do {
             _ = try await api.verifyLogin(challengeId: cid, token: token)
-            appState.auth = .loggedIn(userId: api.cachedUserId ?? "self")
+            appState.didSignIn(userId: api.cachedUserId ?? "self")
         } catch {
             self.error = error.localizedDescription
         }
@@ -120,7 +120,7 @@ struct WelcomeView: View {
     private func devLogin() async {
         do {
             _ = try await api.devLogin(userId: devUserId)
-            appState.auth = .loggedIn(userId: api.cachedUserId ?? devUserId)
+            appState.didSignIn(userId: api.cachedUserId ?? devUserId)
         } catch {
             self.error = error.localizedDescription
         }

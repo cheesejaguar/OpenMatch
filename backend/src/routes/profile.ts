@@ -1,7 +1,11 @@
-import type { HandleUploadBody } from "@vercel/blob/client";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { handlePhotoUpload } from "../lib/media.js";
+import {
+  ALLOWED_MIME_TYPES,
+  MAX_PHOTO_BYTES,
+  deleteProfilePhoto,
+  uploadProfilePhoto,
+} from "../lib/media.js";
 
 const updateSchema = z.object({
   displayName: z.string().trim().min(1).max(50).optional(),
@@ -120,37 +124,123 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     return profile;
   });
 
-  // Vercel Blob client-upload handshake. The iOS app POSTs here with the
-  // filename it intends to upload; we mint a one-shot token and (after the
-  // direct upload completes) persist the ProfilePhoto row via the
-  // onUploadCompleted callback baked into handlePhotoUpload.
-  app.post("/me/photos/upload-url", async (req, reply) => {
+  // Server-mediated photo upload. iOS resizes/compresses the image on
+  // device (target ≤ ~1.5MB JPEG) and POSTs the bytes as multipart. The
+  // function streams the body into a buffer, calls Vercel Blob's `put()`,
+  // and persists a ProfilePhoto row. Direct client→Blob uploads were
+  // considered (handleUpload protocol) but rejected because the wire
+  // format is browser-first and undocumented for non-browser clients.
+  //
+  // 4MB request body limit fits comfortably under Vercel's 4.5MB function
+  // body cap and is more than enough for an on-device-downscaled JPEG.
+  app.post(
+    "/me/photos",
+    {
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    },
+    async (req, reply) => {
+      const profile = await app.prisma.profile.findUnique({
+        where: { userId: req.userId! },
+        select: { id: true, photos: { select: { id: true } } },
+      });
+      if (!profile) return reply.code(404).send({ error: "profile_not_found" });
+      if (profile.photos.length >= 9) {
+        return reply.code(400).send({ error: "max_photos_reached" });
+      }
+
+      const file = await req.file();
+      if (!file) return reply.code(400).send({ error: "no_file" });
+      if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+        return reply.code(415).send({ error: "unsupported_media_type" });
+      }
+      const buffer = await file.toBuffer();
+      if (buffer.byteLength > MAX_PHOTO_BYTES) {
+        return reply.code(413).send({ error: "payload_too_large" });
+      }
+
+      try {
+        const uploaded = await uploadProfilePhoto({
+          profileId: profile.id,
+          data: buffer,
+          contentType: file.mimetype,
+        });
+        const photo = await app.prisma.profilePhoto.create({
+          data: {
+            profileId: profile.id,
+            storageKey: uploaded.storageKey,
+            cdnUrl: uploaded.cdnUrl,
+            sortOrder: profile.photos.length,
+          },
+        });
+        return reply.code(201).send(photo);
+      } catch (err) {
+        const e = err as { statusCode?: number; message?: string };
+        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "upload_failed" });
+      }
+    },
+  );
+
+  app.delete<{ Params: { photoId: string } }>("/me/photos/:photoId", async (req, reply) => {
+    const profile = await app.prisma.profile.findUnique({
+      where: { userId: req.userId! },
+      select: { id: true },
+    });
+    if (!profile) return reply.code(404).send({ error: "profile_not_found" });
+
+    const photo = await app.prisma.profilePhoto.findUnique({
+      where: { id: req.params.photoId },
+    });
+    if (!photo || photo.profileId !== profile.id) {
+      return reply.code(404).send({ error: "photo_not_found" });
+    }
+
+    await deleteProfilePhoto(photo.storageKey, photo.cdnUrl);
+    await app.prisma.profilePhoto.delete({ where: { id: photo.id } });
+
+    // Compact the remaining photos' sort orders so the next upload's index
+    // is always profile.photos.length.
+    const remaining = await app.prisma.profilePhoto.findMany({
+      where: { profileId: profile.id },
+      orderBy: { sortOrder: "asc" },
+    });
+    await Promise.all(
+      remaining.map((p, idx) =>
+        p.sortOrder === idx
+          ? Promise.resolve()
+          : app.prisma.profilePhoto.update({ where: { id: p.id }, data: { sortOrder: idx } }),
+      ),
+    );
+
+    return reply.code(204).send();
+  });
+
+  const reorderSchema = z.object({ photoIds: z.array(z.string()).min(1).max(9) });
+  app.put("/me/photos/order", async (req, reply) => {
+    const body = reorderSchema.parse(req.body);
     const profile = await app.prisma.profile.findUnique({
       where: { userId: req.userId! },
       select: { id: true, photos: { select: { id: true } } },
     });
     if (!profile) return reply.code(404).send({ error: "profile_not_found" });
-    try {
-      const result = await handlePhotoUpload({
-        body: req.body as HandleUploadBody,
-        request: req.raw as unknown as Request,
-        userId: req.userId!,
-        onCompleted: async (storageKey, cdnUrl) => {
-          await app.prisma.profilePhoto.create({
-            data: {
-              profileId: profile.id,
-              storageKey,
-              cdnUrl,
-              sortOrder: profile.photos.length,
-            },
-          });
-        },
-      });
-      return reply.send(result);
-    } catch (err) {
-      const e = err as { message?: string };
-      return reply.code(400).send({ error: e.message ?? "upload_failed" });
+
+    const owned = new Set(profile.photos.map((p) => p.id));
+    if (body.photoIds.some((id) => !owned.has(id))) {
+      return reply.code(400).send({ error: "photo_not_owned" });
     }
+    if (new Set(body.photoIds).size !== body.photoIds.length) {
+      return reply.code(400).send({ error: "duplicate_photos" });
+    }
+
+    await app.prisma.$transaction(
+      body.photoIds.map((id, idx) =>
+        app.prisma.profilePhoto.update({ where: { id }, data: { sortOrder: idx } }),
+      ),
+    );
+    const photos = await app.prisma.profilePhoto.findMany({
+      where: { profileId: profile.id },
+      orderBy: { sortOrder: "asc" },
+    });
+    return reply.send(photos);
   });
 
   app.get<{ Params: { profileId: string } }>("/:profileId", async (req, reply) => {

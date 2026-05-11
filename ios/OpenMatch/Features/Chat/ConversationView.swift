@@ -9,8 +9,14 @@ final class ConversationViewModel: ObservableObject {
     let conversationId: String
     var api: APIClient?
 
+    private var realtimeSubscription: RealtimeSubscription?
+
     init(conversationId: String) {
         self.conversationId = conversationId
+    }
+
+    deinit {
+        realtimeSubscription?.cancel()
     }
 
     func load() async {
@@ -20,6 +26,25 @@ final class ConversationViewModel: ObservableObject {
         }
     }
 
+    // Open the Ably channel for this conversation. The handler dedupes by
+    // message id so the REST round-trip's optimistic append doesn't double
+    // when the publish webhook arrives first.
+    func attachRealtime() {
+        realtimeSubscription?.cancel()
+        realtimeSubscription = RealtimeService.shared.subscribe(
+            conversationId: conversationId
+        ) { [weak self] msg in
+            guard let self else { return }
+            if self.messages.contains(where: { $0.id == msg.id }) { return }
+            self.messages.append(msg)
+        }
+    }
+
+    func detachRealtime() {
+        realtimeSubscription?.cancel()
+        realtimeSubscription = nil
+    }
+
     func send() async {
         guard let api else { return }
         let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -27,7 +52,9 @@ final class ConversationViewModel: ObservableObject {
         draft = ""
         do {
             let msg = try await api.sendMessage(conversationId: conversationId, body: body)
-            messages.append(msg)
+            if !messages.contains(where: { $0.id == msg.id }) {
+                messages.append(msg)
+            }
         } catch {
             self.error = error.localizedDescription
         }
@@ -90,7 +117,11 @@ struct ConversationView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             vm.api = api
+            vm.attachRealtime()
             await vm.load()
+        }
+        .onDisappear {
+            vm.detachRealtime()
         }
         .alert("Message error", isPresented: .init(
             get: { vm.error != nil },

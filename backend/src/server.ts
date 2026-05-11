@@ -1,4 +1,5 @@
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import sensible from "@fastify/sensible";
 import swagger from "@fastify/swagger";
 import Fastify from "fastify";
@@ -34,6 +35,15 @@ export async function buildServer() {
   await app.register(cors, {
     origin: env.CORS_ORIGIN.split(",").map((s) => s.trim()),
     credentials: true,
+  });
+  await app.register(multipart, {
+    limits: {
+      files: 1,
+      // Slightly above MAX_PHOTO_BYTES so the route-level check can return
+      // a clean 413 instead of fastify-multipart throwing.
+      fileSize: 5 * 1024 * 1024,
+      fields: 4,
+    },
   });
   await app.register(swagger, {
     openapi: {
