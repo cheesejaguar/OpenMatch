@@ -214,7 +214,29 @@ jobs:
         run: npx prisma generate --schema backend/prisma/schema.prisma
 
       - name: Apply Prisma migrations
-        run: npx prisma migrate deploy --schema backend/prisma/schema.prisma
+        run: |
+          set +e
+          npx prisma migrate deploy --schema backend/prisma/schema.prisma 2>&1 | tee /tmp/migrate.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### Prisma migrate deploy failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/migrate.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit $rc
+          fi
 
       - name: Run backend tests
-        run: npm test -w @openmatch/backend
+        env:
+          ADMIN_JWT_SECRET: ci-only-admin-secret-not-a-real-secret
+        run: |
+          set +e
+          npm test -w @openmatch/backend 2>&1 | tee /tmp/vitest.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### Backend vitest failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -300 /tmp/vitest.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit $rc
+          fi
