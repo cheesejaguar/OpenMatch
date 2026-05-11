@@ -47,6 +47,28 @@ jobs:
       - name: Build backend
         run: npm run build -w @openmatch/backend
 
+  admin-dashboard:
+    name: Lint + typecheck admin dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client (for shared types)
+        run: npx prisma generate --schema backend/prisma/schema.prisma
+
+      - name: Typecheck admin
+        run: npm run typecheck -w @openmatch/admin
+
+      - name: Lint admin
+        run: npm run lint -w @openmatch/admin
+
   test-matching:
     name: Test @openmatch/matching
     runs-on: ubuntu-latest

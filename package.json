@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Open-source iOS dating app with an auditable matching algorithm and no paid dating advantage.",
   "license": "Apache-2.0",
-  "workspaces": ["matching", "backend"],
+  "workspaces": ["matching", "backend", "admin"],
   "engines": {
     "node": ">=20.0.0"
   },
