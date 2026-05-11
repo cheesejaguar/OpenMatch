@@ -43,9 +43,10 @@ OpenMatch is built on a different social contract from most mainstream dating ap
 📦 matching/         @openmatch/matching   Open-source matching algorithm (TypeScript)
 🛠️ backend/          @openmatch/backend    Fastify + Prisma API server (deploys to Vercel)
    └── api/index.ts                        Vercel Node Function entry that wraps Fastify
+🔒 admin/            @openmatch/admin      Next.js admin dashboard for trust-and-safety (deploys to Vercel)
 📱 ios/                                    SwiftUI iOS app (XcodeGen)
 📚 docs/                                   Product, algorithm, privacy, safety, API docs
-🚀 vercel.json                             Vercel deployment configuration
+🚀 vercel.json                             Vercel deployment configuration (backend)
 🗄️ infra/legacy-gcp/                       Archived GCP Terraform (deprecated, kept for data migration)
 🧪 synthetic-data/                         Fixtures shared across packages
 ```

@@ -21,6 +21,14 @@ type GlobalWithPrisma = typeof globalThis & { __omPrisma?: PrismaClient };
 const g = globalThis as GlobalWithPrisma;
 
 function buildClient(): PrismaClient {
+  // In test/dev against a vanilla Postgres (the docker-compose service or
+  // the CI container), the Neon WebSocket adapter doesn't speak the same
+  // protocol and connections hang. Fall back to the default driver in
+  // those environments — production still uses Neon.
+  const useNeonAdapter = env.NODE_ENV === "production" || /\.neon\.tech\b/.test(env.DATABASE_URL);
+  if (!useNeonAdapter) {
+    return new PrismaClient();
+  }
   const pool = new Pool({ connectionString: env.DATABASE_URL });
   const adapter = new PrismaNeon(pool);
   return new PrismaClient({ adapter });

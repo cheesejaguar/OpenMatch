@@ -1,6 +1,7 @@
 ios/
 infra/
 docs/
+admin/
 docker-compose.yml
 *.tf
 Dockerfile

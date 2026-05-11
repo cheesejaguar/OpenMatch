@@ -22,9 +22,31 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-          cache: npm
 
-      - run: npm ci
+      - name: Install deps (with debug capture)
+        run: |
+          set +e
+          echo "## node $(node --version) / npm $(npm --version)" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la package.json package-lock.json | tee -a "$GITHUB_STEP_SUMMARY"
+          npm config get registry | tee -a "$GITHUB_STEP_SUMMARY"
+          npm ci --foreground-scripts --loglevel=warn 2>&1 | tee /tmp/npmci.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### npm ci failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/npmci.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '--- falling back to npm install ---' | tee -a "$GITHUB_STEP_SUMMARY"
+            npm install --no-audit --no-fund --foreground-scripts 2>&1 | tee /tmp/npminstall.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              echo "### npm install ALSO failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -200 /tmp/npminstall.log >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit $rc
+            fi
+          fi
 
       - name: Lint (Biome)
         run: npm run lint
@@ -47,6 +69,50 @@ jobs:
       - name: Build backend
         run: npm run build -w @openmatch/backend
 
+  admin-dashboard:
+    name: Lint + typecheck admin dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install deps (with debug capture)
+        run: |
+          set +e
+          echo "## node $(node --version) / npm $(npm --version)" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la package.json package-lock.json | tee -a "$GITHUB_STEP_SUMMARY"
+          npm config get registry | tee -a "$GITHUB_STEP_SUMMARY"
+          npm ci --foreground-scripts --loglevel=warn 2>&1 | tee /tmp/npmci.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### npm ci failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/npmci.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '--- falling back to npm install ---' | tee -a "$GITHUB_STEP_SUMMARY"
+            npm install --no-audit --no-fund --foreground-scripts 2>&1 | tee /tmp/npminstall.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              echo "### npm install ALSO failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -200 /tmp/npminstall.log >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit $rc
+            fi
+          fi
+
+      - name: Generate Prisma client (for shared types)
+        run: npx prisma generate --schema backend/prisma/schema.prisma
+
+      - name: Typecheck admin
+        run: npm run typecheck -w @openmatch/admin
+
+      - name: Lint admin
+        run: npm run lint -w @openmatch/admin
+
   test-matching:
     name: Test @openmatch/matching
     runs-on: ubuntu-latest
@@ -56,15 +122,40 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-          cache: npm
 
-      - run: npm ci
+      - name: Install deps (with debug capture)
+        run: |
+          set +e
+          echo "## node $(node --version) / npm $(npm --version)" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la package.json package-lock.json | tee -a "$GITHUB_STEP_SUMMARY"
+          npm config get registry | tee -a "$GITHUB_STEP_SUMMARY"
+          npm ci --foreground-scripts --loglevel=warn 2>&1 | tee /tmp/npmci.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### npm ci failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/npmci.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '--- falling back to npm install ---' | tee -a "$GITHUB_STEP_SUMMARY"
+            npm install --no-audit --no-fund --foreground-scripts 2>&1 | tee /tmp/npminstall.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              echo "### npm install ALSO failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -200 /tmp/npminstall.log >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit $rc
+            fi
+          fi
 
       - run: npm test -w @openmatch/matching
 
   test-backend:
     name: Test @openmatch/backend (Postgres + PostGIS)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     services:
       postgres:
@@ -96,15 +187,81 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-          cache: npm
 
-      - run: npm ci
+      - name: Install deps (with debug capture)
+        run: |
+          set +e
+          echo "## node $(node --version) / npm $(npm --version)" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la package.json package-lock.json | tee -a "$GITHUB_STEP_SUMMARY"
+          npm config get registry | tee -a "$GITHUB_STEP_SUMMARY"
+          npm ci --foreground-scripts --loglevel=warn 2>&1 | tee /tmp/npmci.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### npm ci failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/npmci.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '--- falling back to npm install ---' | tee -a "$GITHUB_STEP_SUMMARY"
+            npm install --no-audit --no-fund --foreground-scripts 2>&1 | tee /tmp/npminstall.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              echo "### npm install ALSO failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -200 /tmp/npminstall.log >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit $rc
+            fi
+          fi
 
       - name: Generate Prisma client
         run: npx prisma generate --schema backend/prisma/schema.prisma
 
+      # backend/src/server.ts imports @openmatch/matching, whose package
+      # entry is matching/dist/index.js. Build it before vitest spins up
+      # the server in tests.
+      - name: Build matching package
+        run: npm run build -w @openmatch/matching
+
       - name: Apply Prisma migrations
-        run: npx prisma migrate deploy --schema backend/prisma/schema.prisma
+        run: |
+          set +e
+          npx prisma migrate deploy --schema backend/prisma/schema.prisma 2>&1 | tee /tmp/migrate.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### Prisma migrate deploy failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/migrate.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit $rc
+          fi
 
       - name: Run backend tests
-        run: npm test -w @openmatch/backend
+        id: backend_tests
+        env:
+          ADMIN_JWT_SECRET: ci-only-admin-secret-not-a-real-secret
+        run: |
+          set +e
+          npm test -w @openmatch/backend 2>&1 | tee /tmp/vitest.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### Backend vitest failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -300 /tmp/vitest.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit $rc
+          fi
+      - name: Post test failure as PR comment
+        if: failure() && steps.backend_tests.outcome == 'failure' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "### Backend vitest failure (run ${{ github.run_id }})"
+            echo ""
+            echo '```'
+            tail -300 /tmp/vitest.log
+            echo '```'
+          } > /tmp/comment.md
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --body-file /tmp/comment.md
