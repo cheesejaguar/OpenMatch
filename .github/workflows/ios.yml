@@ -95,15 +95,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Paste build log to 0x0.st on failure
-        if: failure()
-        run: |
-          URL=$(curl -sS -F "file=@/tmp/xcodebuild.log" -F "expires=24" https://0x0.st || echo "(paste failed)")
-          echo "Build log pasted to: $URL"
-          echo "::notice title=Build log URL::$URL"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Full log mirror: $URL" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Upload full build log
         if: always()
         uses: actions/upload-artifact@v4
@@ -149,6 +140,7 @@ jobs:
         env:
           DEVICE: ${{ steps.sim.outputs.device }}
         run: |
+          set -o pipefail
           xcodebuild \
             -project OpenMatch.xcodeproj \
             -scheme OpenMatch \
@@ -157,4 +149,36 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            test
+            test 2>&1 | tee /tmp/xcodebuild-test.log
+
+      - name: Annotate test failures
+        if: failure()
+        run: |
+          while IFS= read -r line; do
+            echo "::error::${line}"
+          done < <(grep -E "error:|Test Case.*failed|\\*\\* TEST FAILED \\*\\*" /tmp/xcodebuild-test.log | head -50)
+
+      - name: Publish test log on failure
+        if: failure()
+        run: |
+          {
+            echo "## xcodebuild test failed"
+            echo ""
+            echo "### errors and failed test cases"
+            echo '```'
+            grep -E "error:|Test Case.*failed|\*\* TEST FAILED \*\*|failed:" /tmp/xcodebuild-test.log | head -200 || true
+            echo '```'
+            echo ""
+            echo "### last 300 lines of full log"
+            echo '```'
+            tail -n 300 /tmp/xcodebuild-test.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-test-log
+          path: /tmp/xcodebuild-test.log
+          retention-days: 7
