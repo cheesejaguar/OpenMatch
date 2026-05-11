@@ -22,7 +22,7 @@
     "lint": "biome check src test"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^25.6.2",
     "@types/seedrandom": "^3.0.8",
     "typescript": "^6.0.3",
     "vitest": "^1.4.0"
