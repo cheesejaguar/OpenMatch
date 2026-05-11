@@ -1,4 +1,7 @@
-# OpenMatch — GCP infrastructure
+# OpenMatch — GCP infrastructure (LEGACY — DEPRECATED)
+
+> **Deprecated.** OpenMatch's backend has migrated to Vercel + Neon + Upstash + Vercel Blob + Ably. This directory is kept for one release cycle as a reference for the prior architecture and to support data migration off Cloud SQL. New deployments should follow the Vercel setup in the root `README.md`. These Terraform files will be deleted after the GCP project is fully decommissioned.
+
 
 Terraform to deploy OpenMatch on Google Cloud. All resources are cloud-native: Cloud Run for the API, Cloud SQL (Postgres 16 + PostGIS) for the database, Memorystore (Redis) for cache and rate limits, and Cloud Storage for photo blobs.
 

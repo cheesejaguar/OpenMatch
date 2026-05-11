@@ -1,5 +1,7 @@
+import type { HandleUploadBody } from "@vercel/blob/client";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { handlePhotoUpload } from "../lib/media.js";
 
 const updateSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
@@ -106,6 +108,39 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return profile;
+  });
+
+  // Vercel Blob client-upload handshake. The iOS app POSTs here with the
+  // filename it intends to upload; we mint a one-shot token and (after the
+  // direct upload completes) persist the ProfilePhoto row via the
+  // onUploadCompleted callback baked into handlePhotoUpload.
+  app.post("/me/photos/upload-url", async (req, reply) => {
+    const profile = await app.prisma.profile.findUnique({
+      where: { userId: req.userId! },
+      select: { id: true, photos: { select: { id: true } } },
+    });
+    if (!profile) return reply.code(404).send({ error: "profile_not_found" });
+    try {
+      const result = await handlePhotoUpload({
+        body: req.body as HandleUploadBody,
+        request: req.raw as unknown as Request,
+        userId: req.userId!,
+        onCompleted: async (storageKey, cdnUrl) => {
+          await app.prisma.profilePhoto.create({
+            data: {
+              profileId: profile.id,
+              storageKey,
+              cdnUrl,
+              sortOrder: profile.photos.length,
+            },
+          });
+        },
+      });
+      return reply.send(result);
+    } catch (err) {
+      const e = err as { message?: string };
+      return reply.code(400).send({ error: e.message ?? "upload_failed" });
+    }
   });
 
   app.get<{ Params: { profileId: string } }>("/:profileId", async (req, reply) => {
