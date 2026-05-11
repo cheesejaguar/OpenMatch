@@ -9,8 +9,6 @@
       "memory": 1024
     }
   },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/backend/api/index" }
-  ],
+  "rewrites": [{ "source": "/(.*)", "destination": "/backend/api/index" }],
   "regions": ["iad1"]
 }
