@@ -23,9 +23,30 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Diagnostic versions
-        run: node --version && npm --version && ls -la
-      - run: npm ci --foreground-scripts
+      - name: Install deps (with debug capture)
+        run: |
+          set +e
+          echo "## node $(node --version) / npm $(npm --version)" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la package.json package-lock.json | tee -a "$GITHUB_STEP_SUMMARY"
+          npm config get registry | tee -a "$GITHUB_STEP_SUMMARY"
+          npm ci --foreground-scripts --loglevel=warn 2>&1 | tee /tmp/npmci.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### npm ci failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/npmci.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '--- falling back to npm install ---' | tee -a "$GITHUB_STEP_SUMMARY"
+            npm install --no-audit --no-fund --foreground-scripts 2>&1 | tee /tmp/npminstall.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              echo "### npm install ALSO failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -200 /tmp/npminstall.log >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit $rc
+            fi
+          fi
 
       - name: Lint (Biome)
         run: npm run lint
@@ -58,9 +79,30 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Diagnostic versions
-        run: node --version && npm --version && ls -la
-      - run: npm ci --foreground-scripts
+      - name: Install deps (with debug capture)
+        run: |
+          set +e
+          echo "## node $(node --version) / npm $(npm --version)" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la package.json package-lock.json | tee -a "$GITHUB_STEP_SUMMARY"
+          npm config get registry | tee -a "$GITHUB_STEP_SUMMARY"
+          npm ci --foreground-scripts --loglevel=warn 2>&1 | tee /tmp/npmci.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### npm ci failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/npmci.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '--- falling back to npm install ---' | tee -a "$GITHUB_STEP_SUMMARY"
+            npm install --no-audit --no-fund --foreground-scripts 2>&1 | tee /tmp/npminstall.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              echo "### npm install ALSO failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -200 /tmp/npminstall.log >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit $rc
+            fi
+          fi
 
       - name: Generate Prisma client (for shared types)
         run: npx prisma generate --schema backend/prisma/schema.prisma
@@ -81,9 +123,30 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Diagnostic versions
-        run: node --version && npm --version && ls -la
-      - run: npm ci --foreground-scripts
+      - name: Install deps (with debug capture)
+        run: |
+          set +e
+          echo "## node $(node --version) / npm $(npm --version)" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la package.json package-lock.json | tee -a "$GITHUB_STEP_SUMMARY"
+          npm config get registry | tee -a "$GITHUB_STEP_SUMMARY"
+          npm ci --foreground-scripts --loglevel=warn 2>&1 | tee /tmp/npmci.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### npm ci failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/npmci.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '--- falling back to npm install ---' | tee -a "$GITHUB_STEP_SUMMARY"
+            npm install --no-audit --no-fund --foreground-scripts 2>&1 | tee /tmp/npminstall.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              echo "### npm install ALSO failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -200 /tmp/npminstall.log >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit $rc
+            fi
+          fi
 
       - run: npm test -w @openmatch/matching
 
@@ -122,9 +185,30 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Diagnostic versions
-        run: node --version && npm --version && ls -la
-      - run: npm ci --foreground-scripts
+      - name: Install deps (with debug capture)
+        run: |
+          set +e
+          echo "## node $(node --version) / npm $(npm --version)" | tee -a "$GITHUB_STEP_SUMMARY"
+          ls -la package.json package-lock.json | tee -a "$GITHUB_STEP_SUMMARY"
+          npm config get registry | tee -a "$GITHUB_STEP_SUMMARY"
+          npm ci --foreground-scripts --loglevel=warn 2>&1 | tee /tmp/npmci.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "### npm ci failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -200 /tmp/npmci.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '--- falling back to npm install ---' | tee -a "$GITHUB_STEP_SUMMARY"
+            npm install --no-audit --no-fund --foreground-scripts 2>&1 | tee /tmp/npminstall.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              echo "### npm install ALSO failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -200 /tmp/npminstall.log >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit $rc
+            fi
+          fi
 
       - name: Generate Prisma client
         run: npx prisma generate --schema backend/prisma/schema.prisma
