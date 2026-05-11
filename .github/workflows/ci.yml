@@ -153,6 +153,9 @@ jobs:
   test-backend:
     name: Test @openmatch/backend (Postgres + PostGIS)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     services:
       postgres:
@@ -227,6 +230,7 @@ jobs:
           fi
 
       - name: Run backend tests
+        id: backend_tests
         env:
           ADMIN_JWT_SECRET: ci-only-admin-secret-not-a-real-secret
         run: |
@@ -240,3 +244,18 @@ jobs:
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             exit $rc
           fi
+      - name: Post test failure as PR comment
+        if: failure() && steps.backend_tests.outcome == 'failure' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "### Backend vitest failure (run ${{ github.run_id }})"
+            echo ""
+            echo '```'
+            tail -300 /tmp/vitest.log
+            echo '```'
+          } > /tmp/comment.md
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --body-file /tmp/comment.md
