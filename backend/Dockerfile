@@ -1,11 +1,11 @@
-FROM node:20-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY backend/package.json ./backend/
 COPY matching/package.json ./matching/
 RUN npm install --ignore-scripts
 
-FROM node:20-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -13,7 +13,7 @@ RUN npx prisma generate --schema backend/prisma/schema.prisma \
   && npm run build -w @openmatch/matching \
   && npm run build -w @openmatch/backend
 
-FROM node:20-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
