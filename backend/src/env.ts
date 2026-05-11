@@ -7,7 +7,11 @@ const schema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 
   DATABASE_URL: z.string().min(1),
-  REDIS_URL: z.string().default("redis://localhost:6379"),
+
+  // Upstash Redis (REST). Optional in local dev; rate-limit and cache fall
+  // back to in-memory when both are absent.
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
   JWT_SECRET: z.string().min(16),
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
@@ -23,10 +27,19 @@ const schema = z.object({
   APPLE_KEY_ID: z.string().optional(),
   APPLE_PRIVATE_KEY: z.string().optional(),
 
-  GCS_BUCKET: z.string().optional().default(""),
-  GCS_PROJECT: z.string().optional().default(""),
+  // Ably realtime fan-out for chat. Required in production for live message
+  // delivery; if absent, POST /messages still works but no push is emitted.
+  ABLY_API_KEY: z.string().optional(),
+
+  // Vercel Blob token. Required to mint client upload tokens; if absent,
+  // photo uploads fall back to a local filesystem path (dev only).
+  BLOB_READ_WRITE_TOKEN: z.string().optional(),
 
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
+  // Public base URL the API answers on. Used to build absolute links in
+  // outgoing email (magic links, etc.). In production set this to the
+  // Vercel/Custom domain, e.g. https://api.openmatch.app.
+  APP_BASE_URL: z.string().url().default("http://localhost:8080"),
   ALLOW_DEV_LOGIN: z
     .string()
     .default("false")

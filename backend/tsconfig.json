@@ -4,9 +4,9 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "api/**/*.ts"],
   "exclude": ["dist", "node_modules", "test"]
 }

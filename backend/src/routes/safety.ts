@@ -47,6 +47,16 @@ export const safetyRoutes: FastifyPluginAsync = async (app) => {
           body.reportedProfileId,
           body.reportedMessageId,
         );
+        app.log.info(
+          {
+            event: "safety.report",
+            reportId: report.id,
+            reporterUserId: req.userId,
+            reportedUserId: body.reportedUserId,
+            reason: body.reason,
+          },
+          "user_reported",
+        );
         return reply.send({ reportId: report.id, status: report.status });
       } catch (err) {
         const e = err as { statusCode?: number; message?: string };
@@ -55,19 +65,39 @@ export const safetyRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.post("/block", async (req, reply) => {
-    const body = blockSchema.parse(req.body);
-    try {
-      await blockUser(app.prisma, req.userId!, body.blockedUserId);
-      return reply.code(204).send();
-    } catch (err) {
-      const e = err as { statusCode?: number; message?: string };
-      return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
-    }
-  });
+  app.post(
+    "/block",
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const body = blockSchema.parse(req.body);
+      try {
+        await blockUser(app.prisma, req.userId!, body.blockedUserId);
+        app.log.info(
+          {
+            event: "safety.block",
+            blockerUserId: req.userId,
+            blockedUserId: body.blockedUserId,
+          },
+          "user_blocked",
+        );
+        return reply.code(204).send();
+      } catch (err) {
+        const e = err as { statusCode?: number; message?: string };
+        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
+      }
+    },
+  );
 
   app.delete<{ Params: { userId: string } }>("/block/:userId", async (req, reply) => {
     await unblockUser(app.prisma, req.userId!, req.params.userId);
+    app.log.info(
+      {
+        event: "safety.unblock",
+        blockerUserId: req.userId,
+        blockedUserId: req.params.userId,
+      },
+      "user_unblocked",
+    );
     return reply.code(204).send();
   });
 

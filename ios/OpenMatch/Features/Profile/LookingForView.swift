@@ -1,26 +1,34 @@
 import SwiftUI
 
 
+@MainActor
 final class LookingForViewModel: ObservableObject {
     @Published var prefs: PreferencesDTO?
     @Published var error: String?
-    private let api: APIClient
-    init(api: APIClient) { self.api = api }
+    @Published var isSaving = false
+    @Published var saved = false
+    var api: APIClient?
 
     func load() async {
+        guard let api else { return }
         do { prefs = try await api.preferences() }
         catch { self.error = error.localizedDescription }
     }
     func save() async {
-        guard let p = prefs else { return }
-        do { prefs = try await api.updatePreferences(p) }
+        guard let api, let p = prefs else { return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            prefs = try await api.updatePreferences(p)
+            saved = true
+        }
         catch { self.error = error.localizedDescription }
     }
 }
 
 struct LookingForView: View {
     @EnvironmentObject private var api: APIClient
-    @StateObject private var vm = LookingForViewModel(api: APIClient(baseURL: APIConfig.defaultBaseURL))
+    @StateObject private var vm = LookingForViewModel()
 
     var body: some View {
         Form {
@@ -66,17 +74,38 @@ struct LookingForView: View {
                     }
                 }
                 Section {
-                    Button("Save preferences") { Task { await vm.save() } }
-                        .buttonStyle(OMPrimaryButtonStyle())
+                    Button {
+                        Task { await vm.save() }
+                    } label: {
+                        if vm.isSaving { ProgressView() } else { Text("Save preferences") }
+                    }
+                    .buttonStyle(OMPrimaryButtonStyle())
+                    .disabled(vm.isSaving)
                 }
                 Section {
                     Text("These filters are free. OpenMatch will never gate filters behind a subscription.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+            } else {
+                ProgressView()
             }
         }
         .navigationTitle("Looking for")
-        .task { await vm.load() }
+        .task {
+            vm.api = api
+            if vm.prefs == nil { await vm.load() }
+        }
+        .alert("Saved", isPresented: $vm.saved) {
+            Button("OK", role: .cancel) {}
+        }
+        .alert("Couldn't update", isPresented: .init(
+            get: { vm.error != nil },
+            set: { _ in vm.error = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(vm.error ?? "")
+        }
     }
 }

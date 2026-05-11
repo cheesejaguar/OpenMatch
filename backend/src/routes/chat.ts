@@ -1,29 +1,13 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import {
-  authorizedForConversation,
-  listConversations,
-  listMessages,
-  postMessage,
-} from "../services/chat.service.js";
+import { publishMessage } from "../lib/realtime.js";
+import { listConversations, listMessages, postMessage } from "../services/chat.service.js";
 
 const sendSchema = z.object({ body: z.string().min(1).max(2000) });
 
-// In-memory subscriber map. Production scales this via Redis pub/sub;
-// for MVP a single-instance map is acceptable.
-const subscribers = new Map<string, Set<(msg: unknown) => void>>();
-
-function publish(conversationId: string, msg: unknown) {
-  const subs = subscribers.get(conversationId);
-  if (!subs) return;
-  for (const s of subs) {
-    try {
-      s(msg);
-    } catch {
-      // ignore broken consumer
-    }
-  }
-}
+// Live message fan-out is handled by Ably (see lib/realtime.ts). After a
+// message is persisted we publish it on the `conversation:{id}` channel;
+// clients subscribe directly to Ably using a token from /realtime/token.
 
 export const chatRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
@@ -55,54 +39,12 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
           req.userId!,
           body.body,
         );
-        publish(req.params.conversationId, {
-          type: "message",
-          payload: msg,
-        });
+        await publishMessage(req.params.conversationId, { type: "message", payload: msg });
         return reply.send(msg);
       } catch (err) {
         const e = err as { statusCode?: number; message?: string };
         return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
       }
-    },
-  );
-
-  // WebSocket for live message delivery. Rate-limit the upgrade handshake
-  // to prevent connection-storm abuse; once connected, message rate is
-  // bounded by the POST route limit above.
-  app.get<{ Params: { conversationId: string } }>(
-    "/:conversationId/stream",
-    {
-      websocket: true,
-      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
-    } as never,
-    async (connection, req) => {
-      const conn = connection as unknown as {
-        socket: {
-          send: (m: string) => void;
-          on: (ev: string, cb: () => void) => void;
-        };
-      };
-      const userId = (req as { userId?: string }).userId;
-      if (!userId) {
-        conn.socket.send(JSON.stringify({ error: "unauthorized" }));
-        return;
-      }
-      const ok = await authorizedForConversation(app.prisma, req.params.conversationId, userId);
-      if (!ok) {
-        conn.socket.send(JSON.stringify({ error: "not_authorized" }));
-        return;
-      }
-      const subscriber = (msg: unknown) => {
-        conn.socket.send(JSON.stringify(msg));
-      };
-      const set = subscribers.get(req.params.conversationId) ?? new Set<(m: unknown) => void>();
-      set.add(subscriber);
-      subscribers.set(req.params.conversationId, set);
-
-      conn.socket.on("close", () => {
-        set.delete(subscriber);
-      });
     },
   );
 };

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm run build -w @openmatch/matching && npm run build -w @openmatch/backend",
+  "installCommand": "npm install",
+  "functions": {
+    "backend/api/index.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/backend/api/index" }],
+  "regions": ["iad1"]
+}

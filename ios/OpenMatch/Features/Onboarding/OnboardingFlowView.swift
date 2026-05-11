@@ -13,7 +13,7 @@ struct OnboardingFlowView: View {
             case 1:
                 StepLikesVisibility(onNext: { step += 1 })
             default:
-                StepDone(onFinish: { appState.auth = .loggedIn(userId: userId) })
+                StepDone(onFinish: { appState.didSignIn(userId: userId) })
             }
         }
         .animation(.easeInOut, value: step)

@@ -1,0 +1,10 @@
+ios/
+infra/
+docs/
+docker-compose.yml
+*.tf
+Dockerfile
+.local-media/
+.github/
+backend/test/
+matching/test/

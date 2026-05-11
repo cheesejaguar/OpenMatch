@@ -1,30 +1,60 @@
 import SwiftUI
 
 
+@MainActor
 final class ConversationViewModel: ObservableObject {
     @Published var messages: [MessageDTO] = []
     @Published var draft: String = ""
     @Published var error: String?
     let conversationId: String
-    private let api: APIClient
-    init(api: APIClient, conversationId: String) {
-        self.api = api
+    var api: APIClient?
+
+    private var realtimeSubscription: RealtimeSubscription?
+
+    init(conversationId: String) {
         self.conversationId = conversationId
     }
 
+    deinit {
+        realtimeSubscription?.cancel()
+    }
+
     func load() async {
+        guard let api else { return }
         do { messages = try await api.messages(conversationId: conversationId) } catch {
             self.error = error.localizedDescription
         }
     }
 
+    // Open the Ably channel for this conversation. The handler dedupes by
+    // message id so the REST round-trip's optimistic append doesn't double
+    // when the publish webhook arrives first.
+    func attachRealtime() {
+        realtimeSubscription?.cancel()
+        realtimeSubscription = RealtimeService.shared.subscribe(
+            conversationId: conversationId
+        ) { [weak self] msg in
+            guard let self else { return }
+            if self.messages.contains(where: { $0.id == msg.id }) { return }
+            self.messages.append(msg)
+        }
+    }
+
+    func detachRealtime() {
+        realtimeSubscription?.cancel()
+        realtimeSubscription = nil
+    }
+
     func send() async {
+        guard let api else { return }
         let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
         draft = ""
         do {
             let msg = try await api.sendMessage(conversationId: conversationId, body: body)
-            messages.append(msg)
+            if !messages.contains(where: { $0.id == msg.id }) {
+                messages.append(msg)
+            }
         } catch {
             self.error = error.localizedDescription
         }
@@ -40,12 +70,7 @@ struct ConversationView: View {
     init(conversationId: String, title: String) {
         self.conversationId = conversationId
         self.title = title
-        _vm = StateObject(
-            wrappedValue: ConversationViewModel(
-                api: APIClient(baseURL: APIConfig.defaultBaseURL),
-                conversationId: conversationId
-            )
-        )
+        _vm = StateObject(wrappedValue: ConversationViewModel(conversationId: conversationId))
     }
 
     var body: some View {
@@ -90,7 +115,22 @@ struct ConversationView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await vm.load() }
+        .task {
+            vm.api = api
+            vm.attachRealtime()
+            await vm.load()
+        }
+        .onDisappear {
+            vm.detachRealtime()
+        }
+        .alert("Message error", isPresented: .init(
+            get: { vm.error != nil },
+            set: { _ in vm.error = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(vm.error ?? "")
+        }
     }
 }
 

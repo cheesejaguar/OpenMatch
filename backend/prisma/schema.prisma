@@ -3,7 +3,7 @@
 
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  previewFeatures = ["postgresqlExtensions", "driverAdapters"]
 }
 
 datasource db {
@@ -357,6 +357,9 @@ model Session {
   createdAt    DateTime @default(now())
   expiresAt    DateTime
   revokedAt    DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model AuthChallenge {
@@ -368,6 +371,9 @@ model AuthChallenge {
   expiresAt  DateTime
   consumedAt DateTime?
   createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model DeviceToken {

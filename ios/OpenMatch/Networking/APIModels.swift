@@ -38,6 +38,7 @@ struct DeckResponseDTO: Codable {
 
 struct DeckCardDTO: Codable, Identifiable {
     let profileId: String
+    let userId: String
     let displayName: String
     let bio: String
     let gender: String?
@@ -73,7 +74,8 @@ struct SwipeRequest: Codable {
 }
 
 struct SwipeResponse: Codable {
-    let swipeId: String
+    // null when the swipe was a silent no-op (e.g. against a blocked user).
+    let swipeId: String?
     let matched: Bool
     let matchId: String?
 }
@@ -149,4 +151,66 @@ struct AlgorithmTransparencyDTO: Codable {
     let weights: [String: Double]
     let note: String?
     let sourceUrl: String?
+}
+
+// MARK: - Profile
+
+// Mirrors backend/prisma/schema.prisma `Profile`. Fields are optional on
+// patch; on read everything except photos may be `nil`/empty for a brand
+// new profile.
+struct ProfileDTO: Codable, Identifiable {
+    let id: String
+    let userId: String
+    let displayName: String
+    let bio: String
+    let gender: String?
+    let pronouns: String?
+    let city: String?
+    let region: String?
+    let country: String?
+    let heightCm: Int?
+    let relationshipGoal: String?
+    let interests: [String]
+    let languages: [String]?
+    let visibilityStatus: String
+    let moderationStatus: String
+    let photos: [PhotoDTO]
+}
+
+struct ProfileUpdateRequest: Codable {
+    var displayName: String?
+    var bio: String?
+    var gender: String?
+    var pronouns: String?
+    var city: String?
+    var region: String?
+    var country: String?
+    var heightCm: Int?
+    var relationshipGoal: String?
+    var languages: [String]?
+    var interests: [String]?
+    var visibilityStatus: String?
+}
+
+// MARK: - Safety
+
+struct BlockedUserDTO: Codable, Identifiable {
+    let id: String
+    let blockedUserId: String
+    let createdAt: Date
+}
+
+// MARK: - Realtime
+
+// Ably tokenRequest payload — passed directly to the Ably client SDK on
+// iOS once it's wired up. We don't decode the inner fields; Ably's SDK
+// owns that contract.
+struct AblyTokenRequestDTO: Codable {
+    let keyName: String
+    let clientId: String?
+    let nonce: String
+    let timestamp: Int64
+    let capability: String
+    let ttl: Int?
+    let mac: String
 }

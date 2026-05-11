@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 
+@MainActor
 final class SwipeDeckViewModel: ObservableObject {
     @Published var cards: [ProfileCardModel] = []
     @Published var undoStack: [PendingSwipeAction] = []
@@ -13,9 +14,9 @@ final class SwipeDeckViewModel: ObservableObject {
     var algorithmVersion: String = ""
     var rankingConfigVersion: String = ""
 
-    private let api: APIClient
+    var api: APIClient?
 
-    init(api: APIClient) {
+    init(api: APIClient? = nil) {
         self.api = api
     }
 
@@ -23,6 +24,7 @@ final class SwipeDeckViewModel: ObservableObject {
     var canUndo: Bool { !undoStack.isEmpty }
 
     func load() async {
+        guard let api else { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -38,6 +40,7 @@ final class SwipeDeckViewModel: ObservableObject {
     }
 
     func commit(_ decision: SwipeDecision) async {
+        guard let api else { return }
         guard let card = cards.first else { return }
         let pending = PendingSwipeAction(
             id: UUID(),
@@ -79,7 +82,7 @@ final class SwipeDeckViewModel: ObservableObject {
             Haptics.warning()
             return
         }
-        if let swipeId = last.swipeId {
+        if let swipeId = last.swipeId, let api {
             do {
                 try await api.undoSwipe(swipeId: swipeId)
             } catch {

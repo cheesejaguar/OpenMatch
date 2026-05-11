@@ -1,7 +1,7 @@
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import sensible from "@fastify/sensible";
 import swagger from "@fastify/swagger";
-import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { env } from "./env.js";
 import authPlugin from "./plugins/auth.js";
@@ -15,6 +15,7 @@ import { likesRoutes } from "./routes/likes.js";
 import { matchesRoutes } from "./routes/matches.js";
 import { preferencesRoutes } from "./routes/preferences.js";
 import { profileRoutes } from "./routes/profile.js";
+import { realtimeRoutes } from "./routes/realtime.js";
 import { safetyRoutes } from "./routes/safety.js";
 import { swipesRoutes } from "./routes/swipes.js";
 import { transparencyRoutes } from "./routes/transparency.js";
@@ -35,7 +36,15 @@ export async function buildServer() {
     origin: env.CORS_ORIGIN.split(",").map((s) => s.trim()),
     credentials: true,
   });
-  await app.register(websocket);
+  await app.register(multipart, {
+    limits: {
+      files: 1,
+      // Slightly above MAX_PHOTO_BYTES so the route-level check can return
+      // a clean 413 instead of fastify-multipart throwing.
+      fileSize: 5 * 1024 * 1024,
+      fields: 4,
+    },
+  });
   await app.register(swagger, {
     openapi: {
       info: {
@@ -63,6 +72,7 @@ export async function buildServer() {
   await app.register(likesRoutes, { prefix: "/api/v1/likes" });
   await app.register(matchesRoutes, { prefix: "/api/v1/matches" });
   await app.register(chatRoutes, { prefix: "/api/v1/conversations" });
+  await app.register(realtimeRoutes, { prefix: "/api/v1/realtime" });
   await app.register(safetyRoutes, { prefix: "/api/v1/safety" });
   await app.register(transparencyRoutes, { prefix: "/api/v1/transparency" });
 

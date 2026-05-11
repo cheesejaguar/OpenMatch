@@ -1,13 +1,14 @@
 import SwiftUI
 
 
+@MainActor
 final class ChatListViewModel: ObservableObject {
     @Published var matches: [MatchDTO] = []
     @Published var error: String?
-    private let api: APIClient
-    init(api: APIClient) { self.api = api }
+    var api: APIClient?
 
     func load() async {
+        guard let api else { return }
         do { matches = try await api.matches() } catch {
             self.error = error.localizedDescription
         }
@@ -16,11 +17,7 @@ final class ChatListViewModel: ObservableObject {
 
 struct ChatListView: View {
     @EnvironmentObject private var api: APIClient
-    @StateObject private var vm: ChatListViewModel
-
-    init() {
-        _vm = StateObject(wrappedValue: ChatListViewModel(api: APIClient(baseURL: APIConfig.defaultBaseURL)))
-    }
+    @StateObject private var vm = ChatListViewModel()
 
     var body: some View {
         NavigationStack {
@@ -49,15 +46,26 @@ struct ChatListView: View {
                                     ConversationView(conversationId: conv.id, title: peerName(match))
                                 }
                             } label: {
-                                MatchRow(match: match)
+                                MatchRow(match: match, peerName: peerName(match))
                             }
                         }
                     }
                 }
             }
             .navigationTitle("Chat")
-            .task { await vm.load() }
+            .task {
+                vm.api = api
+                await vm.load()
+            }
             .refreshable { await vm.load() }
+            .alert("Couldn't load matches", isPresented: .init(
+                get: { vm.error != nil },
+                set: { _ in vm.error = nil }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(vm.error ?? "")
+            }
         }
     }
 
@@ -72,12 +80,13 @@ struct ChatListView: View {
 
 private struct MatchRow: View {
     let match: MatchDTO
+    let peerName: String
     var body: some View {
         HStack(spacing: 12) {
             Circle().fill(OMColor.surfaceMuted).frame(width: 44, height: 44)
                 .overlay(Image(systemName: "person.fill").foregroundStyle(.secondary))
             VStack(alignment: .leading, spacing: 2) {
-                Text(match.userB.profile?.displayName ?? "Match")
+                Text(peerName)
                     .font(.headline)
                 Text(match.conversation?.messages?.first?.body ?? "Say hi!")
                     .font(.subheadline)

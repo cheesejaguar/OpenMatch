@@ -83,7 +83,9 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://openmatch:openmatch@localhost:5432/openmatch?schema=public
-      REDIS_URL: redis://localhost:6379
+      # Realtime / cache services are intentionally unset in CI. The
+      # backend plugins fall back to no-ops (Upstash → null, Ably →
+      # null), which is the correct behavior for hermetic tests.
       JWT_SECRET: ci-only-secret-not-a-real-secret-do-not-use
       NODE_ENV: test
       ALLOW_DEV_LOGIN: "false"

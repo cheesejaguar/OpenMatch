@@ -23,8 +23,17 @@ const verifySchema = z.object({
 
 const refreshSchema = z.object({ refreshToken: z.string() });
 
+// Auth endpoints get tight per-IP rate limits. These exist to slow down
+// credential stuffing and email-enumeration probes; they're additive to
+// the global limit and intentionally lower than the chat-send limit.
+const AUTH_LIMITS = {
+  start: { max: 10, timeWindow: "1 minute" },
+  verify: { max: 20, timeWindow: "1 minute" },
+  refresh: { max: 60, timeWindow: "1 minute" },
+};
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
-  app.post("/start", async (req, reply) => {
+  app.post("/start", { config: { rateLimit: AUTH_LIMITS.start } }, async (req, reply) => {
     const body = startSchema.parse(req.body);
 
     if (body.method === "email") {
@@ -65,7 +74,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(400).send({ error: "unknown_method" });
   });
 
-  app.post("/verify", async (req, reply) => {
+  app.post("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
     const body = verifySchema.parse(req.body);
     const result = await verifyEmailLogin(app.prisma, body);
     const session = await issueSession(app.prisma, result.userId, (p) => app.jwt.sign(p));
@@ -77,7 +86,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Also accept GET so the magic-link in email works in a browser.
-  app.get("/verify", async (req, reply) => {
+  app.get("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
     const params = verifySchema.parse(req.query);
     const result = await verifyEmailLogin(app.prisma, params);
     const session = await issueSession(app.prisma, result.userId, (p) => app.jwt.sign(p));
@@ -88,7 +97,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
-  app.post("/refresh", async (req, reply) => {
+  app.post("/refresh", { config: { rateLimit: AUTH_LIMITS.refresh } }, async (req, reply) => {
     const body = refreshSchema.parse(req.body);
     const next = await rotateRefreshToken(app.prisma, body.refreshToken, (p) => app.jwt.sign(p));
     if (!next) return reply.code(401).send({ error: "invalid_refresh_token" });

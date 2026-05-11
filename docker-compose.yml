@@ -1,8 +1,10 @@
 version: "3.9"
 
 # Local-development services for OpenMatch.
-# In production these are replaced by Cloud SQL (Postgres + PostGIS),
-# Memorystore (Redis), and a real SMTP provider.
+# In production these are replaced by Neon (Postgres + PostGIS),
+# Upstash Redis (REST), and a real SMTP provider (or Resend).
+# Redis is optional in dev — without UPSTASH_REDIS_REST_URL the rate-limit
+# plugin falls back to its in-memory store.
 
 services:
   postgres:
@@ -19,16 +21,6 @@ services:
       test: ["CMD-SHELL", "pg_isready -U openmatch -d openmatch"]
       interval: 5s
       timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
       retries: 10
 
   mailhog:

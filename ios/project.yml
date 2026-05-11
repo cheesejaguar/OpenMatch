@@ -16,12 +16,20 @@ configs:
   Debug: debug
   Release: release
 
+packages:
+  Ably:
+    url: https://github.com/ably/ably-cocoa
+    from: "1.2.30"
+
 targets:
   OpenMatch:
     type: application
     platform: iOS
     sources:
       - OpenMatch
+    dependencies:
+      - package: Ably
+        product: Ably
     info:
       path: OpenMatch/Resources/Info.plist
       properties:
