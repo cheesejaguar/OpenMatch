@@ -136,14 +136,7 @@ struct EditProfileView: View {
             Section("Photos") {
                 photoGrid
                 if vm.photos.count < EditProfileViewModel.maxPhotos {
-                    PhotosPicker(
-                        selection: $pickedItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        Label(vm.uploadingPhoto ? "Uploading…" : "Add a photo", systemImage: "plus.circle.fill")
-                    }
-                    .disabled(vm.uploadingPhoto)
+                    addPhotoPicker(isUploading: vm.uploadingPhoto)
                 }
                 Text("Up to \(EditProfileViewModel.maxPhotos) photos. Drag to reorder coming soon.")
                     .font(.caption)
@@ -211,6 +204,18 @@ struct EditProfileView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func addPhotoPicker(isUploading: Bool) -> some View {
+        PhotosPicker(
+            selection: $pickedItem,
+            matching: .images,
+            photoLibrary: .shared()
+        ) {
+            Label(isUploading ? "Uploading…" : "Add a photo", systemImage: "plus.circle.fill")
+        }
+        .disabled(isUploading)
     }
 }
 
