@@ -55,7 +55,8 @@ jobs:
         run: npm run format:check
 
       - name: Generate Prisma client
-        run: npx prisma generate --schema backend/prisma/schema.prisma
+        run: npx prisma generate
+        working-directory: backend
 
       # @openmatch/backend imports the @openmatch/matching workspace,
       # which resolves to matching/dist/index.d.ts via its "types" field.
@@ -105,7 +106,8 @@ jobs:
           fi
 
       - name: Generate Prisma client (for shared types)
-        run: npx prisma generate --schema backend/prisma/schema.prisma
+        run: npx prisma generate
+        working-directory: backend
 
       - name: Typecheck admin
         run: npm run typecheck -w @openmatch/admin
@@ -214,7 +216,8 @@ jobs:
           fi
 
       - name: Generate Prisma client
-        run: npx prisma generate --schema backend/prisma/schema.prisma
+        run: npx prisma generate
+        working-directory: backend
 
       # backend/src/server.ts imports @openmatch/matching, whose package
       # entry is matching/dist/index.js. Build it before vitest spins up
@@ -223,9 +226,10 @@ jobs:
         run: npm run build -w @openmatch/matching
 
       - name: Apply Prisma migrations
+        working-directory: backend
         run: |
           set +e
-          npx prisma migrate deploy --schema backend/prisma/schema.prisma 2>&1 | tee /tmp/migrate.log
+          npx prisma migrate deploy 2>&1 | tee /tmp/migrate.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
             echo "### Prisma migrate deploy failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"

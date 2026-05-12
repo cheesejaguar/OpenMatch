@@ -1,5 +1,6 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
+import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import fp from "fastify-plugin";
 import ws from "ws";
@@ -23,14 +24,12 @@ const g = globalThis as GlobalWithPrisma;
 function buildClient(): PrismaClient {
   // In test/dev against a vanilla Postgres (the docker-compose service or
   // the CI container), the Neon WebSocket adapter doesn't speak the same
-  // protocol and connections hang. Fall back to the default driver in
-  // those environments — production still uses Neon.
+  // protocol and connections hang. Use adapter-pg in those environments —
+  // production still uses Neon.
   const useNeonAdapter = env.NODE_ENV === "production" || /\.neon\.tech\b/.test(env.DATABASE_URL);
-  if (!useNeonAdapter) {
-    return new PrismaClient();
-  }
-  const pool = new Pool({ connectionString: env.DATABASE_URL });
-  const adapter = new PrismaNeon(pool);
+  const adapter = useNeonAdapter
+    ? new PrismaNeon({ connectionString: env.DATABASE_URL })
+    : new PrismaPg(env.DATABASE_URL);
   return new PrismaClient({ adapter });
 }
 

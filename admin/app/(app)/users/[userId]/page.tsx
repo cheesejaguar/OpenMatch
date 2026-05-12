@@ -6,7 +6,7 @@ import UnbanForm from "../../../../components/moderation/UnbanForm";
 import { adminFetch } from "../../../../lib/api/admin-client";
 import type { UserDetailDTO } from "../../../../lib/api/types";
 import { readSession } from "../../../../lib/auth/session";
-import { PERMISSIONS, has } from "../../../../lib/rbac/permissions";
+import { has, PERMISSIONS } from "../../../../lib/rbac/permissions";
 
 export const dynamic = "force-dynamic";
 

@@ -1,3 +1,4 @@
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 // Integration tests run against a real Postgres + PostGIS database. CI
@@ -5,7 +6,8 @@ import { PrismaClient } from "@prisma/client";
 // docker-compose postgres. Tests are isolated by truncating all tables
 // in `resetDb()` between runs — faster than rolling migrations per test.
 
-export const testPrisma = new PrismaClient();
+const adapter = new PrismaPg(process.env.DATABASE_URL ?? "");
+export const testPrisma = new PrismaClient({ adapter });
 
 // Tables listed in dependency order so the TRUNCATE … CASCADE is harmless
 // either way but stays explicit. AlgorithmAuditRecord is rarely touched

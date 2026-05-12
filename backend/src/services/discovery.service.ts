@@ -1,4 +1,3 @@
-import { currentConfig, getDiscoveryDeck } from "@openmatch/matching";
 import type {
   ActivityBucket,
   Candidate,
@@ -7,6 +6,7 @@ import type {
   RelationshipGoal as MatchingRelationshipGoal,
   Viewer,
 } from "@openmatch/matching";
+import { currentConfig, getDiscoveryDeck } from "@openmatch/matching";
 import type { PrismaClient } from "@prisma/client";
 import { haversineKm } from "../lib/location.js";
 

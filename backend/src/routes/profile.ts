@@ -2,8 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import {
   ALLOWED_MIME_TYPES,
-  MAX_PHOTO_BYTES,
   deleteProfilePhoto,
+  MAX_PHOTO_BYTES,
   uploadProfilePhoto,
 } from "../lib/media.js";
 
