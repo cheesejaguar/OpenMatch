@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import users from "../../matching/fixtures/synthetic-users.json" with { type: "json" };
+import { ADMIN_ROLE_DEFINITIONS } from "../src/lib/admin/roles.js";
 
 interface RawUser {
   id: string;
@@ -107,7 +108,54 @@ async function main() {
     });
   }
 
+  await seedAdminRoles();
+  if (process.env.ALLOW_DEV_LOGIN === "true") {
+    await seedDevAdmin();
+  }
+
   console.log("Seed complete.");
+}
+
+async function seedAdminRoles() {
+  for (const role of ADMIN_ROLE_DEFINITIONS) {
+    await prisma.adminRole.upsert({
+      where: { name: role.name },
+      create: {
+        name: role.name,
+        description: role.description,
+        permissions: role.permissions,
+      },
+      update: {
+        description: role.description,
+        permissions: role.permissions,
+      },
+    });
+  }
+}
+
+async function seedDevAdmin() {
+  const email = "admin@openmatch.local";
+  const admin = await prisma.adminUser.upsert({
+    where: { email },
+    create: { email, displayName: "Dev Admin" },
+    update: {},
+  });
+  const systemAdminRole = await prisma.adminRole.findUnique({
+    where: { name: "system_admin" },
+  });
+  const trustSafetyRole = await prisma.adminRole.findUnique({
+    where: { name: "trust_safety_admin" },
+  });
+  for (const role of [systemAdminRole, trustSafetyRole]) {
+    if (!role) continue;
+    await prisma.adminUserRole.upsert({
+      where: {
+        adminUserId_adminRoleId: { adminUserId: admin.id, adminRoleId: role.id },
+      },
+      create: { adminUserId: admin.id, adminRoleId: role.id },
+      update: {},
+    });
+  }
 }
 
 main()

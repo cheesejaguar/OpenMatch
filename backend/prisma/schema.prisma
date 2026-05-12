@@ -107,6 +107,95 @@ enum AuthProvider {
   dev
 }
 
+// -------- Admin enums --------
+
+enum AdminUserStatus {
+  active
+  disabled
+}
+
+enum BanType {
+  temporary
+  permanent
+  safety_hold
+}
+
+enum BanStatus {
+  active
+  expired
+  lifted
+}
+
+enum AdminEventType {
+  user_viewed
+  profile_viewed
+  photo_viewed
+  message_viewed
+  conversation_viewed
+  report_opened
+  report_resolved
+  report_assigned
+  report_escalated
+  report_dismissed
+  user_banned
+  user_unbanned
+  user_suspended
+  user_restored
+  photo_approved
+  photo_rejected
+  photo_removed
+  note_added
+  role_changed
+  admin_login
+  admin_logout
+  sensitive_access_granted
+  export_performed
+  access_denied
+}
+
+enum SensitiveEntityType {
+  user
+  profile
+  conversation
+  photo
+  message
+}
+
+enum ReasonCode {
+  harassment
+  hate_or_discrimination
+  threats_or_violence
+  sexual_content
+  scam_or_spam
+  fake_profile
+  underage
+  impersonation
+  offensive_profile
+  off_platform_solicitation
+  ban_evasion
+  other
+}
+
+enum AccessReasonCode {
+  active_report_investigation
+  user_appeal
+  scam_investigation
+  impersonation_investigation
+  safety_escalation
+  legal_compliance
+  quality_review
+  other
+}
+
+enum AppealStatus {
+  open
+  reviewing
+  upheld
+  reduced
+  reversed
+  dismissed
+}
+
 // -------- User & profile --------
 
 model User {
@@ -140,6 +229,8 @@ model User {
   sessions          Session[]
   authChallenges    AuthChallenge[]
   deviceTokens      DeviceToken[]
+  bans              UserBan[]
+  appeals           Appeal[]
 
   @@index([status])
 }
@@ -340,8 +431,14 @@ model Report {
   resolvedAt          DateTime?
   moderatorId         String?
   resolution          ModerationDecision?
+  assignedAdminUserId String?
+  assignedAdmin       AdminUser?          @relation("ReportAssignee", fields: [assignedAdminUserId], references: [id])
+
+  moderationActions   ModerationAction[]
+  notes               AdminNote[]
 
   @@index([status, createdAt])
+  @@index([assignedAdminUserId])
 }
 
 // -------- Auth --------
@@ -396,4 +493,206 @@ model AlgorithmAuditRecord {
   createdAt             DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// -------- Admin / moderation --------
+
+model AdminUser {
+  id                       String                 @id @default(cuid())
+  email                    String                 @unique
+  displayName              String
+  identityProviderSubject  String?                @unique
+  status                   AdminUserStatus        @default(active)
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  lastLoginAt              DateTime?
+
+  roles                    AdminUserRole[]        @relation("RoleHolder")
+  rolesAssigned            AdminUserRole[]        @relation("RoleAssigner")
+  sessions                 AdminSession[]
+  authChallenges           AdminAuthChallenge[]
+  auditEvents              AdminAuditLog[]        @relation("AuditActor")
+  moderationActions        ModerationAction[]
+  bansIssued               UserBan[]              @relation("BanIssuer")
+  unbansIssued             UserBan[]              @relation("UnbanIssuer")
+  notes                    AdminNote[]
+  accessGrants             SensitiveAccessGrant[]
+  assignedReports          Report[]               @relation("ReportAssignee")
+  appealsDecided           Appeal[]               @relation("AppealDecider")
+
+  @@index([status])
+}
+
+model AdminRole {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  description String
+  permissions String[]        @default([])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  members     AdminUserRole[]
+}
+
+model AdminUserRole {
+  adminUserId           String
+  adminRoleId           String
+  assignedByAdminUserId String?
+  createdAt             DateTime  @default(now())
+
+  adminUser             AdminUser @relation("RoleHolder", fields: [adminUserId], references: [id], onDelete: Cascade)
+  adminRole             AdminRole @relation(fields: [adminRoleId], references: [id], onDelete: Cascade)
+  assignedBy            AdminUser? @relation("RoleAssigner", fields: [assignedByAdminUserId], references: [id])
+
+  @@id([adminUserId, adminRoleId])
+  @@index([adminRoleId])
+}
+
+model AdminSession {
+  id           String    @id @default(cuid())
+  adminUserId  String
+  adminUser    AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  refreshToken String    @unique
+  userAgent    String?
+  ipHash       String?
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+}
+
+model AdminAuthChallenge {
+  id          String    @id @default(cuid())
+  adminUserId String?
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  email       String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}
+
+model UserBan {
+  id                          String     @id @default(cuid())
+  userId                      String
+  user                        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  banType                     BanType
+  status                      BanStatus  @default(active)
+  reasonCode                  ReasonCode
+  internalNote                String?
+  userFacingExplanation       String?
+  bannedByAdminUserId         String
+  bannedBy                    AdminUser  @relation("BanIssuer", fields: [bannedByAdminUserId], references: [id])
+  bannedAt                    DateTime   @default(now())
+  expiresAt                   DateTime?
+  unbannedByAdminUserId       String?
+  unbannedBy                  AdminUser? @relation("UnbanIssuer", fields: [unbannedByAdminUserId], references: [id])
+  unbannedAt                  DateTime?
+  unbanReason                 String?
+  requireVerificationOnUnban  Boolean    @default(false)
+  requireProfileReviewOnUnban Boolean    @default(false)
+
+  appeals                     Appeal[]
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+}
+
+model ModerationAction {
+  id                    String              @id @default(cuid())
+  targetUserId          String?
+  targetProfileId       String?
+  targetPhotoId         String?
+  targetMessageId       String?
+  reportId              String?
+  report                Report?             @relation(fields: [reportId], references: [id])
+  actionType            ModerationDecision
+  reasonCode            ReasonCode
+  internalNote          String?
+  userFacingExplanation String?
+  createdByAdminUserId  String
+  createdBy             AdminUser           @relation(fields: [createdByAdminUserId], references: [id])
+  createdAt             DateTime            @default(now())
+
+  @@index([targetUserId])
+  @@index([reportId])
+  @@index([createdAt])
+}
+
+model AdminNote {
+  id                   String    @id @default(cuid())
+  targetUserId         String?
+  targetReportId       String?
+  report               Report?   @relation(fields: [targetReportId], references: [id], onDelete: Cascade)
+  body                 String
+  createdByAdminUserId String
+  createdBy            AdminUser @relation(fields: [createdByAdminUserId], references: [id])
+  createdAt            DateTime  @default(now())
+  editedAt             DateTime?
+
+  @@index([targetUserId])
+  @@index([targetReportId])
+}
+
+model SensitiveAccessGrant {
+  id                  String              @id @default(cuid())
+  adminUserId         String
+  adminUser           AdminUser           @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  targetEntityType    SensitiveEntityType
+  targetEntityId      String
+  reason              AccessReasonCode
+  note                String?
+  reportId            String?
+  createdAt           DateTime            @default(now())
+  expiresAt           DateTime
+
+  @@index([adminUserId, expiresAt])
+  @@index([targetEntityType, targetEntityId])
+}
+
+model AdminAuditLog {
+  id                     String            @id @default(cuid())
+  adminUserId            String
+  adminUser              AdminUser         @relation("AuditActor", fields: [adminUserId], references: [id])
+  adminRoleSnapshot      String
+  eventType              AdminEventType
+  targetEntityType       String?
+  targetEntityId         String?
+  accessReason           AccessReasonCode?
+  reportId               String?
+  moderationActionId     String?
+  sensitiveAccessGrantId String?
+  requestId              String?
+  ipHash                 String?
+  userAgent              String?
+  metadata               Json?
+  createdAt              DateTime          @default(now())
+
+  @@index([adminUserId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([targetEntityType, targetEntityId, createdAt])
+}
+
+model Appeal {
+  id                   String       @id @default(cuid())
+  userId               String
+  user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userBanId            String
+  userBan              UserBan      @relation(fields: [userBanId], references: [id], onDelete: Cascade)
+  userExplanation      String
+  status               AppealStatus @default(open)
+  decidedByAdminUserId String?
+  decidedBy            AdminUser?   @relation("AppealDecider", fields: [decidedByAdminUserId], references: [id])
+  decidedAt            DateTime?
+  decisionNote         String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([status, createdAt])
 }

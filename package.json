@@ -6,7 +6,8 @@
   "license": "Apache-2.0",
   "workspaces": [
     "matching",
-    "backend"
+    "backend",
+    "admin"
   ],
   "engines": {
     "node": ">=20.0.0"

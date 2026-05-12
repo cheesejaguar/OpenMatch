@@ -4,10 +4,20 @@ import sensible from "@fastify/sensible";
 import swagger from "@fastify/swagger";
 import Fastify from "fastify";
 import { env } from "./env.js";
+import adminAuthPlugin from "./plugins/admin-auth.js";
+import adminRbacPlugin from "./plugins/admin-rbac.js";
 import authPlugin from "./plugins/auth.js";
 import prismaPlugin from "./plugins/prisma.js";
 import ratelimitPlugin from "./plugins/ratelimit.js";
 import redisPlugin from "./plugins/redis.js";
+import { adminAuditRoutes } from "./routes/admin/audit.js";
+import { adminAuthRoutes } from "./routes/admin/auth.js";
+import { adminConversationRoutes } from "./routes/admin/conversations.js";
+import { adminMetricsRoutes } from "./routes/admin/metrics.js";
+import { adminPhotoRoutes } from "./routes/admin/photos.js";
+import { adminReportRoutes } from "./routes/admin/reports.js";
+import { adminRoleRoutes } from "./routes/admin/roles.js";
+import { adminUserRoutes } from "./routes/admin/users.js";
 import { authRoutes } from "./routes/auth.js";
 import { chatRoutes } from "./routes/chat.js";
 import { discoveryRoutes } from "./routes/discovery.js";
@@ -33,7 +43,10 @@ export async function buildServer() {
 
   await app.register(sensible);
   await app.register(cors, {
-    origin: env.CORS_ORIGIN.split(",").map((s) => s.trim()),
+    origin: [
+      ...env.CORS_ORIGIN.split(",").map((s) => s.trim()),
+      ...env.ADMIN_CORS_ORIGIN.split(",").map((s) => s.trim()),
+    ].filter(Boolean),
     credentials: true,
   });
   await app.register(multipart, {
@@ -60,6 +73,8 @@ export async function buildServer() {
   await app.register(prismaPlugin);
   await app.register(redisPlugin);
   await app.register(authPlugin);
+  await app.register(adminAuthPlugin);
+  await app.register(adminRbacPlugin);
   await app.register(ratelimitPlugin);
 
   app.get("/health", async () => ({ ok: true }));
@@ -75,6 +90,15 @@ export async function buildServer() {
   await app.register(realtimeRoutes, { prefix: "/api/v1/realtime" });
   await app.register(safetyRoutes, { prefix: "/api/v1/safety" });
   await app.register(transparencyRoutes, { prefix: "/api/v1/transparency" });
+
+  await app.register(adminAuthRoutes, { prefix: "/api/v1/admin/auth" });
+  await app.register(adminUserRoutes, { prefix: "/api/v1/admin/users" });
+  await app.register(adminReportRoutes, { prefix: "/api/v1/admin/reports" });
+  await app.register(adminConversationRoutes, { prefix: "/api/v1/admin" });
+  await app.register(adminPhotoRoutes, { prefix: "/api/v1/admin/photos" });
+  await app.register(adminAuditRoutes, { prefix: "/api/v1/admin/audit" });
+  await app.register(adminMetricsRoutes, { prefix: "/api/v1/admin/metrics" });
+  await app.register(adminRoleRoutes, { prefix: "/api/v1/admin" });
 
   app.setErrorHandler((err, _req, reply) => {
     const e = err as { statusCode?: number; message?: string };

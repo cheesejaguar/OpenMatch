@@ -13,6 +13,17 @@ export const testPrisma = new PrismaClient({ adapter });
 // either way but stays explicit. AlgorithmAuditRecord is rarely touched
 // from these tests but included for completeness.
 const TABLES = [
+  "AdminAuditLog",
+  "Appeal",
+  "ModerationAction",
+  "AdminNote",
+  "SensitiveAccessGrant",
+  "UserBan",
+  "AdminAuthChallenge",
+  "AdminSession",
+  "AdminUserRole",
+  "AdminUser",
+  "AdminRole",
   "Message",
   "Conversation",
   "Match",

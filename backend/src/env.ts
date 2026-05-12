@@ -17,6 +17,23 @@ const schema = z.object({
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
 
+  // Admin dashboard. Distinct signing key so a leaked consumer JWT_SECRET
+  // cannot mint admin tokens. Defaults are dev-friendly but production
+  // MUST set ADMIN_JWT_SECRET explicitly.
+  ADMIN_JWT_SECRET: z.string().min(16).default("dev-admin-secret-please-change"),
+  ADMIN_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  ADMIN_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
+  ADMIN_MAGIC_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(600),
+  // CSV of allowlisted admin emails. Until real OIDC ships (Phase 7) this
+  // is the gate on who may receive an admin magic-link.
+  ADMIN_ALLOWED_EMAILS: z.string().default(""),
+  // Short-lived signed grant TTL for sensitive access (messages, photos
+  // outside report context). PRD §16.4 references this.
+  ADMIN_ACCESS_GRANT_TTL_SECONDS: z.coerce.number().int().positive().default(1800),
+  // Origin allowlist for the admin dashboard. Comma-separated. The admin
+  // BFF in admin/ calls this backend from a different origin.
+  ADMIN_CORS_ORIGIN: z.string().default("http://localhost:3000"),
+
   SMTP_HOST: z.string().default("localhost"),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
   SMTP_FROM: z.string().email().default("noreply@openmatch.local"),
