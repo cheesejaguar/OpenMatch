@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "npm install --include=dev",
-  "buildCommand": "npm run build -w @openmatch/matching && npm --workspace @openmatch/backend exec -- prisma generate && npm run build -w @openmatch/backend",
+  "installCommand": "npm install --include=dev --workspace=@openmatch/matching --workspace=@openmatch/backend --include-workspace-root",
+  "buildCommand": "npm run build --workspace=@openmatch/matching && npm run prisma:generate --workspace=@openmatch/backend && npm run build --workspace=@openmatch/backend",
   "functions": {
     "backend/api/index.ts": {
       "maxDuration": 60,
