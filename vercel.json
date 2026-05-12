@@ -4,12 +4,12 @@
   "installCommand": "npm install --include=dev",
   "buildCommand": "npm run build -w @openmatch/matching && npm --workspace @openmatch/backend exec -- prisma generate && npm run build -w @openmatch/backend",
   "functions": {
-    "backend/dist/api/index.js": {
+    "backend/api/index.ts": {
       "maxDuration": 60,
       "memory": 1024,
       "includeFiles": "node_modules/.prisma/client/**"
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/backend/dist/api/index" }],
+  "rewrites": [{ "source": "/(.*)", "destination": "/backend/api/index" }],
   "regions": ["iad1"]
 }
