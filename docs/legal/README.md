@@ -6,10 +6,38 @@ OpenMatch is, simultaneously: a consumer dating service, a hosting service for u
 
 ## Contents
 
+### Survey & roadmap
+
 | Document | Purpose |
 |---|---|
-| [`regulatory-landscape.md`](./regulatory-landscape.md) | Survey of every law, regulation, and platform rule that plausibly applies — privacy (GDPR, CCPA/CPRA, state laws, LGPD, PIPEDA, APPI, DPDPA, POPIA, …), child safety (COPPA, AADC, OSA, TAKE IT DOWN), content moderation (DSA, OSA, FOSTA-SESTA, DMCA, NCMEC reporting), accessibility (ADA, EAA, WCAG), non-discrimination, marketing (CAN-SPAM, CASL, TCPA), App Store rules, security/breach laws, algorithmic accountability (AI Act, ADMT), open-source/IP, and lawful-process handling. |
-| [`compliance-roadmap.md`](./compliance-roadmap.md) | The plan: Phase 0 foundations, Phase 1 pre-launch baseline, Phase 2 first-12-months, Phase 3 expansion. Every item is a candidate issue. |
+| [`regulatory-landscape.md`](./regulatory-landscape.md) | Survey of every law, regulation, and platform rule that plausibly applies. |
+| [`compliance-roadmap.md`](./compliance-roadmap.md) | The phased plan (P0 foundations → P3 expansion). Every item is a candidate issue. |
+
+### Foundational artifacts
+
+| Document | Purpose |
+|---|---|
+| [`ropa.yaml`](./ropa.yaml) | Machine-readable Record of Processing Activities (GDPR Art. 30). Every data class, purpose, lawful basis, retention, recipient, transfer. |
+| [`vendor-register.md`](./vendor-register.md) | Sub-processor list + diligence checklist + change log. |
+| [`threat-model.md`](./threat-model.md) | STRIDE + LINDDUN passes; dating-app-specific patterns. |
+
+### User-facing legal artifacts
+
+| Document | Purpose |
+|---|---|
+| [`terms-of-service.md`](./terms-of-service.md) | ToS template — UGC indemnity, Apple EULA addendum, dispute resolution per jurisdiction. |
+| [`privacy-notice.md`](./privacy-notice.md) | Layered notice with US-state, EU/UK, CA/QC, BR, AU supplements. |
+| [`children-policy.md`](./children-policy.md) | 18+ floor enforcement, actual-knowledge handling, NCMEC pipeline. |
+| [`dmca-policy.md`](./dmca-policy.md) | DMCA §512 notice / counter-notice / repeat infringer. |
+| [`law-enforcement-guidelines.md`](./law-enforcement-guidelines.md) | What process we require and what we will produce. |
+| [`accessibility-statement.md`](./accessibility-statement.md) | WCAG 2.2 AA / EN 301 549 conformance target. |
+| [`transparency-report-template.md`](./transparency-report-template.md) | DSA-shaped reporting template. |
+
+### Operational
+
+| Document | Purpose |
+|---|---|
+| [`breach-response-runbook.md`](./breach-response-runbook.md) | T+0 → T+72h playbook; state-by-state matrix. |
 
 ## Reading order
 
