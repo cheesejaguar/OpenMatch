@@ -1,14 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "npm run build -w @openmatch/matching && npm run build -w @openmatch/backend",
-  "installCommand": "npm install",
+  "installCommand": "npm install --include=dev --workspace=@openmatch/matching --workspace=@openmatch/backend --include-workspace-root",
+  "buildCommand": "npm run build --workspace=@openmatch/matching && npm run prisma:generate --workspace=@openmatch/backend && npm run build --workspace=@openmatch/backend",
   "functions": {
-    "backend/api/index.ts": {
+    "api/index.ts": {
       "maxDuration": 60,
-      "memory": 1024
+      "memory": 1024,
+      "includeFiles": "node_modules/.prisma/client/**"
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/backend/api/index" }],
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
   "regions": ["iad1"]
 }
