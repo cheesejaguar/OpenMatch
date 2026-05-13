@@ -21,9 +21,11 @@ import { adminUserRoutes } from "./routes/admin/users.js";
 import { authRoutes } from "./routes/auth.js";
 import { chatRoutes } from "./routes/chat.js";
 import { discoveryRoutes } from "./routes/discovery.js";
+import { dsaRoutes } from "./routes/dsa.js";
 import { likesRoutes } from "./routes/likes.js";
 import { matchesRoutes } from "./routes/matches.js";
 import { preferencesRoutes } from "./routes/preferences.js";
+import { privacyRoutes } from "./routes/privacy.js";
 import { profileRoutes } from "./routes/profile.js";
 import { realtimeRoutes } from "./routes/realtime.js";
 import { safetyRoutes } from "./routes/safety.js";
@@ -90,6 +92,8 @@ export async function buildServer() {
   await app.register(realtimeRoutes, { prefix: "/api/v1/realtime" });
   await app.register(safetyRoutes, { prefix: "/api/v1/safety" });
   await app.register(transparencyRoutes, { prefix: "/api/v1/transparency" });
+  await app.register(privacyRoutes, { prefix: "/api/v1/privacy" });
+  await app.register(dsaRoutes, { prefix: "/api/v1/dsa" });
 
   await app.register(adminAuthRoutes, { prefix: "/api/v1/admin/auth" });
   await app.register(adminUserRoutes, { prefix: "/api/v1/admin/users" });
