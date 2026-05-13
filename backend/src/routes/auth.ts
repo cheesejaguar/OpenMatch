@@ -1,13 +1,23 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { env } from "../env.js";
 import {
   issueSession,
+  listUserSessions,
+  revokeAllUserSessions,
   revokeSession,
+  revokeUserSession,
   rotateRefreshToken,
   startEmailLogin,
   verifyEmailLogin,
 } from "../services/auth.service.js";
+
+function requestContext(req: FastifyRequest) {
+  const ua = (req.headers["user-agent"] as string | undefined) ?? null;
+  const ip =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip;
+  return { userAgent: ua, ip };
+}
 
 const startSchema = z.object({
   method: z.enum(["email", "apple", "dev"]),
@@ -67,7 +77,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         where: { id: body.devUserId },
       });
       if (!user) return reply.code(404).send({ error: "user_not_found" });
-      const session = await issueSession(app.prisma, user.id, (p) => app.jwt.sign(p));
+      const session = await issueSession(
+        app.prisma,
+        user.id,
+        (p) => app.jwt.sign(p),
+        requestContext(req),
+      );
       return reply.send({ ...session, userId: user.id, isNewUser: false });
     }
 
@@ -77,7 +92,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
     const body = verifySchema.parse(req.body);
     const result = await verifyEmailLogin(app.prisma, body);
-    const session = await issueSession(app.prisma, result.userId, (p) => app.jwt.sign(p));
+    const session = await issueSession(
+      app.prisma,
+      result.userId,
+      (p) => app.jwt.sign(p),
+      requestContext(req),
+    );
     return reply.send({
       ...session,
       userId: result.userId,
@@ -89,7 +109,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.get("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
     const params = verifySchema.parse(req.query);
     const result = await verifyEmailLogin(app.prisma, params);
-    const session = await issueSession(app.prisma, result.userId, (p) => app.jwt.sign(p));
+    const session = await issueSession(
+      app.prisma,
+      result.userId,
+      (p) => app.jwt.sign(p),
+      requestContext(req),
+    );
     return reply.send({
       ...session,
       userId: result.userId,
@@ -99,7 +124,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/refresh", { config: { rateLimit: AUTH_LIMITS.refresh } }, async (req, reply) => {
     const body = refreshSchema.parse(req.body);
-    const next = await rotateRefreshToken(app.prisma, body.refreshToken, (p) => app.jwt.sign(p));
+    const next = await rotateRefreshToken(app.prisma, body.refreshToken, (p) => app.jwt.sign(p), {
+      ...requestContext(req),
+      logReuse: (userId) => {
+        // Security event: a revoked refresh token has been presented.
+        // The service has revoked the entire session family for this
+        // user. Log loudly; downstream alerting may page on this.
+        app.log.warn(
+          { event: "auth.refresh_token_reuse", userId, ip: requestContext(req).ip },
+          "refresh_token_reuse_detected",
+        );
+      },
+    });
     if (!next) return reply.code(401).send({ error: "invalid_refresh_token" });
     return reply.send(next);
   });
@@ -108,5 +144,34 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const body = refreshSchema.parse(req.body);
     await revokeSession(app.prisma, body.refreshToken);
     return reply.code(204).send();
+  });
+
+  // ---- Device session management -------------------------------------
+  //
+  // Each refresh token is a "session" with UA + IP-hash recorded. The
+  // owner of the account can list and revoke any session — a common
+  // path is "I lost my phone".
+
+  app.get("/sessions", { preHandler: app.authenticate }, async (req) => {
+    return listUserSessions(app.prisma, req.userId!);
+  });
+
+  app.delete<{ Params: { sessionId: string } }>(
+    "/sessions/:sessionId",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const result = await revokeUserSession(app.prisma, req.userId!, req.params.sessionId);
+      if (!result.revoked) return reply.code(404).send({ error: "not_found" });
+      return reply.code(204).send();
+    },
+  );
+
+  app.post("/sessions/revoke-all", { preHandler: app.authenticate }, async (req, reply) => {
+    const result = await revokeAllUserSessions(app.prisma, req.userId!);
+    app.log.info(
+      { event: "auth.revoke_all_sessions", userId: req.userId, count: result.revokedCount },
+      "all_sessions_revoked",
+    );
+    return reply.send(result);
   });
 };
