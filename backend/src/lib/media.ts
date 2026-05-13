@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { del, put } from "@vercel/blob";
 import { env } from "../env.js";
+import { stripJpegExif } from "./safety/exif.js";
 
 // Media abstraction.
 // - Production: Vercel Blob via server-side `put()`. iOS sends the (already
@@ -62,10 +63,20 @@ export async function uploadProfilePhoto(args: {
   if (args.data.byteLength > MAX_PHOTO_BYTES) {
     throw Object.assign(new Error("payload_too_large"), { statusCode: 413 });
   }
+
+  // Defence-in-depth: strip EXIF (incl. GPS) on the server even though
+  // the iOS client re-encodes before upload. JPEG is the common case;
+  // other formats are passed through unchanged.
+  let bytes = args.data;
+  if (args.contentType === "image/jpeg") {
+    const stripped = stripJpegExif(args.data);
+    bytes = stripped.bytes;
+  }
+
   const storageKey = `profiles/${args.profileId}/${randomUUID()}.${extForMime(args.contentType)}`;
 
   if (env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(storageKey, args.data, {
+    const blob = await put(storageKey, bytes, {
       access: "public",
       contentType: args.contentType,
       token: env.BLOB_READ_WRITE_TOKEN,
@@ -78,7 +89,7 @@ export async function uploadProfilePhoto(args: {
   // BLOB_READ_WRITE_TOKEN is set.
   const full = path.join(LOCAL_DIR, storageKey);
   await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, args.data);
+  await fs.writeFile(full, bytes);
   return {
     storageKey,
     cdnUrl: `/media/${encodeURIComponent(storageKey)}`,
