@@ -7,6 +7,7 @@ import { env } from "./env.js";
 import adminAuthPlugin from "./plugins/admin-auth.js";
 import adminRbacPlugin from "./plugins/admin-rbac.js";
 import authPlugin from "./plugins/auth.js";
+import countryGatePlugin from "./plugins/country-gate.js";
 import prismaPlugin from "./plugins/prisma.js";
 import ratelimitPlugin from "./plugins/ratelimit.js";
 import redisPlugin from "./plugins/redis.js";
@@ -78,6 +79,7 @@ export async function buildServer() {
   await app.register(adminAuthPlugin);
   await app.register(adminRbacPlugin);
   await app.register(ratelimitPlugin);
+  await app.register(countryGatePlugin);
 
   app.get("/health", async () => ({ ok: true }));
 

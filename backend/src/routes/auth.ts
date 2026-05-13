@@ -46,6 +46,36 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/start", { config: { rateLimit: AUTH_LIMITS.start } }, async (req, reply) => {
     const body = startSchema.parse(req.body);
 
+    // Country gate. We log every screening so the SanctionsScreening
+    // table is a complete record of who was blocked and why.
+    const decision = app.checkCountry(req);
+    const inferred = app.inferCountry(req);
+    await app.prisma.sanctionsScreening
+      .create({
+        data: {
+          countryCode: inferred,
+          result: decision.allow
+            ? "cleared"
+            : decision.reason === "sanctions"
+              ? "blocked_country"
+              : decision.reason === "lgbtq_criminalised"
+                ? "blocked_country"
+                : "needs_review",
+          listsChecked: ["OFAC SDN", "EU Consolidated", "UK OFSI", "ILGA-criminalised"],
+          matchDetails: decision.allow
+            ? undefined
+            : { reason: decision.reason, note: decision.note },
+        },
+      })
+      .catch(() => undefined);
+    if (!decision.allow) {
+      return reply.code(451).send({
+        error: "country_not_supported",
+        reason: decision.reason,
+        message: decision.note,
+      });
+    }
+
     if (body.method === "email") {
       if (!body.email) return reply.code(400).send({ error: "email_required" });
       const result = await startEmailLogin(app.prisma, { email: body.email });
