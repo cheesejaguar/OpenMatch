@@ -196,88 +196,227 @@ enum AppealStatus {
   dismissed
 }
 
+// -------- Compliance enums --------
+
+enum ConsentScope {
+  terms_of_service
+  privacy_notice
+  art9_processing // GDPR Art. 9 special category (orientation, lifestyle)
+  precise_location
+  marketing_email
+  marketing_push
+  marketing_sms
+  analytics
+  recommender_personalised // DSA Art. 38 — withdrawable
+  limit_use_spi // CCPA/CPRA "Limit Use of My SPI"
+}
+
+enum DsarRequestType {
+  access
+  deletion
+  correction
+  portability
+  restriction
+  objection
+  limit_use_spi
+  withdraw_consent
+}
+
+enum DsarStatus {
+  received
+  verifying_identity
+  in_progress
+  fulfilled
+  partially_fulfilled
+  refused
+  withdrawn
+}
+
+enum DsarChannel {
+  in_app
+  email
+  web_form
+  authorised_agent
+  regulator
+}
+
+enum AccountDeletionStatus {
+  scheduled
+  cancelled
+  in_progress
+  completed
+}
+
+enum NoticeAndActionCategory {
+  illegal_content
+  csam
+  ncii
+  copyright_dmca
+  terrorism_violent
+  hate_speech
+  privacy_violation
+  defamation
+  scam_fraud
+  underage
+  other
+}
+
+enum NoticeAndActionStatus {
+  received
+  acknowledged
+  in_review
+  actioned
+  rejected
+  withdrawn
+}
+
+enum HashList {
+  photodna
+  stopncii
+  ncmec_industry
+  internal
+}
+
+enum HashAction {
+  auto_removed
+  queued_for_review
+  dismissed
+}
+
+enum NcmecReportStatus {
+  pending
+  submitted
+  acknowledged
+  failed
+}
+
+enum ScamSignalKind {
+  rapid_offplatform_push
+  geo_mismatch
+  reverse_image_match
+  llm_generated_bio_suspected
+  payment_solicitation
+  romance_scam_pattern
+  other
+}
+
+enum LERequestType {
+  subpoena
+  court_order_2703d
+  search_warrant
+  emergency_disclosure
+  preservation_only
+  mlat
+  national_security
+  other
+}
+
+enum LEStatus {
+  received
+  under_review
+  produced
+  produced_with_objection
+  rejected
+  withdrawn
+}
+
+enum SanctionsScreeningResult {
+  cleared
+  blocked_country
+  blocked_party
+  needs_review
+}
+
 // -------- User & profile --------
 
 model User {
-  id                String        @id @default(cuid())
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  status            AccountStatus @default(active)
-  dateOfBirth       DateTime
-  emailHash         String?       @unique
-  phoneHash         String?       @unique
-  authProvider      AuthProvider
-  authSubject       String?       @unique // Apple subject or magic-link identity
-  isAgeVerified     Boolean       @default(false)
-  isBanned          Boolean       @default(false)
-  deletedAt         DateTime?
+  id            String        @id @default(cuid())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  status        AccountStatus @default(active)
+  dateOfBirth   DateTime
+  emailHash     String?       @unique
+  phoneHash     String?       @unique
+  authProvider  AuthProvider
+  authSubject   String?       @unique // Apple subject or magic-link identity
+  isAgeVerified Boolean       @default(false)
+  isBanned      Boolean       @default(false)
+  deletedAt     DateTime?
 
-  profile           Profile?
-  preferences       Preferences?
-  swipesMade        SwipeAction[] @relation("SwipeViewer")
-  swipesReceived    SwipeAction[] @relation("SwipeTarget")
-  likesSent         Like[]        @relation("LikeFrom")
-  likesReceived     Like[]        @relation("LikeTo")
-  matchesA          Match[]       @relation("MatchUserA")
-  matchesB          Match[]       @relation("MatchUserB")
-  unmatchedBy       Match[]       @relation("MatchUnmatcher")
-  blocksMade        Block[]       @relation("Blocker")
-  blocksReceived    Block[]       @relation("Blocked")
-  reportsMade       Report[]      @relation("Reporter")
-  reportsAbout      Report[]      @relation("Reported")
-  messagesSent      Message[]
-  sessions          Session[]
-  authChallenges    AuthChallenge[]
-  deviceTokens      DeviceToken[]
-  bans              UserBan[]
-  appeals           Appeal[]
+  profile             Profile?
+  preferences         Preferences?
+  swipesMade          SwipeAction[]            @relation("SwipeViewer")
+  swipesReceived      SwipeAction[]            @relation("SwipeTarget")
+  likesSent           Like[]                   @relation("LikeFrom")
+  likesReceived       Like[]                   @relation("LikeTo")
+  matchesA            Match[]                  @relation("MatchUserA")
+  matchesB            Match[]                  @relation("MatchUserB")
+  unmatchedBy         Match[]                  @relation("MatchUnmatcher")
+  blocksMade          Block[]                  @relation("Blocker")
+  blocksReceived      Block[]                  @relation("Blocked")
+  reportsMade         Report[]                 @relation("Reporter")
+  reportsAbout        Report[]                 @relation("Reported")
+  messagesSent        Message[]
+  sessions            Session[]
+  authChallenges      AuthChallenge[]
+  deviceTokens        DeviceToken[]
+  bans                UserBan[]
+  appeals             Appeal[]
+  consents            ConsentRecord[]
+  dsarRequests        DataSubjectRequest[]
+  deletionRequests    AccountDeletionRequest[]
+  scamSignals         ScamSignal[]
+  notificationPrefs   NotificationPreference?
+  sanctionsScreenings SanctionsScreening[]
+  scammerNotices      ScammerNotification[]    @relation("ScammerNoticeRecipient")
+  noticeReportsAbout  NoticeAndActionReport[]  @relation("NoticeAndActionTarget")
 
   @@index([status])
 }
 
 model Profile {
-  id                       String           @id @default(cuid())
-  userId                   String           @unique
-  user                     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName              String
-  bio                      String           @default("")
-  gender                   Gender
-  pronouns                 String?
-  ageDisplayEnabled        Boolean          @default(true)
+  id                    String                                 @id @default(cuid())
+  userId                String                                 @unique
+  user                  User                                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName           String
+  bio                   String                                 @default("")
+  gender                Gender
+  pronouns              String?
+  ageDisplayEnabled     Boolean                                @default(true)
   // Location precision retained internally; only ever surfaced via the
   // formatDistance helper. We store both PostGIS geography (for queries)
   // and the rounded city for display.
-  location                 Unsupported("geography(Point, 4326)")?
-  city                     String?
-  region                   String?
-  country                  String?
-  heightCm                 Int?
-  educationLevel           String?
-  college                  String?
-  jobTitle                 String?
-  companyDisplayEnabled    Boolean          @default(false)
-  company                  String?
-  relationshipGoal         RelationshipGoal?
-  childrenStatus           String?
-  familyPlans              String?
-  drinking                 String?
-  smoking                  String?
-  cannabis                 String?
-  exercise                 String?
-  diet                     String?
-  religion                 String?
-  politics                 String?
-  languages                String[]         @default([])
-  interests                String[]         @default([])
-  verificationStatus       String           @default("unverified")
-  visibilityStatus         VisibilityStatus @default(visible)
-  moderationStatus         ModerationStatus @default(clean)
-  prompts                  Json?
-  lastActiveAt             DateTime         @default(now())
-  createdAt                DateTime         @default(now())
-  updatedAt                DateTime         @updatedAt
+  location              Unsupported("geography(Point, 4326)")?
+  city                  String?
+  region                String?
+  country               String?
+  heightCm              Int?
+  educationLevel        String?
+  college               String?
+  jobTitle              String?
+  companyDisplayEnabled Boolean                                @default(false)
+  company               String?
+  relationshipGoal      RelationshipGoal?
+  childrenStatus        String?
+  familyPlans           String?
+  drinking              String?
+  smoking               String?
+  cannabis              String?
+  exercise              String?
+  diet                  String?
+  religion              String?
+  politics              String?
+  languages             String[]                               @default([])
+  interests             String[]                               @default([])
+  verificationStatus    String                                 @default("unverified")
+  visibilityStatus      VisibilityStatus                       @default(visible)
+  moderationStatus      ModerationStatus                       @default(clean)
+  prompts               Json?
+  lastActiveAt          DateTime                               @default(now())
+  createdAt             DateTime                               @default(now())
+  updatedAt             DateTime                               @updatedAt
 
-  photos                   ProfilePhoto[]
+  photos ProfilePhoto[]
 
   @@index([visibilityStatus, moderationStatus])
   @@index([city])
@@ -327,17 +466,17 @@ model Preferences {
 // -------- Swipe / like / match --------
 
 model SwipeAction {
-  id                    String        @id @default(cuid())
-  viewerUserId          String
-  viewer                User          @relation("SwipeViewer", fields: [viewerUserId], references: [id], onDelete: Cascade)
-  targetUserId          String
-  target                User          @relation("SwipeTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
-  decision              SwipeDecision
-  algorithmVersion      String
-  rankingConfigVersion  String
-  deckSessionId         String
-  createdAt             DateTime      @default(now())
-  undoneAt              DateTime?
+  id                   String        @id @default(cuid())
+  viewerUserId         String
+  viewer               User          @relation("SwipeViewer", fields: [viewerUserId], references: [id], onDelete: Cascade)
+  targetUserId         String
+  target               User          @relation("SwipeTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  decision             SwipeDecision
+  algorithmVersion     String
+  rankingConfigVersion String
+  deckSessionId        String
+  createdAt            DateTime      @default(now())
+  undoneAt             DateTime?
 
   @@index([viewerUserId, targetUserId])
   @@index([targetUserId, decision])
@@ -358,16 +497,16 @@ model Like {
 }
 
 model Match {
-  id                String      @id @default(cuid())
+  id                String        @id @default(cuid())
   userAId           String
-  userA             User        @relation("MatchUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userA             User          @relation("MatchUserA", fields: [userAId], references: [id], onDelete: Cascade)
   userBId           String
-  userB             User        @relation("MatchUserB", fields: [userBId], references: [id], onDelete: Cascade)
-  createdAt         DateTime    @default(now())
+  userB             User          @relation("MatchUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now())
   unmatchedAt       DateTime?
   unmatchedByUserId String?
-  unmatchedBy       User?       @relation("MatchUnmatcher", fields: [unmatchedByUserId], references: [id])
-  status            MatchStatus @default(active)
+  unmatchedBy       User?         @relation("MatchUnmatcher", fields: [unmatchedByUserId], references: [id])
+  status            MatchStatus   @default(active)
   conversation      Conversation?
 
   @@unique([userAId, userBId])
@@ -383,7 +522,7 @@ model Conversation {
   updatedAt DateTime           @updatedAt
   status    ConversationStatus @default(active)
 
-  messages  Message[]
+  messages Message[]
 }
 
 model Message {
@@ -405,12 +544,12 @@ model Message {
 // -------- Safety --------
 
 model Block {
-  id              String   @id @default(cuid())
-  blockerUserId   String
-  blocker         User     @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
-  blockedUserId   String
-  blocked         User     @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now())
+  id            String   @id @default(cuid())
+  blockerUserId String
+  blocker       User     @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blockedUserId String
+  blocked       User     @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
 
   @@unique([blockerUserId, blockedUserId])
   @@index([blockedUserId])
@@ -434,8 +573,8 @@ model Report {
   assignedAdminUserId String?
   assignedAdmin       AdminUser?          @relation("ReportAssignee", fields: [assignedAdminUserId], references: [id])
 
-  moderationActions   ModerationAction[]
-  notes               AdminNote[]
+  moderationActions ModerationAction[]
+  notes             AdminNote[]
 
   @@index([status, createdAt])
   @@index([assignedAdminUserId])
@@ -444,13 +583,13 @@ model Report {
 // -------- Auth --------
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refreshToken String   @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String    @unique
   userAgent    String?
   ipHash       String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   expiresAt    DateTime
   revokedAt    DateTime?
 
@@ -459,14 +598,14 @@ model Session {
 }
 
 model AuthChallenge {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   email      String?
-  tokenHash  String   @unique
+  tokenHash  String    @unique
   expiresAt  DateTime
   consumedAt DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([userId])
   @@index([expiresAt])
@@ -484,13 +623,13 @@ model DeviceToken {
 // -------- Transparency --------
 
 model AlgorithmAuditRecord {
-  id                    String   @id @default(cuid())
-  algorithmVersion      String
-  rankingConfigVersion  String
-  changedBy             String
-  changeSummary         String
-  publicChangelogUrl    String?
-  createdAt             DateTime @default(now())
+  id                   String   @id @default(cuid())
+  algorithmVersion     String
+  rankingConfigVersion String
+  changedBy            String
+  changeSummary        String
+  publicChangelogUrl   String?
+  createdAt            DateTime @default(now())
 
   @@index([createdAt])
 }
@@ -498,51 +637,51 @@ model AlgorithmAuditRecord {
 // -------- Admin / moderation --------
 
 model AdminUser {
-  id                       String                 @id @default(cuid())
-  email                    String                 @unique
-  displayName              String
-  identityProviderSubject  String?                @unique
-  status                   AdminUserStatus        @default(active)
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
-  lastLoginAt              DateTime?
+  id                      String          @id @default(cuid())
+  email                   String          @unique
+  displayName             String
+  identityProviderSubject String?         @unique
+  status                  AdminUserStatus @default(active)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  lastLoginAt             DateTime?
 
-  roles                    AdminUserRole[]        @relation("RoleHolder")
-  rolesAssigned            AdminUserRole[]        @relation("RoleAssigner")
-  sessions                 AdminSession[]
-  authChallenges           AdminAuthChallenge[]
-  auditEvents              AdminAuditLog[]        @relation("AuditActor")
-  moderationActions        ModerationAction[]
-  bansIssued               UserBan[]              @relation("BanIssuer")
-  unbansIssued             UserBan[]              @relation("UnbanIssuer")
-  notes                    AdminNote[]
-  accessGrants             SensitiveAccessGrant[]
-  assignedReports          Report[]               @relation("ReportAssignee")
-  appealsDecided           Appeal[]               @relation("AppealDecider")
+  roles             AdminUserRole[]        @relation("RoleHolder")
+  rolesAssigned     AdminUserRole[]        @relation("RoleAssigner")
+  sessions          AdminSession[]
+  authChallenges    AdminAuthChallenge[]
+  auditEvents       AdminAuditLog[]        @relation("AuditActor")
+  moderationActions ModerationAction[]
+  bansIssued        UserBan[]              @relation("BanIssuer")
+  unbansIssued      UserBan[]              @relation("UnbanIssuer")
+  notes             AdminNote[]
+  accessGrants      SensitiveAccessGrant[]
+  assignedReports   Report[]               @relation("ReportAssignee")
+  appealsDecided    Appeal[]               @relation("AppealDecider")
 
   @@index([status])
 }
 
 model AdminRole {
-  id          String          @id @default(cuid())
-  name        String          @unique
+  id          String   @id @default(cuid())
+  name        String   @unique
   description String
-  permissions String[]        @default([])
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  permissions String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  members     AdminUserRole[]
+  members AdminUserRole[]
 }
 
 model AdminUserRole {
   adminUserId           String
   adminRoleId           String
   assignedByAdminUserId String?
-  createdAt             DateTime  @default(now())
+  createdAt             DateTime @default(now())
 
-  adminUser             AdminUser @relation("RoleHolder", fields: [adminUserId], references: [id], onDelete: Cascade)
-  adminRole             AdminRole @relation(fields: [adminRoleId], references: [id], onDelete: Cascade)
-  assignedBy            AdminUser? @relation("RoleAssigner", fields: [assignedByAdminUserId], references: [id])
+  adminUser  AdminUser  @relation("RoleHolder", fields: [adminUserId], references: [id], onDelete: Cascade)
+  adminRole  AdminRole  @relation(fields: [adminRoleId], references: [id], onDelete: Cascade)
+  assignedBy AdminUser? @relation("RoleAssigner", fields: [assignedByAdminUserId], references: [id])
 
   @@id([adminUserId, adminRoleId])
   @@index([adminRoleId])
@@ -564,14 +703,14 @@ model AdminSession {
 }
 
 model AdminAuthChallenge {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   adminUserId String?
   adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
   email       String
-  tokenHash   String    @unique
+  tokenHash   String     @unique
   expiresAt   DateTime
   consumedAt  DateTime?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime   @default(now())
 
   @@index([email])
   @@index([expiresAt])
@@ -597,27 +736,27 @@ model UserBan {
   requireVerificationOnUnban  Boolean    @default(false)
   requireProfileReviewOnUnban Boolean    @default(false)
 
-  appeals                     Appeal[]
+  appeals Appeal[]
 
   @@index([userId, status])
   @@index([status, expiresAt])
 }
 
 model ModerationAction {
-  id                    String              @id @default(cuid())
+  id                    String             @id @default(cuid())
   targetUserId          String?
   targetProfileId       String?
   targetPhotoId         String?
   targetMessageId       String?
   reportId              String?
-  report                Report?             @relation(fields: [reportId], references: [id])
+  report                Report?            @relation(fields: [reportId], references: [id])
   actionType            ModerationDecision
   reasonCode            ReasonCode
   internalNote          String?
   userFacingExplanation String?
   createdByAdminUserId  String
-  createdBy             AdminUser           @relation(fields: [createdByAdminUserId], references: [id])
-  createdAt             DateTime            @default(now())
+  createdBy             AdminUser          @relation(fields: [createdByAdminUserId], references: [id])
+  createdAt             DateTime           @default(now())
 
   @@index([targetUserId])
   @@index([reportId])
@@ -640,16 +779,16 @@ model AdminNote {
 }
 
 model SensitiveAccessGrant {
-  id                  String              @id @default(cuid())
-  adminUserId         String
-  adminUser           AdminUser           @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
-  targetEntityType    SensitiveEntityType
-  targetEntityId      String
-  reason              AccessReasonCode
-  note                String?
-  reportId            String?
-  createdAt           DateTime            @default(now())
-  expiresAt           DateTime
+  id               String              @id @default(cuid())
+  adminUserId      String
+  adminUser        AdminUser           @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  targetEntityType SensitiveEntityType
+  targetEntityId   String
+  reason           AccessReasonCode
+  note             String?
+  reportId         String?
+  createdAt        DateTime            @default(now())
+  expiresAt        DateTime
 
   @@index([adminUserId, expiresAt])
   @@index([targetEntityType, targetEntityId])
@@ -695,4 +834,328 @@ model Appeal {
 
   @@index([userId])
   @@index([status, createdAt])
+}
+
+// -------- Compliance: consents, DSARs, deletion, notifications --------
+
+// Canonical versioned policy documents (ToS, Privacy Notice, etc.). Each
+// ConsentRecord pins a (scope, version, text_hash) so we can prove what
+// was shown to the user when they consented.
+model PolicyDocument {
+  id          String       @id @default(cuid())
+  scope       ConsentScope
+  version     String
+  textHash    String
+  effectiveAt DateTime
+  publishedAt DateTime     @default(now())
+  notes       String?
+
+  consents ConsentRecord[]
+
+  @@unique([scope, version])
+  @@index([scope, effectiveAt])
+}
+
+model ConsentRecord {
+  id               String          @id @default(cuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope            ConsentScope
+  policyDocumentId String?
+  policyDocument   PolicyDocument? @relation(fields: [policyDocumentId], references: [id])
+  granted          Boolean
+  policyVersion    String
+  textHash         String
+  collectedAt      DateTime        @default(now())
+  withdrawnAt      DateTime?
+  ipHash           String?
+  userAgent        String?
+  surface          String // "onboarding" | "settings" | "dsar" | "api" | …
+
+  @@index([userId, scope])
+  @@index([scope, collectedAt])
+}
+
+// Data Subject Access Request — covers GDPR, CCPA/CPRA, and equivalents.
+// The full export bundle is staged in object storage; the row is the
+// audit record + status pointer.
+model DataSubjectRequest {
+  id                   String          @id @default(cuid())
+  userId               String?
+  user                 User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requestType          DsarRequestType
+  status               DsarStatus      @default(received)
+  channel              DsarChannel
+  jurisdiction         String? // ISO-3166 alpha-2 of declared residency
+  contactEmail         String?
+  identityVerifiedAt   DateTime?
+  receivedAt           DateTime        @default(now())
+  dueAt                DateTime? // GDPR 30d / CCPA 45d default
+  fulfilledAt          DateTime?
+  refusalReason        String?
+  exportStorageKey     String?
+  exportBytes          Int?
+  exportFormat         String? // "json+zip" default
+  handledByAdminUserId String?
+  notes                String?
+  metadata             Json?
+
+  @@index([userId, requestType])
+  @@index([status, dueAt])
+}
+
+// Account deletion with a short grace period for accidental clicks.
+// The deletion worker runs against the row, not against the user table.
+model AccountDeletionRequest {
+  id                String                @id @default(cuid())
+  userId            String
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestedAt       DateTime              @default(now())
+  gracePeriodEndsAt DateTime
+  cancelledAt       DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  status            AccountDeletionStatus @default(scheduled)
+  reason            String?
+  contactEmailHash  String? // so we can reach the user if they restore
+  retainedDataNote  String?
+
+  @@unique([userId, status])
+  @@index([status, gracePeriodEndsAt])
+}
+
+model NotificationPreference {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Comms channels (transactional always on; these are *non-transactional*).
+  productNewsEmail     Boolean   @default(false)
+  productNewsPush      Boolean   @default(false)
+  productNewsSms       Boolean   @default(false)
+  // Functional categories (transactional, but user can mute push for some)
+  newMatchPush         Boolean   @default(true)
+  newMessagePush       Boolean   @default(true)
+  newLikePush          Boolean   @default(true)
+  safetyPush           Boolean   @default(true)
+  // Preview policy for push payloads (privacy principle §7).
+  pushPreviewMode      String    @default("sender_only") // "full" | "sender_only" | "hidden"
+  // Marketing consent provenance for CASL/CAN-SPAM/TCPA.
+  marketingOptInAt     DateTime?
+  marketingOptOutAt    DateTime?
+  marketingOptInSource String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+// -------- Compliance: DSA notice-and-action, statement of reasons --------
+
+// Reports from any party (user or non-user) under DSA Art. 16 / TAKE IT
+// DOWN. Distinct from `Report` (user-to-user in-app) because:
+//  - the reporter may not have an account,
+//  - the category vocabulary is statutory,
+//  - the workflow has its own SLA timer.
+model NoticeAndActionReport {
+  id                       String                  @id @default(cuid())
+  category                 NoticeAndActionCategory
+  status                   NoticeAndActionStatus   @default(received)
+  reporterIsUser           Boolean                 @default(false)
+  reporterUserId           String?
+  reporterName             String?
+  reporterEmail            String?
+  reporterCountry          String?
+  reporterIsTrustedFlagger Boolean                 @default(false)
+  trustedFlaggerId         String?
+  trustedFlagger           TrustedFlagger?         @relation(fields: [trustedFlaggerId], references: [id])
+  affectedUserId           String?
+  affectedUser             User?                   @relation("NoticeAndActionTarget", fields: [affectedUserId], references: [id])
+  contentReference         String // user_id / photo_id / message_id / URL
+  contentSnapshot          Json? // tamper-evident snapshot at time of report
+  description              String
+  isInGoodFaith            Boolean                 @default(true)
+  jurisdictionClaim        String? // member state, "EU", "global"
+  legalBasisClaim          String? // e.g. "TAKE IT DOWN Act §1309"
+  receivedAt               DateTime                @default(now())
+  acknowledgedAt           DateTime?
+  slaDueAt                 DateTime? // 48h for NCII; 24h for CSAM
+  resolvedAt               DateTime?
+  decisionId               String?
+  statementOfReasonsId     String?
+  statementOfReasons       DsaStatementOfReasons?  @relation("NoticeStatementOfReasons", fields: [statementOfReasonsId], references: [id])
+  metadata                 Json?
+
+  @@index([status, slaDueAt])
+  @@index([category, status])
+  @@index([reporterUserId])
+  @@index([affectedUserId])
+}
+
+model TrustedFlagger {
+  id            String    @id @default(cuid())
+  name          String
+  contactEmail  String
+  jurisdiction  String?
+  awardedAt     DateTime  @default(now())
+  awardedBy     String // admin user id
+  revokedAt     DateTime?
+  revokedReason String?
+
+  reports NoticeAndActionReport[]
+
+  @@index([revokedAt])
+}
+
+// DSA Art. 17 statement of reasons; one per restriction action. Stored
+// here in shape ready for submission to the DSA Transparency Database.
+model DsaStatementOfReasons {
+  id                          String    @id @default(cuid())
+  affectedUserId              String?
+  affectedContentReference    String
+  restrictionType             String // "content_removed" | "visibility_restriction" | "account_suspension" | "monetary" | "service_termination"
+  facts                       String
+  legalGround                 String? // "illegal_content" | "tos_violation"
+  legalGroundReference        String? // statute or ToS section
+  contractualGround           String? // ToS section
+  contentType                 String?
+  contentLanguage             String?
+  decisionSource              String // "user_report" | "trusted_flagger" | "authority_order" | "automated_detection" | "internal"
+  automatedDecision           Boolean   @default(false)
+  redressInternal             Boolean   @default(true)
+  redressOutOfCourt           Boolean   @default(true)
+  redressJudicial             Boolean   @default(true)
+  sentToUserAt                DateTime?
+  submittedToTransparencyDbAt DateTime?
+  transparencyDbId            String? // ID from EC API
+  metadata                    Json?
+  createdAt                   DateTime  @default(now())
+
+  noticesReferencing NoticeAndActionReport[] @relation("NoticeStatementOfReasons")
+
+  @@index([affectedUserId])
+  @@index([submittedToTransparencyDbAt])
+}
+
+// DSA Art. 21 out-of-court dispute settlement reference.
+model OutOfCourtDispute {
+  id                 String    @id @default(cuid())
+  affectedUserId     String
+  relatedDecisionId  String?
+  relatedAppealId    String?
+  body               String // certified body name
+  filedAt            DateTime  @default(now())
+  ourPositionFiledAt DateTime?
+  outcome            String? // "in_user_favour" | "in_our_favour" | "withdrawn" | "ongoing"
+  outcomeAt          DateTime?
+  notes              String?
+
+  @@index([affectedUserId])
+  @@index([outcome])
+}
+
+// -------- Compliance: hash matching, NCMEC, scam signals --------
+
+model HashSignal {
+  id                    String     @id @default(cuid())
+  targetPhotoId         String?
+  targetUserId          String?
+  hashAlgorithm         String // "pdq" | "photodna" | "md5" | "sha256"
+  hashHex               String
+  matchedList           HashList
+  matchedListEntry      String? // vendor-specific identifier
+  action                HashAction
+  reviewedByAdminUserId String?
+  reviewedAt            DateTime?
+  createdAt             DateTime   @default(now())
+
+  @@index([targetPhotoId])
+  @@index([targetUserId])
+  @@index([matchedList, action])
+  @@index([hashAlgorithm, hashHex])
+}
+
+// Outgoing NCMEC CyberTipline reports (18 USC 2258A).
+model NcmecReport {
+  id                  String            @id @default(cuid())
+  triggerHashSignalId String?
+  affectedUserId      String?
+  contentReference    String
+  status              NcmecReportStatus @default(pending)
+  submittedAt         DateTime?
+  cybertiplineId      String? // assigned by NCMEC on receipt
+  preservationEndsAt  DateTime? // 90-day preservation per §2258A(h)
+  payload             Json // submission payload (sanitised)
+  errorMessage        String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([status, submittedAt])
+}
+
+model ScamSignal {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       ScamSignalKind
+  score      Int            @default(0) // 0-100 rule output
+  details    Json?
+  createdAt  DateTime       @default(now())
+  resolvedAt DateTime?
+  resolution String? // "ban_evasion" | "false_positive" | "warning_sent"
+
+  @@index([userId, kind])
+  @@index([kind, createdAt])
+}
+
+// Notification sent to a user that an account they recently communicated
+// with was banned for fraud. Required by several US state online-dating
+// safety statutes.
+model ScammerNotification {
+  id              String     @id @default(cuid())
+  recipientUserId String
+  recipient       User       @relation("ScammerNoticeRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  bannedUserHash  String // recipient never sees a useful identifier — opaque
+  reasonCode      ReasonCode
+  channel         String // "in_app" | "email"
+  sentAt          DateTime   @default(now())
+  readAt          DateTime?
+
+  @@index([recipientUserId, sentAt])
+}
+
+// -------- Compliance: lawful process, sanctions --------
+
+model LawEnforcementRequest {
+  id                     String        @id @default(cuid())
+  requesterAgency        String
+  requesterCountry       String
+  requestType            LERequestType
+  externalRef            String?
+  receivedAt             DateTime      @default(now())
+  dueAt                  DateTime?
+  status                 LEStatus      @default(received)
+  affectedUserIds        String[]      @default([])
+  notesPublic            String?
+  notesInternal          String?
+  notifiedUserAt         DateTime?
+  notifiedUserSuppressed Boolean       @default(false)
+  suppressedReason       String?
+  producedContent        Boolean       @default(false)
+  producedScope          String?
+  closedAt               DateTime?
+
+  @@index([status, dueAt])
+  @@index([requesterCountry])
+}
+
+model SanctionsScreening {
+  id           String                   @id @default(cuid())
+  userId       String?
+  user         User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  countryCode  String? // ISO-3166 alpha-2
+  result       SanctionsScreeningResult
+  listsChecked String[]                 @default([]) // ["OFAC SDN", "EU consolidated", "UK OFSI"]
+  matchDetails Json?
+  screenedAt   DateTime                 @default(now())
+
+  @@index([userId, screenedAt])
+  @@index([result, screenedAt])
 }
