@@ -82,7 +82,7 @@ activities:
       gdpr: 6(1)(b)
       ccpa: providing the service
     data_classes:
-      [c-profile-fields, c-preferences, c-swipes-history, c-blocks, c-reports-against-me]
+      [c-preferences, c-swipes-history, c-blocks, c-reports]
     retention: Swipes retained until profile deletion; aggregate metrics anonymised after 90 days.
     recipients: [Neon]
     transfers:
