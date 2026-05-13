@@ -41,6 +41,16 @@ targets:
         NSCameraUsageDescription: "OpenMatch uses the camera so you can add profile photos."
         NSPhotoLibraryUsageDescription: "OpenMatch uses your photo library so you can add profile photos."
         ITSAppUsesNonExemptEncryption: false
+        # OpenMatch does NOT track. We do not call
+        # ATTrackingManager.requestTrackingAuthorization(). The Privacy
+        # Manifest (PrivacyInfo.xcprivacy) declares this explicitly.
+        # We do not include NSUserTrackingUsageDescription because it
+        # would be misleading to declare a tracking purpose we never
+        # exercise.
+        #
+        # Required Reason API justifications also live in the Privacy
+        # Manifest, not here.
+        LSApplicationCategoryType: "public.app-category.social-networking"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.openmatch.ios

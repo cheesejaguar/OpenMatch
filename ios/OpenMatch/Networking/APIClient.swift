@@ -224,6 +224,49 @@ final class APIClient: ObservableObject {
         try await get("/api/v1/transparency/algorithm/current")
     }
 
+    // MARK: - Privacy & rights
+
+    // The /api/v1/privacy/* surface implements GDPR / CCPA rights:
+    // access (export), correction, deletion, portability, restriction,
+    // objection, and consent recording.
+
+    func privacyExport() async throws -> Data {
+        // Streams the full export bundle as JSON; the caller writes it
+        // to a Files-app-shareable location.
+        try await rawGet("/api/v1/privacy/export")
+    }
+
+    func recordConsent(scope: String, granted: Bool, surface: String = "ios") async throws {
+        struct B: Codable { let scope: String; let granted: Bool; let surface: String }
+        let _: EmptyResponse = try await post(
+            "/api/v1/privacy/consents",
+            body: B(scope: scope, granted: granted, surface: surface)
+        )
+    }
+
+    func scheduleAccountDeletion(reason: String?) async throws -> AccountDeletionStatusDTO {
+        struct B: Codable { let reason: String? }
+        return try await post("/api/v1/privacy/account/deletion", body: B(reason: reason))
+    }
+
+    func cancelAccountDeletion() async throws {
+        let _: EmptyResponse = try await delete("/api/v1/privacy/account/deletion")
+    }
+
+    func currentAccountDeletion() async throws -> AccountDeletionStatusDTO? {
+        try await get("/api/v1/privacy/account/deletion")
+    }
+
+    func notificationPreferences() async throws -> NotificationPreferencesDTO {
+        try await get("/api/v1/privacy/notifications")
+    }
+
+    func updateNotificationPreferences(_ prefs: NotificationPreferencesDTO) async throws
+        -> NotificationPreferencesDTO
+    {
+        try await put("/api/v1/privacy/notifications", body: prefs)
+    }
+
     // MARK: - HTTP plumbing
 
     private struct EmptyBody: Codable {}
@@ -234,6 +277,29 @@ final class APIClient: ObservableObject {
     private func get<T: Decodable>(_ path: String) async throws -> T {
         let nilBody: EmptyBody? = nil
         return try await request(path: path, method: "GET", body: nilBody)
+    }
+
+    // Raw GET that returns the response body as Data without decoding.
+    // Used by the privacy-export endpoint which streams a large JSON
+    // bundle directly to a file or share sheet.
+    private func rawGet(_ path: String) async throws -> Data {
+        guard let url = URL(string: path, relativeTo: baseURL) else {
+            throw APIError.transport(URLError(.badURL))
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.transport(URLError(.badServerResponse))
+        }
+        if http.statusCode == 401 { throw APIError.notAuthenticated }
+        if !(200..<300).contains(http.statusCode) {
+            throw APIError.http(http.statusCode, String(data: data, encoding: .utf8))
+        }
+        return data
     }
 
     private func post<B: Encodable, T: Decodable>(_ path: String, body: B) async throws -> T {
