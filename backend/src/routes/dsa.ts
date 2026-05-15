@@ -122,59 +122,68 @@ export const dsaRoutes: FastifyPluginAsync = async (app) => {
   //
   // Without one of these, we 404 — same response as an unknown id, so
   // callers cannot probe for ticket existence by guessing cuids.
+  //
+  // Rate-limited because the route performs an authorisation check on
+  // an unauthenticated path (the ?email= flow), which CodeQL flagged
+  // as a brute-force surface. 30 lookups per minute per IP is enough
+  // for a reporter polling status while plenty tight on guessing.
   app.get<{
     Params: { id: string };
     Querystring: { email?: string };
-  }>("/notice/:id", async (req, reply) => {
-    const ticket = await app.prisma.noticeAndActionReport.findUnique({
-      where: { id: req.params.id },
-      select: {
-        id: true,
-        category: true,
-        status: true,
-        receivedAt: true,
-        acknowledgedAt: true,
-        slaDueAt: true,
-        resolvedAt: true,
-        reporterEmail: true,
-        reporterUserId: true,
-      },
-    });
-    if (!ticket) return reply.code(404).send({ error: "not_found" });
+  }>(
+    "/notice/:id",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const ticket = await app.prisma.noticeAndActionReport.findUnique({
+        where: { id: req.params.id },
+        select: {
+          id: true,
+          category: true,
+          status: true,
+          receivedAt: true,
+          acknowledgedAt: true,
+          slaDueAt: true,
+          resolvedAt: true,
+          reporterEmail: true,
+          reporterUserId: true,
+        },
+      });
+      if (!ticket) return reply.code(404).send({ error: "not_found" });
 
-    let authorised = false;
-    try {
-      await req.jwtVerify();
-      const userId = (req.user as { sub?: string } | undefined)?.sub;
-      if (ticket.reporterUserId && ticket.reporterUserId === userId) {
-        authorised = true;
+      let authorised = false;
+      try {
+        await req.jwtVerify();
+        const userId = (req.user as { sub?: string } | undefined)?.sub;
+        if (ticket.reporterUserId && ticket.reporterUserId === userId) {
+          authorised = true;
+        }
+      } catch {
+        // unauthenticated — fall through to email check
       }
-    } catch {
-      // unauthenticated — fall through to email check
-    }
 
-    if (!authorised) {
-      const claimed = (req.query.email ?? "").trim().toLowerCase();
-      const onTicket = (ticket.reporterEmail ?? "").trim().toLowerCase();
-      if (claimed.length > 0 && onTicket.length > 0 && claimed === onTicket) {
-        authorised = true;
+      if (!authorised) {
+        const claimed = (req.query.email ?? "").trim().toLowerCase();
+        const onTicket = (ticket.reporterEmail ?? "").trim().toLowerCase();
+        if (claimed.length > 0 && onTicket.length > 0 && claimed === onTicket) {
+          authorised = true;
+        }
       }
-    }
 
-    if (!authorised) {
-      // Same response as an unknown ticket — no existence confirmation.
-      return reply.code(404).send({ error: "not_found" });
-    }
+      if (!authorised) {
+        // Same response as an unknown ticket — no existence confirmation.
+        return reply.code(404).send({ error: "not_found" });
+      }
 
-    // Authorised — return the full record minus internal identifiers.
-    return reply.send({
-      id: ticket.id,
-      category: ticket.category,
-      status: ticket.status,
-      receivedAt: ticket.receivedAt,
-      acknowledgedAt: ticket.acknowledgedAt,
-      slaDueAt: ticket.slaDueAt,
-      resolvedAt: ticket.resolvedAt,
-    });
-  });
+      // Authorised — return the full record minus internal identifiers.
+      return reply.send({
+        id: ticket.id,
+        category: ticket.category,
+        status: ticket.status,
+        receivedAt: ticket.receivedAt,
+        acknowledgedAt: ticket.acknowledgedAt,
+        slaDueAt: ticket.slaDueAt,
+        resolvedAt: ticket.resolvedAt,
+      });
+    },
+  );
 };
