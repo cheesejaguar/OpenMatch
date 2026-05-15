@@ -1,0 +1,10 @@
+# Empty static-output directory.
+#
+# Vercel's build pipeline expects an "outputDirectory" of static assets
+# (default "public/") even for serverless-function-only projects.
+# Without it, deploys fail with:
+#   Error: No Output Directory named "public" found after the Build completed.
+#
+# Every request is rewritten to /api/index per vercel.json#rewrites, so
+# nothing in this directory is ever served. The .gitkeep exists only to
+# create the directory in git.
