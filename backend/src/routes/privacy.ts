@@ -7,11 +7,18 @@ import {
   listEffectiveConsents,
   listMyDsars,
   openDsar,
+  PolicyDocumentMissingError,
   recordConsent,
   scheduleAccountDeletion,
   updateNotificationPreferences,
   withdrawConsent,
 } from "../services/privacy.service.js";
+
+// Window during which a fresh /export call piggybacks on the user's
+// most recent "access" DSAR ticket instead of opening a new one — so
+// rapidly clicking "save my data" doesn't bloat the rights-request
+// register.
+const DSAR_EXPORT_DEDUP_WINDOW_MS = 24 * 3600 * 1000;
 
 // Authenticated rights-and-controls routes — the user-facing half of
 // the compliance surface. Public (non-user) intake for DSA / TAKE IT
@@ -84,32 +91,53 @@ export const privacyRoutes: FastifyPluginAsync = async (app) => {
       const body = consentSchema.parse(req.body);
       const ip =
         (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip;
-      const record = body.granted
-        ? await recordConsent(app.prisma, {
-            userId: req.userId!,
+      try {
+        const record = body.granted
+          ? await recordConsent(app.prisma, {
+              userId: req.userId!,
+              scope: body.scope,
+              granted: true,
+              surface: body.surface,
+              ip,
+              userAgent: req.headers["user-agent"] ?? null,
+            })
+          : await withdrawConsent(app.prisma, {
+              userId: req.userId!,
+              scope: body.scope,
+              surface: body.surface,
+              ip,
+              userAgent: (req.headers["user-agent"] as string | undefined) ?? undefined,
+            });
+        app.log.info(
+          {
+            event: "privacy.consent",
+            userId: req.userId,
             scope: body.scope,
-            granted: true,
-            surface: body.surface,
-            ip,
-            userAgent: req.headers["user-agent"] ?? null,
-          })
-        : await withdrawConsent(app.prisma, {
-            userId: req.userId!,
-            scope: body.scope,
-            surface: body.surface,
-            ip,
-            userAgent: (req.headers["user-agent"] as string | undefined) ?? undefined,
+            granted: body.granted,
+          },
+          "consent_recorded",
+        );
+        return reply.code(201).send({
+          id: record.id,
+          scope: record.scope,
+          granted: body.granted,
+          policyVersion: record.policyVersion,
+        });
+      } catch (err) {
+        if (err instanceof PolicyDocumentMissingError) {
+          app.log.error(
+            { event: "privacy.policy_doc_missing", scope: err.scope },
+            "policy_document_missing",
+          );
+          return reply.code(503).send({
+            error: "policy_document_missing",
+            scope: err.scope,
+            message:
+              "No effective PolicyDocument is published for this scope. Configure a PolicyDocument before collecting consent.",
           });
-      app.log.info(
-        { event: "privacy.consent", userId: req.userId, scope: body.scope, granted: body.granted },
-        "consent_recorded",
-      );
-      return reply.code(201).send({
-        id: record.id,
-        scope: record.scope,
-        granted: body.granted,
-        policyVersion: record.policyVersion,
-      });
+        }
+        throw err;
+      }
     },
   );
 
@@ -153,12 +181,27 @@ export const privacyRoutes: FastifyPluginAsync = async (app) => {
     { config: { rateLimit: { max: 3, timeWindow: "1 hour" } } },
     async (req, reply) => {
       const bundle = await buildExportBundle(app.prisma, req.userId!);
-      await openDsar(app.prisma, {
-        userId: req.userId!,
-        requestType: "access",
-        channel: "in_app",
-        notes: "Self-service /privacy/export",
+      // Dedup: if the user already has an access DSAR within the last
+      // 24 hours, treat this call as part of that one rather than
+      // opening a new ticket. Keeps the rights-request register honest
+      // when users re-download.
+      const recent = await app.prisma.dataSubjectRequest.findFirst({
+        where: {
+          userId: req.userId!,
+          requestType: "access",
+          receivedAt: { gte: new Date(Date.now() - DSAR_EXPORT_DEDUP_WINDOW_MS) },
+        },
+        orderBy: { receivedAt: "desc" },
+        select: { id: true },
       });
+      if (!recent) {
+        await openDsar(app.prisma, {
+          userId: req.userId!,
+          requestType: "access",
+          channel: "in_app",
+          notes: "Self-service /privacy/export",
+        });
+      }
       reply.header("Content-Disposition", `attachment; filename="openmatch-export.json"`);
       return bundle;
     },
@@ -237,18 +280,18 @@ export const privacyRoutes: FastifyPluginAsync = async (app) => {
     return updateNotificationPreferences(app.prisma, req.userId!, body);
   });
 
-  // ---- Recommender opt-out (DSA Art. 38 prep) -------------------------
+  // ---- Recommender opt-IN (DSA Art. 38 + project ethos) --------------
   //
-  // A user can opt out of personalised ranking. This is implemented as a
-  // consent toggle so it's auditable and revocable; discovery.service
-  // reads `recommender_personalised` to choose the ranking variant.
+  // OpenMatch defaults to the non-personalised feed and asks the user
+  // to opt in to personalised ranking. This matches the project's
+  // stated "calm design, no engagement-maximising dark patterns" stance
+  // and is conservative against the DSA Art. 38 requirement to OFFER a
+  // non-personalised option. The opt-in is a ConsentRecord so it's
+  // auditable and revocable; discovery.service reads
+  // `recommender_personalised` to choose the ranking variant.
   app.get("/recommender/personalised", async (req) => {
     const consents = await listEffectiveConsents(app.prisma, req.userId!);
     const c = consents.find((c) => c.scope === "recommender_personalised");
-    // Default is opted IN to personalised — the user is presumed to
-    // want it unless they actively turn it off. We still record the
-    // implicit baseline as a ConsentRecord at signup (Workstream C iOS
-    // hook) so the audit trail is complete.
-    return { granted: c?.granted ?? true };
+    return { granted: c?.granted ?? false };
   });
 };

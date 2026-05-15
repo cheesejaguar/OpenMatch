@@ -34,11 +34,17 @@ const SANCTIONED_COUNTRIES: ReadonlySet<string> = new Set([
   // markets.
 ]);
 
-// Jurisdictions where same-sex sexual activity is criminalised. Source:
-// ILGA-World "State-Sponsored Homophobia" report (most recent edition).
-// This list is conservative: we include countries where prosecution is
-// unlikely but lawful, because *lawful* is what controls our exposure.
-// Counsel review every 6 months minimum.
+// Jurisdictions where same-sex sexual activity is criminalised.
+// Source: ILGA-World "State-Sponsored Homophobia" — last reviewed
+// 2026-05-13. The list is conservative: we include countries where
+// prosecution is unlikely but lawful, because *lawful* is what
+// controls our exposure. Counsel review every 6 months minimum.
+//
+// Recent removals (decriminalising rulings):
+//   - Namibia (NA): High Court struck down apartheid-era sodomy laws,
+//     21 June 2024.
+//   - Cook Islands (CK): decriminalised April 2023.
+//   - Singapore (SG): §377A repealed November 2022.
 const LGBTQ_CRIMINALISED_COUNTRIES: ReadonlySet<string> = new Set([
   "AF", // Afghanistan
   "DZ", // Algeria
@@ -73,7 +79,6 @@ const LGBTQ_CRIMINALISED_COUNTRIES: ReadonlySet<string> = new Set([
   "MR", // Mauritania
   "MA", // Morocco
   "MM", // Myanmar
-  "NA", // Namibia (recent re-criminalisation pending)
   "NG", // Nigeria
   "OM", // Oman
   "PK", // Pakistan

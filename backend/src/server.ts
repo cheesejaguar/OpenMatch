@@ -35,6 +35,12 @@ import { transparencyRoutes } from "./routes/transparency.js";
 
 export async function buildServer() {
   const app = Fastify({
+    // We sit behind Vercel's edge in production, which always sets
+    // X-Forwarded-For. Trusting it makes `req.ip` and the rate-limit
+    // plugin reflect the upstream client IP rather than the proxy IP.
+    // The country-gate and IP-hash logic rely on this; without it,
+    // every request would appear to come from the load-balancer.
+    trustProxy: env.NODE_ENV !== "test",
     logger:
       env.NODE_ENV === "development"
         ? {

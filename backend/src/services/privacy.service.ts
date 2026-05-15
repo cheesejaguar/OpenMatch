@@ -1,5 +1,6 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { ConsentScope, DsarChannel, DsarRequestType, PrismaClient } from "@prisma/client";
+import { hashIp, hashText } from "../lib/hash.js";
 
 // Privacy / rights-request service.
 //
@@ -34,14 +35,8 @@ function dueAtFor(requestType: DsarRequestType, jurisdiction?: string | null): D
   return new Date(Date.now() + days * 24 * 3600 * 1000);
 }
 
-export function textHash(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
-}
-
-function hashIp(ip?: string | null): string | null {
-  if (!ip) return null;
-  return createHash("sha256").update(ip).digest("hex").slice(0, 32);
-}
+// Re-export under the historic name so existing callers keep compiling.
+export const textHash = hashText;
 
 // -------- Policy documents + consent --------
 
@@ -79,6 +74,14 @@ export async function getEffectivePolicy(prisma: PrismaClient, scope: ConsentSco
   });
 }
 
+export class PolicyDocumentMissingError extends Error {
+  statusCode = 503;
+  constructor(public scope: ConsentScope) {
+    super(`no_effective_policy_document_for_scope:${scope}`);
+    this.name = "PolicyDocumentMissingError";
+  }
+}
+
 export async function recordConsent(
   prisma: PrismaClient,
   args: {
@@ -92,24 +95,22 @@ export async function recordConsent(
     textHash?: string;
   },
 ) {
-  // If caller didn't pass an explicit policy version, snapshot the
-  // currently-effective policy. This means a consent record always pins
-  // a concrete (version, text_hash) — which is what makes it provable.
+  // Every ConsentRecord must pin a concrete (policyVersion, textHash)
+  // for the row to be evidentially useful. If the caller didn't pass
+  // one we snapshot the currently-effective PolicyDocument. If no doc
+  // exists, refuse: a silent "unversioned" consent is worse than no
+  // consent at all because it gives false comfort under audit.
   let policyVersion = args.policyVersion;
   let hash = args.textHash;
   let policyDocumentId: string | null = null;
   if (!policyVersion || !hash) {
     const doc = await getEffectivePolicy(prisma, args.scope);
-    if (doc) {
-      policyVersion = doc.version;
-      hash = doc.textHash;
-      policyDocumentId = doc.id;
-    } else {
-      // No policy doc exists yet — record an unversioned consent. CI
-      // should flag this; production should not reach it.
-      policyVersion = policyVersion ?? "unversioned";
-      hash = hash ?? "unversioned";
+    if (!doc) {
+      throw new PolicyDocumentMissingError(args.scope);
     }
+    policyVersion = doc.version;
+    hash = doc.textHash;
+    policyDocumentId = doc.id;
   }
 
   return prisma.consentRecord.create({
@@ -219,7 +220,12 @@ export interface ExportBundle {
   likesSent: Array<Record<string, unknown>>;
   likesReceived: Array<Record<string, unknown>>;
   matches: Array<Record<string, unknown>>;
-  messages: Array<Record<string, unknown>>;
+  // Messages the user sent.
+  messagesSent: Array<Record<string, unknown>>;
+  // Messages addressed to the user (Art. 15 — personal data concerning
+  // them, that they can already see in chat). Restricted to the
+  // current account's active conversations.
+  messagesReceived: Array<Record<string, unknown>>;
   reportsMade: Array<Record<string, unknown>>;
   blocksMade: Array<Record<string, unknown>>;
   consents: Array<Record<string, unknown>>;
@@ -311,75 +317,112 @@ export async function buildExportBundle(
       createdAt: p.createdAt,
     })) ?? [];
 
-  // Privacy: only the *actions the user took themselves*, never the
-  // visibility of who saw them — see privacy principles §4.
-  const [swipesMade, likesSent, likesReceived, matches, messages, reportsMade, blocks, consents] =
-    await Promise.all([
-      prisma.swipeAction.findMany({
-        where: { viewerUserId: userId },
-        select: {
-          id: true,
-          targetUserId: true,
-          decision: true,
-          algorithmVersion: true,
-          createdAt: true,
-          undoneAt: true,
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.like.findMany({
-        where: { fromUserId: userId },
-        select: { id: true, toUserId: true, status: true, createdAt: true, withdrawnAt: true },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.like.findMany({
-        where: { toUserId: userId, status: { in: ["active", "matched"] } },
-        select: { id: true, fromUserId: true, status: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.match.findMany({
-        where: { OR: [{ userAId: userId }, { userBId: userId }], status: "active" },
-        select: { id: true, userAId: true, userBId: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.message.findMany({
-        where: { senderUserId: userId },
-        select: { id: true, conversationId: true, body: true, createdAt: true, deletedAt: true },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.report.findMany({
-        where: { reporterUserId: userId },
-        select: {
-          id: true,
-          reportedUserId: true,
-          reason: true,
-          details: true,
-          status: true,
-          createdAt: true,
-          resolvedAt: true,
-          resolution: true,
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.block.findMany({
-        where: { blockerUserId: userId },
-        select: { id: true, blockedUserId: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.consentRecord.findMany({
-        where: { userId },
-        select: {
-          id: true,
-          scope: true,
-          granted: true,
-          policyVersion: true,
-          collectedAt: true,
-          withdrawnAt: true,
-          surface: true,
-        },
-        orderBy: { collectedAt: "desc" },
-      }),
-    ]);
+  // The user's conversations — used to scope which received messages
+  // we include (we never reveal messages from conversations the user
+  // isn't part of).
+  const conversationIds = (
+    await prisma.conversation.findMany({
+      where: {
+        match: { OR: [{ userAId: userId }, { userBId: userId }] },
+      },
+      select: { id: true },
+    })
+  ).map((c) => c.id);
+
+  // Privacy: actions the user took themselves, plus messages addressed
+  // to them in conversations they're part of (Art. 15 personal data
+  // concerning the user — what they can already see in chat).
+  const [
+    swipesMade,
+    likesSent,
+    likesReceived,
+    matches,
+    messagesSent,
+    messagesReceived,
+    reportsMade,
+    blocks,
+    consents,
+  ] = await Promise.all([
+    prisma.swipeAction.findMany({
+      where: { viewerUserId: userId },
+      select: {
+        id: true,
+        targetUserId: true,
+        decision: true,
+        algorithmVersion: true,
+        createdAt: true,
+        undoneAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.like.findMany({
+      where: { fromUserId: userId },
+      select: { id: true, toUserId: true, status: true, createdAt: true, withdrawnAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.like.findMany({
+      where: { toUserId: userId, status: { in: ["active", "matched"] } },
+      select: { id: true, fromUserId: true, status: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.match.findMany({
+      where: { OR: [{ userAId: userId }, { userBId: userId }], status: "active" },
+      select: { id: true, userAId: true, userBId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.message.findMany({
+      where: { senderUserId: userId },
+      select: { id: true, conversationId: true, body: true, createdAt: true, deletedAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.message.findMany({
+      where: {
+        conversationId: { in: conversationIds },
+        senderUserId: { not: userId },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        conversationId: true,
+        senderUserId: true,
+        body: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.report.findMany({
+      where: { reporterUserId: userId },
+      select: {
+        id: true,
+        reportedUserId: true,
+        reason: true,
+        details: true,
+        status: true,
+        createdAt: true,
+        resolvedAt: true,
+        resolution: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.block.findMany({
+      where: { blockerUserId: userId },
+      select: { id: true, blockedUserId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.consentRecord.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        scope: true,
+        granted: true,
+        policyVersion: true,
+        collectedAt: true,
+        withdrawnAt: true,
+        surface: true,
+      },
+      orderBy: { collectedAt: "desc" },
+    }),
+  ]);
 
   return {
     schemaVersion: "openmatch.export.v1",
@@ -393,7 +436,8 @@ export async function buildExportBundle(
     likesSent,
     likesReceived,
     matches,
-    messages,
+    messagesSent,
+    messagesReceived,
     reportsMade,
     blocksMade: blocks,
     consents,
@@ -406,24 +450,41 @@ export async function scheduleAccountDeletion(
   prisma: PrismaClient,
   args: { userId: string; reason?: string; contactEmailHash?: string | null },
 ) {
-  // Idempotent. If a scheduled deletion exists, return it.
-  const existing = await prisma.accountDeletionRequest.findFirst({
-    where: { userId: args.userId, status: "scheduled" },
-  });
-  if (existing) return existing;
-
+  // Idempotent across concurrent calls. We rely on the
+  // @@unique([userId, status]) constraint to keep the table honest:
+  // - If no scheduled row exists, the create wins.
+  // - If a scheduled row exists already, P2002 is thrown and we
+  //   re-fetch and return it.
   const gracePeriodEndsAt = new Date(Date.now() + DELETION_GRACE_HOURS * 3600 * 1000);
-  const request = await prisma.accountDeletionRequest.create({
-    data: {
-      userId: args.userId,
-      gracePeriodEndsAt,
-      reason: args.reason ?? null,
-      contactEmailHash: args.contactEmailHash ?? null,
-      retainedDataNote:
-        "Hashed identifiers retained for ban-evasion and legal-compliance per Privacy Notice §2.",
-    },
-  });
-  // Immediately hide from discovery — even before the worker runs.
+  let request: Awaited<ReturnType<typeof prisma.accountDeletionRequest.create>>;
+  try {
+    request = await prisma.accountDeletionRequest.create({
+      data: {
+        userId: args.userId,
+        gracePeriodEndsAt,
+        reason: args.reason ?? null,
+        contactEmailHash: args.contactEmailHash ?? null,
+        retainedDataNote:
+          "Hashed identifiers retained for ban-evasion and legal-compliance per Privacy Notice §2.",
+      },
+    });
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === "P2002") {
+      const existing = await prisma.accountDeletionRequest.findFirst({
+        where: { userId: args.userId, status: "scheduled" },
+      });
+      if (existing) return existing;
+    }
+    throw err;
+  }
+
+  // Immediately remove the account from active surfaces — discovery
+  // visibility, ranking eligibility, push fan-out. The async erasure
+  // worker still has the grace window before it physically runs.
+  await prisma.user
+    .update({ where: { id: args.userId }, data: { status: "paused" } })
+    .catch(() => undefined);
   await prisma.profile
     .update({
       where: { userId: args.userId },
@@ -452,6 +513,11 @@ export async function cancelAccountDeletion(prisma: PrismaClient, userId: string
     where: { id: existing.id },
     data: { status: "cancelled", cancelledAt: new Date() },
   });
+  // Restore the user to active. Profile visibility is the user's choice
+  // on cancel — we set it back to visible only if it was hidden by us.
+  await prisma.user
+    .update({ where: { id: userId }, data: { status: "active" } })
+    .catch(() => undefined);
   await prisma.profile
     .update({ where: { userId }, data: { visibilityStatus: "visible" } })
     .catch(() => undefined);
@@ -509,13 +575,44 @@ export async function performAccountErasure(prisma: PrismaClient, userId: string
         visibilityStatus: "hidden",
       },
     });
+    // Clear the PostGIS location column — Prisma can't express this
+    // through the Profile model because `location` is mapped via
+    // Unsupported("geography(Point, 4326)"). A raw SQL update is the
+    // only way to NULL it. This is the actual erasure of precise lat/long.
+    await tx.$executeRawUnsafe(
+      `UPDATE "Profile" SET "location" = NULL WHERE "userId" = $1`,
+      userId,
+    );
     // Delete photos (CDN cleanup is the caller's responsibility — it
     // requires Vercel Blob access not available in a tx).
     await tx.profilePhoto.deleteMany({ where: { profile: { userId } } });
+    // Delete the user's swipes, likes (both directions), and blocks.
+    // These are the user's "actions" — retaining them after deletion
+    // would re-expose the deleted user to discovery / chat partners
+    // and would contradict the data-minimisation principle. Reports
+    // filed BY the user persist (safety) but reporter identity is
+    // already minimal; reports ABOUT the user persist for moderation
+    // history.
+    await tx.swipeAction.deleteMany({
+      where: { OR: [{ viewerUserId: userId }, { targetUserId: userId }] },
+    });
+    await tx.like.deleteMany({
+      where: { OR: [{ fromUserId: userId }, { toUserId: userId }] },
+    });
+    await tx.block.deleteMany({
+      where: { OR: [{ blockerUserId: userId }, { blockedUserId: userId }] },
+    });
     // Delete sessions, tokens, challenges.
     await tx.session.deleteMany({ where: { userId } });
     await tx.authChallenge.deleteMany({ where: { userId } });
     await tx.deviceToken.deleteMany({ where: { userId } });
+    // Delete consent records' personal identifiers but keep the row as
+    // evidence-of-prior-consent. The user gets erased; the audit trail
+    // doesn't.
+    await tx.consentRecord.updateMany({
+      where: { userId },
+      data: { ipHash: null, userAgent: null, withdrawnAt: new Date() },
+    });
     // Mark the user record itself as deleted. We do NOT physically
     // delete it — bans, ban-evasion signals, and unfinished moderation
     // require a stable tombstone id.
@@ -579,11 +676,17 @@ export async function updateNotificationPreferences(
   },
 ) {
   await getNotificationPreferences(prisma, userId);
-  const marketingOptInNow =
+  // Track opt-in AND opt-out timestamps independently. The previous
+  // logic suppressed opt-out timestamps when an opt-in occurred in the
+  // same patch (e.g. enable email, disable push), which dropped the
+  // CASL/TCPA-relevant opt-out event. Record whichever events the
+  // patch actually contains.
+  const now = new Date();
+  const hasOptIn =
     patch.productNewsEmail === true ||
     patch.productNewsPush === true ||
     patch.productNewsSms === true;
-  const marketingOptOutNow =
+  const hasOptOut =
     patch.productNewsEmail === false ||
     patch.productNewsPush === false ||
     patch.productNewsSms === false;
@@ -591,8 +694,8 @@ export async function updateNotificationPreferences(
     where: { userId },
     data: {
       ...patch,
-      ...(marketingOptInNow ? { marketingOptInAt: new Date() } : {}),
-      ...(marketingOptOutNow && !marketingOptInNow ? { marketingOptOutAt: new Date() } : {}),
+      ...(hasOptIn ? { marketingOptInAt: now } : {}),
+      ...(hasOptOut ? { marketingOptOutAt: now } : {}),
     },
   });
 }

@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { env } from "../env.js";
 import {
@@ -17,6 +17,46 @@ function requestContext(req: FastifyRequest) {
   const ip =
     (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip;
   return { userAgent: ua, ip };
+}
+
+// Runs the country gate, logs a SanctionsScreening row for the sanctions
+// and LGBTQ-safety reasons (not for the "unsupported" launch-geography
+// reason — that's a launch decision, not a sanctions match), and sends
+// a 451 if the request is blocked. Returns true iff the request should
+// continue.
+async function enforceCountryGate(
+  app: FastifyRequest["server"],
+  req: FastifyRequest,
+  reply: FastifyReply,
+): Promise<boolean> {
+  const decision = app.checkCountry(req);
+  if (decision.allow) return true;
+  const inferred = app.inferCountry(req);
+  if (decision.reason === "sanctions" || decision.reason === "lgbtq_criminalised") {
+    await app.prisma.sanctionsScreening
+      .create({
+        data: {
+          countryCode: inferred,
+          result: "blocked_country",
+          listsChecked: ["OFAC SDN", "EU Consolidated", "UK OFSI", "ILGA-criminalised"],
+          matchDetails: { reason: decision.reason, note: decision.note },
+        },
+      })
+      .catch(() => undefined);
+  } else {
+    // "unsupported" — launch-geography decision, not a screening match.
+    // Log it but don't pollute the SanctionsScreening table.
+    app.log.info(
+      { event: "country.unsupported_geography", country: inferred },
+      "blocked_unsupported_geography",
+    );
+  }
+  reply.code(451).send({
+    error: "country_not_supported",
+    reason: decision.reason,
+    message: decision.note,
+  });
+  return false;
 }
 
 const startSchema = z.object({
@@ -45,36 +85,7 @@ const AUTH_LIMITS = {
 export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/start", { config: { rateLimit: AUTH_LIMITS.start } }, async (req, reply) => {
     const body = startSchema.parse(req.body);
-
-    // Country gate. We log every screening so the SanctionsScreening
-    // table is a complete record of who was blocked and why.
-    const decision = app.checkCountry(req);
-    const inferred = app.inferCountry(req);
-    await app.prisma.sanctionsScreening
-      .create({
-        data: {
-          countryCode: inferred,
-          result: decision.allow
-            ? "cleared"
-            : decision.reason === "sanctions"
-              ? "blocked_country"
-              : decision.reason === "lgbtq_criminalised"
-                ? "blocked_country"
-                : "needs_review",
-          listsChecked: ["OFAC SDN", "EU Consolidated", "UK OFSI", "ILGA-criminalised"],
-          matchDetails: decision.allow
-            ? undefined
-            : { reason: decision.reason, note: decision.note },
-        },
-      })
-      .catch(() => undefined);
-    if (!decision.allow) {
-      return reply.code(451).send({
-        error: "country_not_supported",
-        reason: decision.reason,
-        message: decision.note,
-      });
-    }
+    if (!(await enforceCountryGate(app, req, reply))) return;
 
     if (body.method === "email") {
       if (!body.email) return reply.code(400).send({ error: "email_required" });
@@ -120,6 +131,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
+    if (!(await enforceCountryGate(app, req, reply))) return;
     const body = verifySchema.parse(req.body);
     const result = await verifyEmailLogin(app.prisma, body);
     const session = await issueSession(
@@ -137,6 +149,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   // Also accept GET so the magic-link in email works in a browser.
   app.get("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
+    if (!(await enforceCountryGate(app, req, reply))) return;
     const params = verifySchema.parse(req.query);
     const result = await verifyEmailLogin(app.prisma, params);
     const session = await issueSession(

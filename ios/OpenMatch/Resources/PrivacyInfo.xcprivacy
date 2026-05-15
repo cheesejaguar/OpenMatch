@@ -207,14 +207,14 @@
     </array>
 
     <!-- Required Reason APIs. We declare reasons for the surfaces we
-         actually use. If we add NSUserDefaults / file timestamp / boot
-         time access, new entries go here. -->
+         actually exercise. Adding new entries requires a corresponding
+         use in OpenMatch source; declaring a reason without supporting
+         code can be flagged in App Store review. -->
     <key>NSPrivacyAccessedAPITypes</key>
     <array>
-        <!-- UserDefaults — Auth tokens and lightweight preferences are
-             stored in the Keychain, not UserDefaults; but SwiftUI /
-             system frameworks may exercise UserDefaults indirectly.
-             Reason CA92.1: "Access info from same app, per documentation." -->
+        <!-- UserDefaults — SwiftUI and system frameworks exercise
+             UserDefaults transitively. Reason CA92.1: "Access info
+             from same app, per documentation." -->
         <dict>
             <key>NSPrivacyAccessedAPIType</key>
             <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
@@ -224,35 +224,14 @@
             </array>
         </dict>
         <!-- File timestamps (C617.1: access info about the app's own
-             container, per documentation). -->
+             container, per documentation). Used by the photo / export
+             local caches. -->
         <dict>
             <key>NSPrivacyAccessedAPIType</key>
             <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
             <key>NSPrivacyAccessedAPITypeReasons</key>
             <array>
                 <string>C617.1</string>
-            </array>
-        </dict>
-        <!-- System boot time. Not currently used by OpenMatch app code;
-             listed pre-emptively to avoid review surprises if a
-             dependency adds it. Reason 35F9.1: "Measure time elapsed
-             between events that occur within the app." -->
-        <dict>
-            <key>NSPrivacyAccessedAPIType</key>
-            <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
-            <key>NSPrivacyAccessedAPITypeReasons</key>
-            <array>
-                <string>35F9.1</string>
-            </array>
-        </dict>
-        <!-- Disk space (E174.1: "Display disk space information to the
-             user."). Not currently used; placeholder. -->
-        <dict>
-            <key>NSPrivacyAccessedAPIType</key>
-            <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
-            <key>NSPrivacyAccessedAPITypeReasons</key>
-            <array>
-                <string>E174.1</string>
             </array>
         </dict>
     </array>

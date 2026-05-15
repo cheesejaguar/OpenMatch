@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { env } from "../env.js";
-import { hashIdentity } from "../lib/media.js";
+import { hashIdentity, hashIp } from "../lib/hash.js";
 
 const TOKEN_BYTES = 32;
 const MAGIC_LINK_TTL_MS = env.MAGIC_LINK_TTL_SECONDS * 1000;
@@ -132,11 +132,6 @@ export async function verifyEmailLogin(
 export interface IssueSessionContext {
   userAgent?: string | null;
   ip?: string | null;
-}
-
-function hashIp(ip?: string | null): string | null {
-  if (!ip) return null;
-  return createHash("sha256").update(ip).digest("hex").slice(0, 32);
 }
 
 export async function issueSession(

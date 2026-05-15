@@ -113,10 +113,19 @@ export const dsaRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  // Authenticated reporter status lookup. Reporters with an OpenMatch
-  // account can poll their own ticket; non-users must rely on email
-  // confirmation flows (sent by the moderator workflow).
-  app.get<{ Params: { id: string } }>("/notice/:id", async (req, reply) => {
+  // Authenticated reporter (or email-bearing reporter) status lookup.
+  //
+  // Authorisation paths:
+  //   1. The authenticated user is the reporter (reporterUserId match).
+  //   2. The caller proves possession of the email they originally
+  //      provided by passing it as ?email=. Compared case-insensitively.
+  //
+  // Without one of these, we 404 — same response as an unknown id, so
+  // callers cannot probe for ticket existence by guessing cuids.
+  app.get<{
+    Params: { id: string };
+    Querystring: { email?: string };
+  }>("/notice/:id", async (req, reply) => {
     const ticket = await app.prisma.noticeAndActionReport.findUnique({
       where: { id: req.params.id },
       select: {
@@ -133,26 +142,39 @@ export const dsaRoutes: FastifyPluginAsync = async (app) => {
     });
     if (!ticket) return reply.code(404).send({ error: "not_found" });
 
-    // Authorisation: reporter must either be the authenticated user, or
-    // match the email they originally provided (out-of-band proof — we
-    // do not implement here; for non-users we email status updates).
+    let authorised = false;
     try {
       await req.jwtVerify();
       const userId = (req.user as { sub?: string } | undefined)?.sub;
       if (ticket.reporterUserId && ticket.reporterUserId === userId) {
-        return reply.send(ticket);
+        authorised = true;
       }
     } catch {
-      // unauthenticated — fall through
+      // unauthenticated — fall through to email check
     }
-    // For unauthenticated callers we return only the existence and SLA,
-    // never the full record (prevents enumeration of competitors' reports).
+
+    if (!authorised) {
+      const claimed = (req.query.email ?? "").trim().toLowerCase();
+      const onTicket = (ticket.reporterEmail ?? "").trim().toLowerCase();
+      if (claimed.length > 0 && onTicket.length > 0 && claimed === onTicket) {
+        authorised = true;
+      }
+    }
+
+    if (!authorised) {
+      // Same response as an unknown ticket — no existence confirmation.
+      return reply.code(404).send({ error: "not_found" });
+    }
+
+    // Authorised — return the full record minus internal identifiers.
     return reply.send({
       id: ticket.id,
       category: ticket.category,
-      receivedAt: ticket.receivedAt,
-      slaDueAt: ticket.slaDueAt,
       status: ticket.status,
+      receivedAt: ticket.receivedAt,
+      acknowledgedAt: ticket.acknowledgedAt,
+      slaDueAt: ticket.slaDueAt,
+      resolvedAt: ticket.resolvedAt,
     });
   });
 };

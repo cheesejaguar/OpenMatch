@@ -1,9 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { del, put } from "@vercel/blob";
 import { env } from "../env.js";
-import { stripJpegExif } from "./safety/exif.js";
+import { stripExif } from "./safety/exif.js";
 
 // Media abstraction.
 // - Production: Vercel Blob via server-side `put()`. iOS sends the (already
@@ -20,13 +20,13 @@ import { stripJpegExif } from "./safety/exif.js";
 
 const LOCAL_DIR = path.resolve(process.cwd(), ".local-media");
 
-export const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-]);
+// We accept JPEG / PNG / WebP because we have server-side EXIF strippers
+// for each. HEIC/HEIF were previously accepted but rejected here now:
+// stripping requires a full ISO BMFF box parser we don't ship, and the
+// iOS client already re-encodes captured HEIC images to JPEG before
+// upload (ImageUploader.swift). Accepting a format we cannot strip
+// would be a silent privacy regression.
+export const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 
@@ -43,10 +43,6 @@ function extForMime(mime: string): string {
       return "png";
     case "image/webp":
       return "webp";
-    case "image/heic":
-      return "heic";
-    case "image/heif":
-      return "heif";
     default:
       return "bin";
   }
@@ -65,13 +61,11 @@ export async function uploadProfilePhoto(args: {
   }
 
   // Defence-in-depth: strip EXIF (incl. GPS) on the server even though
-  // the iOS client re-encodes before upload. JPEG is the common case;
-  // other formats are passed through unchanged.
-  let bytes = args.data;
-  if (args.contentType === "image/jpeg") {
-    const stripped = stripJpegExif(args.data);
-    bytes = stripped.bytes;
-  }
+  // the iOS client re-encodes before upload. The dispatcher covers
+  // JPEG, PNG (eXIf / tEXt / iTXt / zTXt chunks), and WebP (EXIF + XMP
+  // chunks within the RIFF container).
+  const stripped = stripExif(args.data, args.contentType);
+  const bytes = stripped.bytes;
 
   const storageKey = `profiles/${args.profileId}/${randomUUID()}.${extForMime(args.contentType)}`;
 
@@ -121,6 +115,6 @@ export async function readLocal(storageKey: string): Promise<Buffer | null> {
   }
 }
 
-export function hashIdentity(value: string): string {
-  return createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
-}
+// hashIdentity has moved to lib/hash.ts; re-export so any out-of-tree
+// import paths continue to resolve.
+export { hashIdentity } from "./hash.js";

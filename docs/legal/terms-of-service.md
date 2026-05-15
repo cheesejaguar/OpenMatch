@@ -104,7 +104,7 @@ To the maximum extent permitted by law:
 
 - These Terms do not affect your statutory consumer rights. Class-action waivers do not apply where unenforceable under local law.
 - You may bring proceedings in the courts of your country of residence; we may bring proceedings against you only there.
-- For disputes arising under the EU Digital Services Act, you may use a certified out-of-court dispute settlement body. We will publish the current list on [`docs/legal/dsa.md`](./dsa.md).
+- For disputes arising under the EU Digital Services Act, you may use a certified out-of-court dispute settlement body. The current list is published with our [transparency report](./transparency-report-template.md) once available.
 - The European Commission's [Online Dispute Resolution platform](https://ec.europa.eu/consumers/odr/) is available.
 
 ### 11.3 If you live elsewhere
