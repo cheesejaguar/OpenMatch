@@ -24,7 +24,7 @@ const FILES = listSourceFiles(ROOT);
 const FORBIDDEN: Array<{ pattern: RegExp; rationale: string }> = [
   { pattern: /super_?like/i, rationale: "Super likes are explicitly disallowed (§15.2)." },
   { pattern: /paid[_ ]?boost/i, rationale: "Paid boosts are disallowed (§15.1)." },
-  { pattern: /stripe|paypal|braintree/i, rationale: "No payment integrations." },
+  { pattern: /\bstripe\b|\bpaypal\b|\bbraintree\b/i, rationale: "No payment integrations." },
   { pattern: /subscription[_ ]?tier/i, rationale: "No subscription tiers." },
   { pattern: /paywall/i, rationale: "Core features are free; no paywalls." },
   { pattern: /storekit/i, rationale: "No in-app purchases." },

@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { del, put } from "@vercel/blob";
 import { env } from "../env.js";
+import { stripExif } from "./safety/exif.js";
 
 // Media abstraction.
 // - Production: Vercel Blob via server-side `put()`. iOS sends the (already
@@ -19,13 +20,13 @@ import { env } from "../env.js";
 
 const LOCAL_DIR = path.resolve(process.cwd(), ".local-media");
 
-export const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-]);
+// We accept JPEG / PNG / WebP because we have server-side EXIF strippers
+// for each. HEIC/HEIF were previously accepted but rejected here now:
+// stripping requires a full ISO BMFF box parser we don't ship, and the
+// iOS client already re-encodes captured HEIC images to JPEG before
+// upload (ImageUploader.swift). Accepting a format we cannot strip
+// would be a silent privacy regression.
+export const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 
@@ -42,10 +43,6 @@ function extForMime(mime: string): string {
       return "png";
     case "image/webp":
       return "webp";
-    case "image/heic":
-      return "heic";
-    case "image/heif":
-      return "heif";
     default:
       return "bin";
   }
@@ -62,10 +59,18 @@ export async function uploadProfilePhoto(args: {
   if (args.data.byteLength > MAX_PHOTO_BYTES) {
     throw Object.assign(new Error("payload_too_large"), { statusCode: 413 });
   }
+
+  // Defence-in-depth: strip EXIF (incl. GPS) on the server even though
+  // the iOS client re-encodes before upload. The dispatcher covers
+  // JPEG, PNG (eXIf / tEXt / iTXt / zTXt chunks), and WebP (EXIF + XMP
+  // chunks within the RIFF container).
+  const stripped = stripExif(args.data, args.contentType);
+  const bytes = stripped.bytes;
+
   const storageKey = `profiles/${args.profileId}/${randomUUID()}.${extForMime(args.contentType)}`;
 
   if (env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(storageKey, args.data, {
+    const blob = await put(storageKey, bytes, {
       access: "public",
       contentType: args.contentType,
       token: env.BLOB_READ_WRITE_TOKEN,
@@ -78,7 +83,7 @@ export async function uploadProfilePhoto(args: {
   // BLOB_READ_WRITE_TOKEN is set.
   const full = path.join(LOCAL_DIR, storageKey);
   await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, args.data);
+  await fs.writeFile(full, bytes);
   return {
     storageKey,
     cdnUrl: `/media/${encodeURIComponent(storageKey)}`,
@@ -110,6 +115,6 @@ export async function readLocal(storageKey: string): Promise<Buffer | null> {
   }
 }
 
-export function hashIdentity(value: string): string {
-  return createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
-}
+// hashIdentity has moved to lib/hash.ts; re-export so any out-of-tree
+// import paths continue to resolve.
+export { hashIdentity } from "./hash.js";

@@ -1,11 +1,16 @@
-ios/
-infra/
-docs/
-admin/
-docker-compose.yml
+# Anchor with leading slash where the pattern would otherwise match a
+# nested directory. Without `/`, `admin/` would also strip
+# `backend/src/lib/admin/` and `backend/src/routes/admin/`, breaking
+# the backend build.
+/ios/
+/infra/
+/docs/
+/admin/
+/docker-compose.yml
 *.tf
-Dockerfile
-.local-media/
-.github/
-backend/test/
-matching/test/
+/Dockerfile
+/.local-media/
+/.github/
+/backend/test/
+/matching/test/
+

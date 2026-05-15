@@ -1,0 +1,400 @@
+# Record of Processing Activities (RoPA)
+# OpenMatch — machine-readable Art. 30 GDPR register
+#
+# Every data class the service processes is enumerated here, with its
+# lawful basis, retention, recipients, and transfer mechanism. Changes to
+# data processing MUST be reflected here in the same PR that makes the
+# change. CI enforcement: any new column in prisma/schema.prisma that
+# touches user data must reference an `id` from this file.
+#
+# Not legal advice. Reviewed quarterly with counsel of record.
+
+controller:
+  name: OpenMatch (legal entity TBD)
+  contact: privacy@openmatch.app
+  representative_eu:
+    status: TBD
+    note: GDPR Art. 27 representative required if no EU establishment.
+  representative_uk:
+    status: TBD
+  dpo:
+    status: TBD
+    note: |
+      Likely required under GDPR Art. 37(1)(b) (large-scale monitoring) and
+      Art. 37(1)(c) (special-category data on a large scale).
+
+policy_version: "2026-05-13"
+
+# Each activity = a processing purpose. Multiple data classes may attach.
+activities:
+
+  - id: act-auth
+    purpose: User authentication and account recovery
+    lawful_basis:
+      gdpr: 6(1)(b) performance of contract
+      ccpa: business purpose (security, account management)
+    data_classes: [c-email, c-phone, c-apple-subject, c-password-hash, c-session-token, c-ip, c-user-agent]
+    retention: For the life of the account + 30 days after deletion (auth tokens), then purged.
+    recipients: [Vercel (compute), Neon (database), SMTP provider]
+    transfers:
+      - to: United States
+        mechanism: SCC + TIA (current production)
+    automated_decision_making: false
+
+  - id: act-profile
+    purpose: Profile presentation and discovery
+    lawful_basis:
+      gdpr: 6(1)(b) performance of contract; 9(2)(a) explicit consent for orientation
+      ccpa: providing the service
+    data_classes:
+      [c-display-name, c-dob, c-gender, c-pronouns, c-bio, c-photos, c-prompts,
+       c-orientation, c-interests, c-languages, c-height, c-education, c-job, c-lifestyle]
+    retention: Until profile deletion. Backups retained 30 days.
+    recipients: [Vercel Blob (photos), Neon]
+    transfers:
+      - to: United States
+        mechanism: SCC + TIA
+    automated_decision_making: false
+    notes: |
+      Orientation, sex life, and certain lifestyle fields are GDPR Art. 9
+      special category. Explicit consent recorded via ConsentRecord
+      (policy_version, accepted_at, text_hash).
+
+  - id: act-location
+    purpose: Distance-based discovery
+    lawful_basis:
+      gdpr: 6(1)(b); explicit consent at first capture
+      ccpa: providing the service; SPI (precise geolocation)
+    data_classes: [c-geo-precise, c-geo-bucket-city]
+    retention: |
+      Precise coordinates retained for the life of the account; never
+      surfaced to other users — only the bucketed text returned by
+      formatDistance() is shown.
+    recipients: [Neon (PostGIS)]
+    transfers:
+      - to: United States
+        mechanism: SCC + TIA
+    automated_decision_making: false
+
+  - id: act-discovery
+    purpose: Ranking the discovery deck
+    lawful_basis:
+      gdpr: 6(1)(b)
+      ccpa: providing the service
+    data_classes:
+      [c-preferences, c-swipes-history, c-blocks, c-reports]
+    retention: Swipes retained until profile deletion; aggregate metrics anonymised after 90 days.
+    recipients: [Neon]
+    transfers:
+      - to: United States
+        mechanism: SCC + TIA
+    automated_decision_making: |
+      Yes (recommender). Not a "significant decision" within the meaning of
+      GDPR Art. 22 — does not produce legal or similarly significant
+      effects. Algorithm weights are published publicly; users may receive
+      a per-card explanation. Non-personalised feed available on request
+      (DSA Art. 38 pre-emptive).
+
+  - id: act-messages
+    purpose: Conversations between matched users
+    lawful_basis:
+      gdpr: 6(1)(b)
+      ccpa: providing the service
+    data_classes: [c-message-body, c-message-metadata, c-conversation-id]
+    retention: Until either party deletes the account, with tombstone for the surviving party.
+    recipients: [Neon, Ably (fan-out only; not stored)]
+    transfers:
+      - to: United States (Neon); region per Ably contract
+        mechanism: SCC + TIA
+    automated_decision_making: false
+    notes: |
+      No message content in analytics. No ML on message bodies for ranking.
+      Message hashing only for scam-pattern detection (configurable).
+
+  - id: act-safety
+    purpose: Reports, blocks, moderation, ban enforcement
+    lawful_basis:
+      gdpr: 6(1)(c) legal obligation; 6(1)(f) legitimate interest in platform safety
+      ccpa: providing the service; preventing fraud
+    data_classes:
+      [c-reports, c-blocks, c-moderation-decisions, c-bans, c-appeals,
+       c-sensitive-access-grants, c-admin-audit, c-hash-signal]
+    retention: |
+      Reports and bans retained while the account is sanctioned or for
+      legal-hold purposes. Hash signals on confirmed CSAM retained per
+      NCMEC requirements. Other safety logs purged after 2 years unless
+      under litigation hold.
+    recipients: [Neon, NCMEC (CSAM only), Law-enforcement on lawful process]
+    transfers:
+      - to: United States
+        mechanism: Domestic (US data only for these classes)
+    automated_decision_making: false
+    notes: Photo hashes shared via PhotoDNA / StopNCII industry programs.
+
+  - id: act-dsar
+    purpose: Handling data-subject access, deletion, correction, portability requests
+    lawful_basis:
+      gdpr: 6(1)(c) legal obligation
+      ccpa: legal obligation
+    data_classes: [c-dsar-records]
+    retention: 3 years (record of compliance with rights requests).
+    recipients: [Neon]
+    transfers:
+      - to: United States
+        mechanism: SCC + TIA
+    automated_decision_making: false
+
+  - id: act-consent
+    purpose: Recording user consents (Art. 9, marketing, location, comms)
+    lawful_basis:
+      gdpr: 6(1)(c) legal obligation
+      ccpa: providing the service; demonstrating compliance
+    data_classes: [c-consent-records]
+    retention: For the life of the account + 3 years after deletion (evidence of consent).
+    recipients: [Neon]
+    transfers:
+      - to: United States
+        mechanism: SCC + TIA
+    automated_decision_making: false
+
+  - id: act-comms-transactional
+    purpose: Transactional email (magic-link, account changes, moderation notices)
+    lawful_basis:
+      gdpr: 6(1)(b); 6(1)(c) for moderation
+      ccpa: providing the service
+    data_classes: [c-email, c-message-metadata]
+    retention: 30 days for outbound delivery logs.
+    recipients: [SMTP provider]
+    transfers:
+      - to: vendor region (Resend/Postmark/Mailgun — varies)
+        mechanism: SCC
+    automated_decision_making: false
+
+  - id: act-realtime-push
+    purpose: Realtime delivery of chat messages and push notifications
+    lawful_basis:
+      gdpr: 6(1)(b); user-controlled notification preferences
+      ccpa: providing the service
+    data_classes: [c-device-token, c-message-metadata-minimal, c-push-preview]
+    retention: Token until revoked or account deleted; previews not stored.
+    recipients: [Ably, Apple Push Notification Service]
+    transfers:
+      - to: Apple (US); Ably (per region)
+        mechanism: SCC where applicable
+    automated_decision_making: false
+
+  - id: act-analytics
+    purpose: First-party aggregate product analytics
+    lawful_basis:
+      gdpr: 6(1)(f) legitimate interest in service quality
+      ccpa: providing the service
+    data_classes: [c-aggregate-event]
+    retention: 13 months at event grain, then anonymised aggregates only.
+    recipients: [Neon]
+    transfers:
+      - to: United States
+        mechanism: Domestic
+    automated_decision_making: false
+    notes: |
+      No third-party ad SDKs. No cross-app tracking. No exact location.
+      No message content. No sensitive fields unless aggregated.
+
+  - id: act-fraud
+    purpose: Fraud, abuse, and scam-pattern detection
+    lawful_basis:
+      gdpr: 6(1)(f); 6(1)(c) for sanctions screening
+      ccpa: detecting security incidents and fraud
+    data_classes: [c-ip-hash, c-device-fingerprint, c-scam-signal, c-sanctions-screening]
+    retention: 24 months, longer if associated with a ban.
+    recipients: [Neon]
+    transfers:
+      - to: United States
+        mechanism: Domestic
+    automated_decision_making: |
+      Rule-based scam-pattern flags; never produces a final ban without
+      moderator review. No black-box ML.
+
+# ---------------------------------------------------------------------
+# Data classes (referenced by activities above).
+# Each is tagged with sensitivity for the engineering PII lint.
+# Sensitivity codes:
+#   pii          — personal data
+#   pii-sensitive — Art. 9 / CCPA SPI
+#   pseudonymous — identifier but no name
+#   aggregate    — not individually identifiable
+# ---------------------------------------------------------------------
+data_classes:
+  - id: c-email
+    description: User email address (hashed; raw never persisted past challenge consumption)
+    sensitivity: pii
+  - id: c-phone
+    description: User phone number (hashed)
+    sensitivity: pii
+  - id: c-apple-subject
+    description: Apple Sign-In subject identifier
+    sensitivity: pii
+  - id: c-password-hash
+    description: N/A (we use magic-link / Apple SIWA, not passwords). Reserved.
+    sensitivity: pii
+  - id: c-session-token
+    description: Refresh token (opaque, rotated, revocable)
+    sensitivity: pii
+  - id: c-ip
+    description: Source IP (hashed for retention; raw in transient logs only)
+    sensitivity: pii
+  - id: c-user-agent
+    description: HTTP User-Agent string
+    sensitivity: pii
+  - id: c-display-name
+    description: User display name
+    sensitivity: pii
+  - id: c-dob
+    description: Date of birth (age verification)
+    sensitivity: pii-sensitive
+    notes: Only "age" — never DOB — is surfaced to other users.
+  - id: c-gender
+    description: Gender / gender identity
+    sensitivity: pii-sensitive
+  - id: c-pronouns
+    description: Pronouns
+    sensitivity: pii
+  - id: c-bio
+    description: Free-text bio
+    sensitivity: pii
+  - id: c-photos
+    description: Profile photos (EXIF stripped on upload; re-encoded)
+    sensitivity: pii
+  - id: c-prompts
+    description: Prompt question/answer pairs
+    sensitivity: pii
+  - id: c-orientation
+    description: Sexual orientation / "interested in" preferences
+    sensitivity: pii-sensitive
+  - id: c-interests
+    description: User-declared interests
+    sensitivity: pii
+  - id: c-languages
+    description: Spoken languages
+    sensitivity: pii
+  - id: c-height
+    description: Height in cm
+    sensitivity: pii
+  - id: c-education
+    description: Education level + school
+    sensitivity: pii
+  - id: c-job
+    description: Job title + employer
+    sensitivity: pii
+  - id: c-lifestyle
+    description: Drinking, smoking, cannabis, exercise, diet, religion, politics
+    sensitivity: pii-sensitive
+    notes: Religion and politics are sensitive in several regimes; treat as Art. 9.
+  - id: c-geo-precise
+    description: Lat/long stored at PostGIS precision for distance queries
+    sensitivity: pii-sensitive
+    notes: Surfaced ONLY via formatDistance(). CI invariant enforces this.
+  - id: c-geo-bucket-city
+    description: Coarse city / region text
+    sensitivity: pii
+  - id: c-preferences
+    description: Looking-for filters and prefs
+    sensitivity: pii
+  - id: c-swipes-history
+    description: Like/reject decisions
+    sensitivity: pii
+  - id: c-blocks
+    description: Block relationships
+    sensitivity: pii
+  - id: c-reports
+    description: Reports filed and against
+    sensitivity: pii
+  - id: c-moderation-decisions
+    description: Moderation actions on a user
+    sensitivity: pii
+  - id: c-bans
+    description: Ban records
+    sensitivity: pii
+  - id: c-appeals
+    description: Appeals filed against bans/decisions
+    sensitivity: pii
+  - id: c-sensitive-access-grants
+    description: Moderator access-to-private-data grants
+    sensitivity: pii
+  - id: c-admin-audit
+    description: Admin action audit log
+    sensitivity: pii
+  - id: c-hash-signal
+    description: Perceptual hash matches against PhotoDNA / StopNCII / NCMEC industry lists
+    sensitivity: pseudonymous
+  - id: c-message-body
+    description: Message text content
+    sensitivity: pii
+  - id: c-message-metadata
+    description: Sender / recipient / timestamp / conversation id
+    sensitivity: pii
+  - id: c-message-metadata-minimal
+    description: Conversation id only (push fan-out)
+    sensitivity: pseudonymous
+  - id: c-conversation-id
+    description: Conversation identifier
+    sensitivity: pseudonymous
+  - id: c-device-token
+    description: APNs device token
+    sensitivity: pii
+  - id: c-push-preview
+    description: Push notification preview content per user preference
+    sensitivity: pii
+  - id: c-aggregate-event
+    description: First-party product analytics events
+    sensitivity: aggregate
+  - id: c-ip-hash
+    description: Hashed IP for fraud detection
+    sensitivity: pseudonymous
+  - id: c-device-fingerprint
+    description: Device-level signal for ban-evasion (no IDFA)
+    sensitivity: pseudonymous
+  - id: c-scam-signal
+    description: Rule-based scam-pattern signal
+    sensitivity: pseudonymous
+  - id: c-sanctions-screening
+    description: Sanctions list screening result
+    sensitivity: pii
+  - id: c-dsar-records
+    description: DSAR ticket and disposition
+    sensitivity: pii
+  - id: c-consent-records
+    description: Versioned consent acceptances
+    sensitivity: pii
+
+# ---------------------------------------------------------------------
+# Sub-processors (cross-referenced in vendor-register.md)
+# ---------------------------------------------------------------------
+sub_processors:
+  - name: Vercel
+    role: Compute (Functions), photo storage (Blob)
+    location: United States
+    dpa: https://vercel.com/legal/dpa
+  - name: Neon
+    role: Postgres + PostGIS
+    location: United States
+    dpa: https://neon.tech/legal/dpa
+  - name: Upstash
+    role: Redis (cache, rate-limit)
+    location: per region (global)
+    dpa: https://upstash.com/trust/dpa.pdf
+  - name: Ably
+    role: Realtime message fan-out
+    location: per region
+    dpa: https://ably.com/legal/dpa
+  - name: Apple
+    role: Sign in with Apple; APNs
+    location: United States
+    dpa: Apple Developer Agreement
+  - name: SMTP provider (Resend / Postmark / Mailgun — TBD)
+    role: Transactional email
+    location: vendor region
+    dpa: per vendor
+  - name: NCMEC
+    role: CyberTipline (CSAM reporting only)
+    location: United States
+    dpa: N/A (mandated by 18 USC 2258A)

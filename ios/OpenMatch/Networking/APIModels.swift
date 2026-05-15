@@ -190,6 +190,10 @@ struct ProfileUpdateRequest: Codable {
     var languages: [String]?
     var interests: [String]?
     var visibilityStatus: String?
+    // ISO-8601 date string; the server enforces 18+ at write time, but
+    // we also enforce it on the client side so a clearly-underage user
+    // never even gets a network round-trip back to "underage".
+    var dateOfBirth: String?
 }
 
 // MARK: - Safety
@@ -213,4 +217,25 @@ struct AblyTokenRequestDTO: Codable {
     let capability: String
     let ttl: Int?
     let mac: String
+}
+
+// MARK: - Privacy & rights (Workstream G)
+
+struct AccountDeletionStatusDTO: Codable, Identifiable {
+    let id: String
+    let status: String
+    let requestedAt: Date?
+    let gracePeriodEndsAt: Date
+    let cancelledAt: Date?
+}
+
+struct NotificationPreferencesDTO: Codable {
+    var productNewsEmail: Bool
+    var productNewsPush: Bool
+    var productNewsSms: Bool
+    var newMatchPush: Bool
+    var newMessagePush: Bool
+    var newLikePush: Bool
+    var safetyPush: Bool
+    var pushPreviewMode: String   // "full" | "sender_only" | "hidden"
 }

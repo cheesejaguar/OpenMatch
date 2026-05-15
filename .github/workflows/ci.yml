@@ -67,6 +67,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: License inventory (compliance)
+        run: npm run license-inventory
+
       - name: Build backend
         run: npm run build -w @openmatch/backend
 

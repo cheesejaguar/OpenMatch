@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { env } from "../env.js";
-import { hashIdentity } from "../lib/media.js";
+import { hashIdentity, hashIp } from "../lib/hash.js";
 
 const TOKEN_BYTES = 32;
 const MAGIC_LINK_TTL_MS = env.MAGIC_LINK_TTL_SECONDS * 1000;
@@ -129,15 +129,27 @@ export async function verifyEmailLogin(
   return { userId: user.id, isNewUser: true };
 }
 
+export interface IssueSessionContext {
+  userAgent?: string | null;
+  ip?: string | null;
+}
+
 export async function issueSession(
   prisma: PrismaClient,
   userId: string,
   signAccess: (payload: { sub: string; scope: "user" }) => string,
+  ctx: IssueSessionContext = {},
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date }> {
   const refreshToken = randomBytes(TOKEN_BYTES).toString("hex");
   const expiresAt = new Date(Date.now() + env.JWT_REFRESH_TTL_SECONDS * 1000);
   await prisma.session.create({
-    data: { userId, refreshToken: hashToken(refreshToken), expiresAt },
+    data: {
+      userId,
+      refreshToken: hashToken(refreshToken),
+      expiresAt,
+      userAgent: ctx.userAgent ?? null,
+      ipHash: hashIp(ctx.ip),
+    },
   });
   const accessToken = signAccess({ sub: userId, scope: "user" });
   return { accessToken, refreshToken, expiresAt };
@@ -147,13 +159,28 @@ export async function rotateRefreshToken(
   prisma: PrismaClient,
   refreshToken: string,
   signAccess: (payload: { sub: string; scope: "user" }) => string,
+  ctx: IssueSessionContext & { logReuse?: (userId: string) => void } = {},
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date } | null> {
   const tokenHash = hashToken(refreshToken);
   const session = await prisma.session.findUnique({
     where: { refreshToken: tokenHash },
   });
   if (!session) return null;
-  if (session.revokedAt) return null;
+
+  // Reuse detection: a refresh token that has already been revoked
+  // implies the attacker (or the legitimate-but-out-of-sync client)
+  // is presenting a stale token whose successor is already in use.
+  // OWASP guidance is to revoke *all* of the user's sessions on this
+  // signal — the legitimate user can sign in again. Better a forced
+  // re-auth than an undetected hijack.
+  if (session.revokedAt) {
+    if (ctx.logReuse) ctx.logReuse(session.userId);
+    await prisma.session.updateMany({
+      where: { userId: session.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return null;
+  }
   if (session.expiresAt.getTime() < Date.now()) return null;
 
   await prisma.session.update({
@@ -163,7 +190,8 @@ export async function rotateRefreshToken(
 
   // Opportunistic cleanup of this user's already-expired or long-revoked
   // sessions so the table doesn't grow unbounded. Cheap with the userId
-  // index. Keeps very recent revocations around for forensics.
+  // index. Keeps very recent revocations around for forensics — those
+  // are exactly the rows that detect reuse above.
   const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
   await prisma.session.deleteMany({
     where: {
@@ -175,7 +203,7 @@ export async function rotateRefreshToken(
     },
   });
 
-  return issueSession(prisma, session.userId, signAccess);
+  return issueSession(prisma, session.userId, signAccess, ctx);
 }
 
 export async function revokeSession(prisma: PrismaClient, refreshToken: string): Promise<void> {
@@ -183,4 +211,48 @@ export async function revokeSession(prisma: PrismaClient, refreshToken: string):
     where: { refreshToken: hashToken(refreshToken) },
     data: { revokedAt: new Date() },
   });
+}
+
+export async function listUserSessions(prisma: PrismaClient, userId: string) {
+  const sessions = await prisma.session.findMany({
+    where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      createdAt: true,
+      expiresAt: true,
+      userAgent: true,
+      ipHash: true,
+    },
+  });
+  // Never return the refreshToken hash or the raw IP.
+  return sessions;
+}
+
+export async function revokeUserSession(
+  prisma: PrismaClient,
+  userId: string,
+  sessionId: string,
+): Promise<{ revoked: boolean }> {
+  const result = await prisma.session.updateMany({
+    where: { id: sessionId, userId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  return { revoked: result.count > 0 };
+}
+
+export async function revokeAllUserSessions(
+  prisma: PrismaClient,
+  userId: string,
+  options: { keepSessionId?: string } = {},
+): Promise<{ revokedCount: number }> {
+  const result = await prisma.session.updateMany({
+    where: {
+      userId,
+      revokedAt: null,
+      ...(options.keepSessionId ? { NOT: { id: options.keepSessionId } } : {}),
+    },
+    data: { revokedAt: new Date() },
+  });
+  return { revokedCount: result.count };
 }

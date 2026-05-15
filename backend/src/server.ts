@@ -7,6 +7,7 @@ import { env } from "./env.js";
 import adminAuthPlugin from "./plugins/admin-auth.js";
 import adminRbacPlugin from "./plugins/admin-rbac.js";
 import authPlugin from "./plugins/auth.js";
+import countryGatePlugin from "./plugins/country-gate.js";
 import prismaPlugin from "./plugins/prisma.js";
 import ratelimitPlugin from "./plugins/ratelimit.js";
 import redisPlugin from "./plugins/redis.js";
@@ -21,9 +22,11 @@ import { adminUserRoutes } from "./routes/admin/users.js";
 import { authRoutes } from "./routes/auth.js";
 import { chatRoutes } from "./routes/chat.js";
 import { discoveryRoutes } from "./routes/discovery.js";
+import { dsaRoutes } from "./routes/dsa.js";
 import { likesRoutes } from "./routes/likes.js";
 import { matchesRoutes } from "./routes/matches.js";
 import { preferencesRoutes } from "./routes/preferences.js";
+import { privacyRoutes } from "./routes/privacy.js";
 import { profileRoutes } from "./routes/profile.js";
 import { realtimeRoutes } from "./routes/realtime.js";
 import { safetyRoutes } from "./routes/safety.js";
@@ -32,6 +35,12 @@ import { transparencyRoutes } from "./routes/transparency.js";
 
 export async function buildServer() {
   const app = Fastify({
+    // We sit behind Vercel's edge in production, which always sets
+    // X-Forwarded-For. Trusting it makes `req.ip` and the rate-limit
+    // plugin reflect the upstream client IP rather than the proxy IP.
+    // The country-gate and IP-hash logic rely on this; without it,
+    // every request would appear to come from the load-balancer.
+    trustProxy: env.NODE_ENV !== "test",
     logger:
       env.NODE_ENV === "development"
         ? {
@@ -76,6 +85,7 @@ export async function buildServer() {
   await app.register(adminAuthPlugin);
   await app.register(adminRbacPlugin);
   await app.register(ratelimitPlugin);
+  await app.register(countryGatePlugin);
 
   app.get("/health", async () => ({ ok: true }));
 
@@ -90,6 +100,8 @@ export async function buildServer() {
   await app.register(realtimeRoutes, { prefix: "/api/v1/realtime" });
   await app.register(safetyRoutes, { prefix: "/api/v1/safety" });
   await app.register(transparencyRoutes, { prefix: "/api/v1/transparency" });
+  await app.register(privacyRoutes, { prefix: "/api/v1/privacy" });
+  await app.register(dsaRoutes, { prefix: "/api/v1/dsa" });
 
   await app.register(adminAuthRoutes, { prefix: "/api/v1/admin/auth" });
   await app.register(adminUserRoutes, { prefix: "/api/v1/admin/users" });
