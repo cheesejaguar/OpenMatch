@@ -1,17 +1,55 @@
+/* Botanic palette — synced with iOS DesignSystem/OMColor.swift.
+   Light mode is the default; staff who prefer dark can flip via OS
+   `prefers-color-scheme`. Most admin work happens in well-lit offices
+   so we ship light-first here, unlike the consumer app. */
 :root {
-  --bg: #0b0d10;
-  --bg-elevated: #15181d;
-  --bg-hover: #1d2128;
-  --fg: #e9eef5;
-  --fg-muted: #8a94a6;
-  --border: #262b33;
-  --accent: #4f8cff;
-  --danger: #e25c5c;
-  --warning: #e0a64a;
-  --success: #4ec07c;
-  --radius: 6px;
-  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #f4efe6; /* Bone */
+  --bg-elevated: #fbf7ef;
+  --bg-hover: #ece4d4;
+  --bg-sunken: #ece4d4;
+  --fg: #2a1f1a; /* Espresso ink on bone */
+  --fg-muted: #6b5d52;
+  --border: rgba(42, 31, 26, 0.1);
+  --border-strong: rgba(42, 31, 26, 0.18);
+
+  --accent: #2f4f3e; /* Moss */
+  --accent-strong: #c2654b; /* Terracotta — primary CTAs */
+  --danger: #b5443a; /* Safety red */
+  --warning: #d4a340; /* Honey */
+  --success: #2f4f3e; /* Moss reads as "ok / live" */
+
+  --radius: 8px;
+  --radius-lg: 14px;
+  /* next/font/local sets --font-geist and --font-fraunces on <html>. */
+  --font-display: var(--font-fraunces), "Fraunces 9pt", "Fraunces", ui-serif, Georgia, serif;
+  --font:
+    var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --shadow-card: 0 1px 0 rgba(42, 31, 26, 0.06), 0 6px 14px -8px rgba(42, 31, 26, 0.2);
+  --shadow-press: 0 0 0 1px rgba(42, 31, 26, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #2a1f1a; /* Espresso */
+    --bg-elevated: #352822;
+    --bg-hover: #3f3128;
+    --bg-sunken: #1f1612;
+    --fg: #f4efe6; /* Bone on espresso */
+    --fg-muted: #b8ac9f;
+    --border: rgba(244, 239, 230, 0.1);
+    --border-strong: rgba(244, 239, 230, 0.18);
+
+    --accent: #4e7a65; /* Moss (lifted for dark) */
+    --accent-strong: #d88163; /* Terracotta (lifted) */
+    --danger: #d26356;
+    --warning: #e6bc5b;
+    --success: #4e7a65;
+
+    --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 20px -10px rgba(0, 0, 0, 0.5);
+    --shadow-press: 0 0 0 1px rgba(244, 239, 230, 0.12);
+  }
 }
 
 * {
@@ -27,11 +65,23 @@ body {
   font-family: var(--font);
   font-size: 14px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 a {
   color: var(--accent);
   text-decoration: none;
+  font-weight: 500;
 }
 
 a:hover {
@@ -41,25 +91,39 @@ a:hover {
 button {
   font-family: inherit;
   font-size: inherit;
+  font-weight: 500;
   background: var(--bg-elevated);
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 6px 12px;
+  padding: 7px 13px;
   cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition:
+    transform 0.06s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
 }
 button:hover:not(:disabled) {
   background: var(--bg-hover);
 }
+button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: var(--shadow-press);
+}
 button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #f4efe6;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+  filter: brightness(0.95);
 }
 button.danger {
   background: var(--danger);
   border-color: var(--danger);
-  color: white;
+  color: #f4efe6;
 }
 button:disabled {
   opacity: 0.5;
@@ -71,12 +135,20 @@ textarea,
 select {
   font-family: inherit;
   font-size: inherit;
-  background: var(--bg);
+  background: var(--bg-elevated);
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 6px 10px;
+  padding: 7px 11px;
   width: 100%;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 79, 62, 0.12);
 }
 
 label {
@@ -85,7 +157,7 @@ label {
   color: var(--fg-muted);
   margin-bottom: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .layout {
@@ -97,15 +169,17 @@ label {
 .sidebar {
   background: var(--bg-elevated);
   border-right: 1px solid var(--border);
-  padding: 20px 12px;
+  padding: 24px 14px;
 }
 
 .sidebar h1 {
-  font-size: 14px;
-  color: var(--fg);
-  margin: 0 0 4px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--accent);
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+  text-transform: none;
 }
 
 .sidebar .who {
@@ -120,11 +194,13 @@ label {
   border-radius: var(--radius);
   color: var(--fg);
   margin-bottom: 2px;
+  font-weight: 500;
 }
 .sidebar nav a:hover,
 .sidebar nav a.active {
   background: var(--bg-hover);
   text-decoration: none;
+  color: var(--accent);
 }
 
 .main {
@@ -141,14 +217,19 @@ label {
 
 .page-header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 24px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .card {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-card);
 }
 
 .card + .card {
@@ -162,7 +243,7 @@ table {
 table th,
 table td {
   text-align: left;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
 table th {
@@ -170,18 +251,19 @@ table th {
   font-weight: 500;
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .badge {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 2px 10px;
   font-size: 11px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   color: var(--fg-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  font-weight: 600;
 }
 .badge.active {
   border-color: var(--success);
@@ -202,19 +284,21 @@ table th {
 }
 
 .sensitive-banner {
-  background: rgba(224, 166, 74, 0.1);
+  background: rgba(212, 163, 64, 0.12);
   border: 1px solid var(--warning);
   border-radius: var(--radius);
   padding: 10px 14px;
   margin-bottom: 16px;
   color: var(--warning);
   font-size: 13px;
+  font-weight: 500;
 }
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(42, 31, 26, 0.55);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -223,13 +307,17 @@ table th {
 .modal {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 24px;
   width: 100%;
   max-width: 520px;
+  box-shadow: var(--shadow-card);
 }
 .modal h3 {
   margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 600;
 }
 
 .grid {
@@ -246,18 +334,22 @@ table th {
 .metric {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-card);
 }
 .metric .label {
   color: var(--fg-muted);
   font-size: 12px;
   text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 .metric .value {
-  font-size: 28px;
+  font-family: var(--font-display);
+  font-size: 32px;
   font-weight: 600;
   margin-top: 4px;
+  letter-spacing: -0.02em;
 }
 
 .photo-grid {
@@ -266,7 +358,7 @@ table th {
   gap: 12px;
 }
 .photo-grid .photo {
-  background: var(--bg);
+  background: var(--bg-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -309,10 +401,10 @@ table th {
 }
 
 .message {
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
   margin-bottom: 6px;
-  background: var(--bg);
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
 }
 .message.reported {

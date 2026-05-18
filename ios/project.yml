@@ -34,9 +34,24 @@ targets:
       path: OpenMatch/Resources/Info.plist
       properties:
         UILaunchScreen:
-          UIColorName: ""
+          UIColorName: "LaunchBackground"
+          UIImageName: "LaunchMark"
+          UIImageRespectsSafeAreaInsets: true
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+        # Custom fonts shipped in Resources/Fonts/. Postscript names are
+        # verified in OMFont.debugDumpAvailableFamilies().
+        UIAppFonts:
+          - "Fonts/Fraunces9pt-Regular.ttf"
+          - "Fonts/Fraunces9pt-Italic.ttf"
+          - "Fonts/Fraunces9pt-SemiBold.ttf"
+          - "Fonts/Fraunces9pt-SemiBoldItalic.ttf"
+          - "Fonts/Fraunces9pt-Bold.ttf"
+          - "Fonts/Fraunces9pt-BoldItalic.ttf"
+          - "Fonts/Geist-Regular.ttf"
+          - "Fonts/Geist-Medium.ttf"
+          - "Fonts/Geist-SemiBold.ttf"
+          - "Fonts/Geist-Bold.ttf"
         NSLocationWhenInUseUsageDescription: "OpenMatch uses your location to show profiles nearby. Your exact location is never shared with other users."
         NSCameraUsageDescription: "OpenMatch uses the camera so you can add profile photos."
         NSPhotoLibraryUsageDescription: "OpenMatch uses your photo library so you can add profile photos."
@@ -51,6 +66,7 @@ targets:
         # Required Reason API justifications also live in the Privacy
         # Manifest, not here.
         LSApplicationCategoryType: "public.app-category.social-networking"
+        OMAPIBaseURL: "https://openmatch-backend-cheesejaguar-cheesejaguar-2353s-projects.vercel.app"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.openmatch.ios

@@ -31,6 +31,6 @@ struct MainTabView: View {
                 }
                 .tag(Tab.profile)
         }
-        .tint(OMColor.like)
+        .tint(OMColor.moss)
     }
 }

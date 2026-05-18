@@ -20,14 +20,29 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<key>OMAPIBaseURL</key>
-	<string>https://openmatch-backend-cheesejaguar-cheesejaguar-2353s-projects.vercel.app</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.social-networking</string>
 	<key>NSCameraUsageDescription</key>
 	<string>OpenMatch uses the camera so you can add profile photos.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>OpenMatch uses your location to show profiles nearby. Your exact location is never shared with other users.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>OpenMatch uses your photo library so you can add profile photos.</string>
+	<key>OMAPIBaseURL</key>
+	<string>https://openmatch-backend-cheesejaguar-cheesejaguar-2353s-projects.vercel.app</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Fonts/Fraunces9pt-Regular.ttf</string>
+		<string>Fonts/Fraunces9pt-Italic.ttf</string>
+		<string>Fonts/Fraunces9pt-SemiBold.ttf</string>
+		<string>Fonts/Fraunces9pt-SemiBoldItalic.ttf</string>
+		<string>Fonts/Fraunces9pt-Bold.ttf</string>
+		<string>Fonts/Fraunces9pt-BoldItalic.ttf</string>
+		<string>Fonts/Geist-Regular.ttf</string>
+		<string>Fonts/Geist-Medium.ttf</string>
+		<string>Fonts/Geist-SemiBold.ttf</string>
+		<string>Fonts/Geist-Bold.ttf</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -36,7 +51,11 @@
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
-		<string></string>
+		<string>LaunchBackground</string>
+		<key>UIImageName</key>
+		<string>LaunchMark</string>
+		<key>UIImageRespectsSafeAreaInsets</key>
+		<true/>
 	</dict>
 </dict>
 </plist>
