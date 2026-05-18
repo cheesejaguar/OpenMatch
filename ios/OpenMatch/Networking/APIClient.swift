@@ -80,6 +80,17 @@ final class APIClient: ObservableObject {
         ))
     }
 
+    func appleLogin(identityToken: String) async throws -> SessionResponse {
+        let s: SessionResponse = try await post("/api/v1/auth/start", body: StartLoginRequest(
+            method: "apple",
+            email: nil,
+            appleIdentityToken: identityToken,
+            devUserId: nil
+        ))
+        setSession(s)
+        return s
+    }
+
     func devLogin(userId: String) async throws -> SessionResponse {
         let s: SessionResponse = try await post("/api/v1/auth/start", body: StartLoginRequest(
             method: "dev",

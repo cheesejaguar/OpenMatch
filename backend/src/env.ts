@@ -37,6 +37,12 @@ const schema = z.object({
   SMTP_HOST: z.string().default("localhost"),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
   SMTP_FROM: z.string().email().default("noreply@openmatch.local"),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: z
+    .string()
+    .optional()
+    .transform((v) => (v == null ? undefined : v === "true")),
   MAGIC_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(900),
 
   APPLE_TEAM_ID: z.string().optional(),

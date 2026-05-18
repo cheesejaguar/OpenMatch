@@ -12,10 +12,13 @@ function hashToken(t: string): string {
 let mailer: nodemailer.Transporter | null = null;
 function getMailer(): nodemailer.Transporter {
   if (!mailer) {
+    const secure = env.SMTP_SECURE ?? env.SMTP_PORT === 465;
     mailer = nodemailer.createTransport({
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
-      secure: false,
+      secure,
+      auth:
+        env.SMTP_USER && env.SMTP_PASS ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
       tls: { rejectUnauthorized: false },
     });
   }

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { env } from "../env.js";
+import { verifyAppleIdentityToken } from "../services/apple-auth.service.js";
 import {
   issueSession,
   listUserSessions,
@@ -9,6 +10,7 @@ import {
   revokeUserSession,
   rotateRefreshToken,
   startEmailLogin,
+  upsertAppleUser,
   verifyEmailLogin,
 } from "../services/auth.service.js";
 
@@ -98,13 +100,28 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (body.method === "apple") {
-      // Apple SIWA is wired but requires real Apple credentials. Returning
-      // a clear error in dev so it's obvious why the path fails.
-      return reply.code(501).send({
-        error: "apple_not_configured",
-        message:
-          "Configure APPLE_TEAM_ID, APPLE_CLIENT_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY to enable Sign in with Apple.",
-      });
+      if (!body.appleIdentityToken) {
+        return reply.code(400).send({ error: "appleIdentityToken_required" });
+      }
+      try {
+        const identity = await verifyAppleIdentityToken(body.appleIdentityToken);
+        const { user, isNewUser } = await upsertAppleUser(app.prisma, identity);
+        const session = await issueSession(app.prisma, user.id, (p) => app.jwt.sign(p));
+        return reply.send({ ...session, userId: user.id, isNewUser });
+      } catch (err) {
+        const statusCode = (err as { statusCode?: number }).statusCode;
+        if (statusCode === 501) {
+          return reply.code(501).send({
+            error: "apple_not_configured",
+            message:
+              "Configure APPLE_TEAM_ID, APPLE_CLIENT_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY to enable Sign in with Apple.",
+          });
+        }
+        return reply.code(401).send({
+          error: "apple_verification_failed",
+          message: err instanceof Error ? err.message : "invalid_identity_token",
+        });
+      }
     }
 
     if (body.method === "dev") {

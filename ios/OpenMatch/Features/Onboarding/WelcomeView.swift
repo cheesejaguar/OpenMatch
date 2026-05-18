@@ -9,6 +9,7 @@ struct WelcomeView: View {
     @State private var devUserId: String = "u001"
     @State private var error: String?
     @State private var loading = false
+    @State private var appleCoordinator: AppleSignInCoordinator?
 
     var body: some View {
         NavigationStack {
@@ -49,12 +50,12 @@ struct WelcomeView: View {
                         Text("or").foregroundStyle(.secondary).padding(.vertical, 4)
 
                         Button {
-                            // Apple Sign-In requires a real developer team.
-                            // Wire your team's SIWA call here.
+                            Task { await appleLogin() }
                         } label: {
                             Label("Continue with Apple", systemImage: "applelogo")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(loading)
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 8)
@@ -112,6 +113,23 @@ struct WelcomeView: View {
         do {
             _ = try await api.verifyLogin(challengeId: cid, token: token)
             appState.didSignIn(userId: api.cachedUserId ?? "self")
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func appleLogin() async {
+        loading = true
+        defer { loading = false }
+        let coordinator = AppleSignInCoordinator()
+        appleCoordinator = coordinator
+        defer { appleCoordinator = nil }
+        do {
+            let identityToken = try await coordinator.signIn()
+            _ = try await api.appleLogin(identityToken: identityToken)
+            appState.didSignIn(userId: api.cachedUserId ?? "self")
+        } catch AppleSignInCoordinator.AppleSignInError.cancelled {
+            // User cancelled — no error UI.
         } catch {
             self.error = error.localizedDescription
         }
