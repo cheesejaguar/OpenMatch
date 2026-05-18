@@ -101,7 +101,7 @@ export function evaluateScamRules(ctx: ScamRuleContext): Array<{
   }
 
   // Payment solicitation in messages or bio.
-  const paymentHay = haystack + "\n" + (ctx.profileBio ?? "");
+  const paymentHay = `${haystack}\n${ctx.profileBio ?? ""}`;
   if (PAYMENT_PATTERNS.some((p) => p.test(paymentHay))) {
     signals.push({
       kind: "payment_solicitation",

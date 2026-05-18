@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ProfileCardView: View {
+    enum DisplayMode { case top, preview }
+
     let card: ProfileCardModel
     let dragOffset: CGSize
     let onLike: () -> Void
@@ -8,6 +10,7 @@ struct ProfileCardView: View {
     let onUndo: () -> Void
     let onShowDetail: () -> Void
     let canUndo: Bool
+    var displayMode: DisplayMode = .top
 
     @State private var photoIndex: Int = 0
 
@@ -20,43 +23,50 @@ struct ProfileCardView: View {
             PhotoCarouselView(photos: card.photos, index: $photoIndex)
 
             // Bottom gradient — espresso, not pure black. Reads as warm shadow.
-            LinearGradient(
-                colors: [.clear, Color(red: 0.165, green: 0.122, blue: 0.102).opacity(0.0),
-                         Color(red: 0.165, green: 0.122, blue: 0.102).opacity(0.72)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            // Edge glow — radial wash anchored to leading/trailing edge,
-            // tinted terracotta on like-intent and sage on pass-intent.
-            // Opacity grows with drag distance and caps at 0.55.
-            edgeGlow
-
-            // Like / reject hint overlays
-            HStack {
-                CornerBadge(text: "LIKE", color: OMColor.terracotta)
-                    .scaleEffect(1 + max(0, intent) * 0.18)
-                    .opacity(max(0, intent))
-                    .rotationEffect(.degrees(-12))
-                    .padding(.top, 30)
-                    .padding(.leading, 24)
-                Spacer()
-                CornerBadge(text: "PASS", color: OMColor.sage)
-                    .scaleEffect(1 + max(0, -intent) * 0.18)
-                    .opacity(max(0, -intent))
-                    .rotationEffect(.degrees(12))
-                    .padding(.top, 30)
-                    .padding(.trailing, 24)
+            // Skip the gradient on the back-card preview — there's no text
+            // to fade behind it and the darkening looks like a render glitch.
+            if displayMode == .top {
+                LinearGradient(
+                    colors: [.clear, Color(red: 0.165, green: 0.122, blue: 0.102).opacity(0.0),
+                             Color(red: 0.165, green: 0.122, blue: 0.102).opacity(0.72)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             }
-            .animation(.spring(response: 0.22, dampingFraction: 0.55), value: intent)
 
-            VStack { Spacer(); summary }
+            // Edge glow + LIKE/PASS stamps + bottom summary + action row
+            // are only meaningful for the actively-dragged top card. The
+            // back-card preview gets just the photo so its text never
+            // bleeds through the front card when the front photo is missing.
+            if displayMode == .top {
+                edgeGlow
+
+                HStack {
+                    CornerBadge(text: "LIKE", color: OMColor.terracotta)
+                        .scaleEffect(1 + max(0, intent) * 0.18)
+                        .opacity(max(0, intent))
+                        .rotationEffect(.degrees(-12))
+                        .padding(.top, 30)
+                        .padding(.leading, 24)
+                    Spacer()
+                    CornerBadge(text: "PASS", color: OMColor.sage)
+                        .scaleEffect(1 + max(0, -intent) * 0.18)
+                        .opacity(max(0, -intent))
+                        .rotationEffect(.degrees(12))
+                        .padding(.top, 30)
+                        .padding(.trailing, 24)
+                }
+                .animation(.spring(response: 0.22, dampingFraction: 0.55), value: intent)
+
+                VStack { Spacer(); summary }
+            }
         }
         .clipShape(OMShape.card())
         .overlay(
             OMShape.card().stroke(OMColor.cardStroke, lineWidth: 1)
         )
         .accessibilityElement(children: .contain)
+        .accessibilityHidden(displayMode == .preview)
     }
 
     private var edgeGlow: some View {

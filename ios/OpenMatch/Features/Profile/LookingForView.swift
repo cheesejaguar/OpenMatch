@@ -31,67 +31,104 @@ struct LookingForView: View {
     @StateObject private var vm = LookingForViewModel()
 
     var body: some View {
-        Form {
-            if let prefs = vm.prefs {
-                Section("Age range") {
-                    Stepper("Minimum: \(prefs.minAge)", value: .init(
-                        get: { prefs.minAge },
-                        set: { var p = prefs; p.minAge = $0; vm.prefs = p }
-                    ), in: 18...100)
-                    Stepper("Maximum: \(prefs.maxAge)", value: .init(
-                        get: { prefs.maxAge },
-                        set: { var p = prefs; p.maxAge = $0; vm.prefs = p }
-                    ), in: 18...100)
-                }
-                Section("Distance") {
-                    Picker("Up to", selection: .init(
-                        get: { prefs.maxDistanceKm },
-                        set: { var p = prefs; p.maxDistanceKm = $0; vm.prefs = p }
-                    )) {
-                        ForEach([2, 10, 25, 50, 100, 250, 1000], id: \.self) { km in
-                            Text("\(km) km").tag(km)
+        OMScreen {
+            ScrollView {
+                if let prefs = vm.prefs {
+                    LazyVStack(spacing: OMSpacing.xl) {
+                        OMSection("Age range") {
+                            OMStepper(
+                                label: "Minimum",
+                                value: .init(
+                                    get: { prefs.minAge },
+                                    set: { var p = prefs; p.minAge = $0; vm.prefs = p }
+                                ),
+                                range: 18...100,
+                                step: 1,
+                                format: { "\($0)" }
+                            )
+                            OMSectionDivider()
+                            OMStepper(
+                                label: "Maximum",
+                                value: .init(
+                                    get: { prefs.maxAge },
+                                    set: { var p = prefs; p.maxAge = $0; vm.prefs = p }
+                                ),
+                                range: 18...100,
+                                step: 1,
+                                format: { "\($0)" }
+                            )
                         }
+
+                        OMSection("Distance") {
+                            OMPicker(
+                                label: "Up to",
+                                selection: .init(
+                                    get: { prefs.maxDistanceKm },
+                                    set: { var p = prefs; p.maxDistanceKm = $0; vm.prefs = p }
+                                ),
+                                options: [2, 10, 25, 50, 100, 250, 1000].map { (label: "\($0) km", value: $0) }
+                            )
+                        }
+
+                        OMSection("Goals") {
+                            OMToggle(
+                                label: "Exclude incompatible goals",
+                                isOn: .init(
+                                    get: { prefs.excludeIncompatibleGoals },
+                                    set: { var p = prefs; p.excludeIncompatibleGoals = $0; vm.prefs = p }
+                                )
+                            )
+                            OMSectionDivider()
+                            OMToggle(
+                                label: "Include unanswered optional fields",
+                                caption: "People who skipped optional questions can still appear.",
+                                isOn: .init(
+                                    get: { prefs.includeUnansweredOptionalFields },
+                                    set: { var p = prefs; p.includeUnansweredOptionalFields = $0; vm.prefs = p }
+                                )
+                            )
+                        }
+
+                        OMSection("Incoming likes") {
+                            VStack(spacing: 0) {
+                                OMSegmented(
+                                    selection: .init(
+                                        get: { prefs.likesVisibility },
+                                        set: { var p = prefs; p.likesVisibility = $0; vm.prefs = p }
+                                    ),
+                                    options: [
+                                        (label: "Visible", value: "visible"),
+                                        (label: "Count", value: "count_only"),
+                                        (label: "Hidden", value: "hidden"),
+                                    ]
+                                )
+                                .padding(OMSpacing.lg)
+                            }
+                        }
+
+                        Button {
+                            Task { await vm.save() }
+                        } label: {
+                            if vm.isSaving { ProgressView().tint(OMColor.onAccent) } else { Text("Save preferences") }
+                        }
+                        .buttonStyle(OMPrimaryButtonStyle())
+                        .disabled(vm.isSaving)
+
+                        Text("These filters are free. OpenMatch will never gate filters behind a subscription.")
+                            .font(OMFont.caption)
+                            .foregroundStyle(OMColor.inkMuted)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
                     }
+                    .padding(OMSpacing.lg)
+                } else {
+                    ProgressView()
+                        .tint(OMColor.moss)
+                        .padding(.top, 80)
                 }
-                Section("Goals") {
-                    Toggle("Exclude incompatible goals", isOn: .init(
-                        get: { prefs.excludeIncompatibleGoals },
-                        set: { var p = prefs; p.excludeIncompatibleGoals = $0; vm.prefs = p }
-                    ))
-                    Toggle("Include profiles that didn't answer optional fields", isOn: .init(
-                        get: { prefs.includeUnansweredOptionalFields },
-                        set: { var p = prefs; p.includeUnansweredOptionalFields = $0; vm.prefs = p }
-                    ))
-                }
-                Section("Likes visibility") {
-                    Picker("Incoming likes", selection: .init(
-                        get: { prefs.likesVisibility },
-                        set: { var p = prefs; p.likesVisibility = $0; vm.prefs = p }
-                    )) {
-                        Text("Visible").tag("visible")
-                        Text("Count only").tag("count_only")
-                        Text("Hidden").tag("hidden")
-                    }
-                }
-                Section {
-                    Button {
-                        Task { await vm.save() }
-                    } label: {
-                        if vm.isSaving { ProgressView() } else { Text("Save preferences") }
-                    }
-                    .buttonStyle(OMPrimaryButtonStyle())
-                    .disabled(vm.isSaving)
-                }
-                Section {
-                    Text("These filters are free. OpenMatch will never gate filters behind a subscription.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                ProgressView()
             }
         }
-        .navigationTitle("Looking for")
+        .omNavTitle("Looking for")
         .task {
             vm.api = api
             if vm.prefs == nil { await vm.load() }

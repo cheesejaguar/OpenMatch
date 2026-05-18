@@ -2,29 +2,76 @@ import SwiftUI
 
 struct SafetyCenterView: View {
     var body: some View {
-        List {
-            Section("Reporting & blocking") {
-                Text("Tap **Report** or **Block** on any profile or message. Reports go to a moderator queue; blocks are immediate and two-way.")
-            }
-            Section("Dating safety") {
-                Label("Meet in public places for the first time.", systemImage: "person.2.fill")
-                Label("Tell a friend where you're going.", systemImage: "bubble.left.fill")
-                Label("Trust your instincts. Unmatch or block without explanation.", systemImage: "hand.raised.fill")
-                Label("OpenMatch will NEVER ask for money or gift cards.", systemImage: "exclamationmark.shield.fill")
-                    .foregroundStyle(OMColor.safety)
-            }
-            Section("Crisis resources") {
-                Link("RAINN — National Sexual Assault Hotline", destination: URL(string: "https://www.rainn.org/")!)
-                Link("Crisis Text Line", destination: URL(string: "https://www.crisistextline.org/")!)
-                Text("In immediate danger, contact your local emergency services.")
-                    .foregroundStyle(.secondary)
-            }
-            Section("Community guidelines") {
-                Link("Read the full guidelines",
-                     destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/safety/community-guidelines.md")!)
+        OMScreen {
+            ScrollView {
+                LazyVStack(spacing: OMSpacing.xl) {
+                    OMSection("Reporting & blocking") {
+                        Text("Tap **Report** or **Block** on any profile or message. Reports go to a moderator queue; blocks are immediate and two-way.")
+                            .font(OMFont.callout)
+                            .foregroundStyle(OMColor.ink)
+                            .padding(OMSpacing.lg)
+                    }
+
+                    OMSection("Dating safety") {
+                        SafetyTip("Meet in public places for the first time.", systemImage: "person.2.fill", tint: OMColor.moss)
+                        OMSectionDivider()
+                        SafetyTip("Tell a friend where you're going.", systemImage: "bubble.left.fill", tint: OMColor.moss)
+                        OMSectionDivider()
+                        SafetyTip("Trust your instincts. Unmatch or block without explanation.", systemImage: "hand.raised.fill", tint: OMColor.moss)
+                        OMSectionDivider()
+                        SafetyTip("OpenMatch will NEVER ask for money or gift cards.", systemImage: "exclamationmark.shield.fill", tint: OMColor.safetyRed)
+                    }
+
+                    OMSection("Crisis resources") {
+                        Link(destination: URL(string: "https://www.rainn.org/")!) {
+                            OMRow("RAINN — National Sexual Assault Hotline", systemImage: "phone.fill", chevron: true)
+                        }
+                        OMSectionDivider()
+                        Link(destination: URL(string: "https://www.crisistextline.org/")!) {
+                            OMRow("Crisis Text Line", systemImage: "message.fill", chevron: true)
+                        }
+                        OMSectionDivider()
+                        Text("In immediate danger, contact your local emergency services.")
+                            .font(OMFont.callout)
+                            .foregroundStyle(OMColor.inkMuted)
+                            .padding(OMSpacing.lg)
+                    }
+
+                    OMSection("Community guidelines") {
+                        Link(destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/safety/community-guidelines.md")!) {
+                            OMRow("Read the full guidelines", systemImage: "doc.text", chevron: true)
+                        }
+                    }
+                }
+                .padding(OMSpacing.lg)
             }
         }
-        .navigationTitle("Safety center")
+        .omNavTitle("Safety center")
+    }
+}
+
+private struct SafetyTip: View {
+    let text: String
+    let systemImage: String
+    let tint: Color
+    init(_ text: String, systemImage: String, tint: Color) {
+        self.text = text
+        self.systemImage = systemImage
+        self.tint = tint
+    }
+    var body: some View {
+        HStack(spacing: OMSpacing.md) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 24)
+            Text(text)
+                .font(OMFont.body(15, weight: .regular))
+                .foregroundStyle(OMColor.ink)
+            Spacer()
+        }
+        .padding(.horizontal, OMSpacing.lg)
+        .padding(.vertical, 12)
     }
 }
 
@@ -59,42 +106,62 @@ struct BlockedUsersView: View {
     @StateObject private var vm = BlockedUsersViewModel()
 
     var body: some View {
-        Group {
-            if vm.isLoading && vm.blocked.isEmpty {
-                ProgressView()
-            } else if vm.blocked.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "hand.raised.fill").font(.largeTitle).foregroundStyle(.secondary)
-                    Text("No blocked users").font(.headline)
-                    Text("Anyone you block will appear here. You can unblock them at any time.")
-                        .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                }
-                .padding()
-            } else {
-                List {
-                    ForEach(vm.blocked) { b in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("User \(b.blockedUserId.prefix(8))").font(.body)
-                                Text("Blocked \(b.createdAt.formatted(date: .abbreviated, time: .omitted))")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button("Unblock") {
-                                Task { await vm.unblock(b) }
-                            }
-                            .buttonStyle(.bordered)
-                        }
+        OMScreen {
+            ScrollView {
+                if vm.isLoading && vm.blocked.isEmpty {
+                    ProgressView()
+                        .tint(OMColor.moss)
+                        .padding(.top, 60)
+                } else if vm.blocked.isEmpty {
+                    VStack(spacing: OMSpacing.md) {
+                        BotanicPlaceholder(.avatar(80))
+                        Text("No blocked users")
+                            .font(OMFont.display(22, weight: .semibold, italic: true))
+                            .foregroundStyle(OMColor.ink)
+                        Text("Anyone you block will appear here. You can unblock them at any time.")
+                            .font(OMFont.callout)
+                            .foregroundStyle(OMColor.inkMuted)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, OMSpacing.xxl)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
+                } else {
+                    LazyVStack(spacing: OMSpacing.lg) {
+                        OMSection {
+                            ForEach(Array(vm.blocked.enumerated()), id: \.element.id) { idx, b in
+                                HStack(spacing: OMSpacing.md) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("User \(b.blockedUserId.prefix(8))")
+                                            .font(OMFont.body(15, weight: .semibold))
+                                            .foregroundStyle(OMColor.ink)
+                                        Text("Blocked \(b.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                                            .font(OMFont.caption)
+                                            .foregroundStyle(OMColor.inkMuted)
+                                    }
+                                    Spacer()
+                                    Button("Unblock") {
+                                        Task { await vm.unblock(b) }
+                                    }
+                                    .buttonStyle(OMGhostButtonStyle())
+                                }
+                                .padding(.horizontal, OMSpacing.lg)
+                                .padding(.vertical, 12)
+                                if idx < vm.blocked.count - 1 { OMSectionDivider() }
+                            }
+                        }
+                        .padding(.horizontal, OMSpacing.lg)
+                    }
+                    .padding(.vertical, OMSpacing.lg)
                 }
             }
+            .refreshable { await vm.load() }
         }
-        .navigationTitle("Blocked users")
+        .omNavTitle("Blocked users")
         .task {
             vm.api = api
             await vm.load()
         }
-        .refreshable { await vm.load() }
         .alert("Couldn't load", isPresented: .init(
             get: { vm.error != nil },
             set: { _ in vm.error = nil }
@@ -119,19 +186,21 @@ struct SafetyActions: View {
     @State private var blockError: String?
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: OMSpacing.md) {
             Button(role: .destructive) {
                 showingReport = true
             } label: {
                 Label("Report", systemImage: "flag.fill")
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(OMSecondaryButtonStyle())
             Button(role: .destructive) {
                 showingBlock = true
             } label: {
                 Label("Block", systemImage: "hand.raised.fill")
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(OMSecondaryButtonStyle())
         }
         .sheet(isPresented: $showingReport) {
             ReportFlowView(reportedUserId: userId, reportedProfileId: profileId)
@@ -192,34 +261,48 @@ struct ReportFlowView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Reason") {
-                    Picker("Reason", selection: $reason) {
-                        ForEach(reasons, id: \.0) { Text($0.1).tag($0.0) }
+            OMScreen {
+                ScrollView {
+                    LazyVStack(spacing: OMSpacing.xl) {
+                        OMSection("Reason") {
+                            OMPicker(
+                                label: "Reason",
+                                selection: $reason,
+                                options: reasons.map { (label: $0.1, value: $0.0) }
+                            )
+                        }
+
+                        OMSection("Details (optional)") {
+                            TextField("Add context", text: $details, axis: .vertical)
+                                .lineLimit(3...6)
+                                .textFieldStyle(.plain)
+                                .font(OMFont.bodyRegular)
+                                .foregroundStyle(OMColor.ink)
+                                .padding(OMSpacing.lg)
+                        }
+
+                        Button {
+                            Task { await submit() }
+                        } label: {
+                            if isSubmitting { ProgressView().tint(OMColor.onAccent) } else { Text("Submit report") }
+                        }
+                        .buttonStyle(OMPrimaryButtonStyle())
+                        .disabled(isSubmitting)
+
+                        Text("Reports go to a moderator. You won't see this profile again.")
+                            .font(OMFont.caption)
+                            .foregroundStyle(OMColor.inkMuted)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
                     }
-                }
-                Section("Details (optional)") {
-                    TextField("Add context", text: $details, axis: .vertical).lineLimit(3...6)
-                }
-                Section {
-                    Button {
-                        Task { await submit() }
-                    } label: {
-                        if isSubmitting { ProgressView() } else { Text("Submit report") }
-                    }
-                    .buttonStyle(OMPrimaryButtonStyle())
-                    .disabled(isSubmitting)
-                }
-                Section {
-                    Text("Reports go to a moderator. You won't see this profile again.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    .padding(OMSpacing.lg)
                 }
             }
-            .navigationTitle("Report")
-            .navigationBarTitleDisplayMode(.inline)
+            .omNavTitle("Report")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
+                        .foregroundStyle(OMColor.moss)
                 }
             }
             .alert("Couldn't submit", isPresented: .init(

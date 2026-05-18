@@ -21,7 +21,9 @@
       "!**/.terraform",
       "!**/migrations/**/*.sql",
       "!**/package-lock.json",
-      "!**/matching/algorithm_config.json"
+      "!**/matching/algorithm_config.json",
+      "!**/doc/ux-review/**",
+      "!**/.playwright-mcp/**"
     ]
   },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },

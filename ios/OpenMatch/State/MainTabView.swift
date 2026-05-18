@@ -3,7 +3,18 @@ import SwiftUI
 struct MainTabView: View {
     enum Tab: Hashable { case swipe, likes, chat, profile }
 
-    @State private var selection: Tab = .swipe
+    @State private var selection: Tab = {
+        #if DEBUG
+        switch ProcessInfo.processInfo.environment["OPENMATCH_INITIAL_TAB"] ?? "" {
+        case "likes": return .likes
+        case "chat": return .chat
+        case "profile": return .profile
+        default: return .swipe
+        }
+        #else
+        return .swipe
+        #endif
+    }()
 
     var body: some View {
         TabView(selection: $selection) {

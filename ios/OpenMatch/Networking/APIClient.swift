@@ -37,6 +37,12 @@ final class APIClient: ObservableObject {
         self.baseURL = baseURL
         let cfg = URLSessionConfiguration.default
         cfg.waitsForConnectivity = true
+        #if DEBUG
+        // Local dev runs the simulator against the country gate without
+        // any edge headers. Announce a supported country so /auth/start
+        // doesn't 451. Production requests are tagged by Vercel/Cloudflare.
+        cfg.httpAdditionalHeaders = ["x-openmatch-country": "US"]
+        #endif
         self.session = URLSession(configuration: cfg)
         self.decoder = JSONDecoder()
         self.decoder.dateDecodingStrategy = .iso8601

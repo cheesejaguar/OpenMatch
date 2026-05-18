@@ -27,6 +27,23 @@ final class AppState: ObservableObject {
         if client.hasSession {
             RealtimeService.shared.connect(api: client)
         }
+        #if DEBUG
+        // UX-review hook: launching with -OPENMATCH_AUTO_LOGIN <userId>
+        // dev-logs that user in immediately so screenshot scripts can
+        // skip the Welcome flow. Read the launch arg via simctl:
+        //   SIMCTL_CHILD_OPENMATCH_AUTO_LOGIN=u001 xcrun simctl launch …
+        if let uid = ProcessInfo.processInfo.environment["OPENMATCH_AUTO_LOGIN"], !uid.isEmpty {
+            Task { @MainActor in
+                client.clearSession()
+                do {
+                    _ = try await client.devLogin(userId: uid)
+                    self.didSignIn(userId: uid)
+                } catch {
+                    print("[UX] auto-login failed: \(error)")
+                }
+            }
+        }
+        #endif
     }
 
     func didSignIn(userId: String) {
