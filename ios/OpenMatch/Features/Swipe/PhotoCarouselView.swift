@@ -7,27 +7,21 @@ struct PhotoCarouselView: View {
     var body: some View {
         ZStack {
             if photos.isEmpty {
-                LinearGradient(
-                    colors: [OMColor.sage.opacity(0.45), OMColor.moss.opacity(0.65)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+                BotanicPlaceholder(.large)
             } else {
                 let url = URL(string: photos[clampedIndex].cdnUrl, relativeTo: APIConfig.defaultBaseURL)
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .empty:
-                        Color.gray.opacity(0.18).overlay(ProgressView())
+                        BotanicPlaceholder(.large).overlay(
+                            ProgressView().tint(OMColor.moss)
+                        )
                     case .success(let image):
                         image.resizable().scaledToFill()
                     case .failure:
-                        Color.gray.opacity(0.18).overlay(
-                            Image(systemName: "person.crop.rectangle")
-                                .font(.largeTitle)
-                                .foregroundStyle(.secondary)
-                        )
+                        BotanicPlaceholder(.large)
                     @unknown default:
-                        Color.gray.opacity(0.18)
+                        BotanicPlaceholder(.large)
                     }
                 }
             }

@@ -18,56 +18,69 @@ struct AlgorithmView: View {
     @StateObject private var vm = AlgorithmViewModel(api: APIClient(baseURL: APIConfig.defaultBaseURL))
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("How matching works")
-                    .font(.largeTitle.bold())
+        OMScreen {
+            ScrollView {
+                VStack(alignment: .leading, spacing: OMSpacing.lg) {
+                    Text("How matching works")
+                        .font(OMFont.display(28, weight: .semibold, italic: true))
+                        .foregroundStyle(OMColor.ink)
 
-                Text("OpenMatch ranks profiles using a transparent weighted score. The same code that runs on the server is open source — you can read it, audit it, and propose changes.")
-                    .font(.callout)
+                    Text("OpenMatch ranks profiles using a transparent weighted score. The same code that runs on the server is open source — you can read it, audit it, and propose changes.")
+                        .font(OMFont.callout)
+                        .foregroundStyle(OMColor.inkMuted)
 
-                if let data = vm.data {
-                    HStack {
-                        Label(data.algorithmVersion, systemImage: "tag.fill")
-                        Spacer()
-                        Text(data.rankingConfigVersion).foregroundStyle(.secondary)
-                    }
-                    .font(.footnote)
-                    .padding(10)
-                    .background(OMColor.surfaceMuted, in: RoundedRectangle(cornerRadius: 10))
-
-                    Text("Live weights").font(.headline)
-                    VStack(spacing: 6) {
-                        ForEach(data.weights.sorted(by: { $0.value > $1.value }), id: \.key) { kv in
-                            WeightRow(name: kv.key, value: kv.value)
+                    if let data = vm.data {
+                        HStack {
+                            Label(data.algorithmVersion, systemImage: "tag.fill")
+                                .foregroundStyle(OMColor.moss)
+                            Spacer()
+                            Text(data.rankingConfigVersion)
+                                .foregroundStyle(OMColor.inkMuted)
+                                .monospacedDigit()
                         }
-                    }
+                        .font(OMFont.caption.weight(.semibold))
+                        .padding(12)
+                        .background(
+                            OMShape.card(OMRadius.md).fill(OMColor.surfaceElevated)
+                        )
+                        .overlay(
+                            OMShape.card(OMRadius.md).stroke(OMColor.cardStroke, lineWidth: 1)
+                        )
 
-                    Text("What we **never** use")
-                        .font(.headline)
-                        .padding(.top, 8)
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForbiddenRow("Paid status / subscription tier")
-                        ForbiddenRow("Hidden attractiveness scores")
-                        ForbiddenRow("Inferred income or device price")
-                        ForbiddenRow("Engagement-maximization predictions")
-                    }
-                    .padding(10)
-                    .background(OMColor.surfaceMuted.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                        OMSection("Live weights") {
+                            ForEach(Array(data.weights.sorted(by: { $0.value > $1.value }).enumerated()), id: \.element.key) { idx, kv in
+                                WeightRow(name: kv.key, value: kv.value)
+                                if idx < data.weights.count - 1 { OMSectionDivider() }
+                            }
+                        }
 
-                    if let url = data.sourceUrl, let u = URL(string: url) {
-                        Link("Read the source", destination: u)
-                            .buttonStyle(.bordered)
+                        OMSection("What we never use") {
+                            ForbiddenRow("Paid status / subscription tier")
+                            OMSectionDivider()
+                            ForbiddenRow("Hidden attractiveness scores")
+                            OMSectionDivider()
+                            ForbiddenRow("Inferred income or device price")
+                            OMSectionDivider()
+                            ForbiddenRow("Engagement-maximization predictions")
+                        }
+
+                        if let url = data.sourceUrl, let u = URL(string: url) {
+                            Link(destination: u) {
+                                Text("Read the source")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(OMSecondaryButtonStyle())
                             .padding(.top, 4)
+                        }
+                    } else {
+                        ProgressView().tint(OMColor.moss)
+                            .frame(maxWidth: .infinity)
                     }
-                } else {
-                    ProgressView()
                 }
+                .padding(OMSpacing.lg)
             }
-            .padding(20)
         }
-        .navigationTitle("Algorithm")
-        .navigationBarTitleDisplayMode(.inline)
+        .omNavTitle("Algorithm")
         .task { await vm.load() }
     }
 }
@@ -76,16 +89,23 @@ private struct WeightRow: View {
     let name: String
     let value: Double
     var body: some View {
-        HStack {
+        HStack(spacing: OMSpacing.md) {
             Text(displayName)
+                .font(OMFont.body(15, weight: .medium))
+                .foregroundStyle(OMColor.ink)
             Spacer()
             ProgressView(value: value)
                 .progressViewStyle(.linear)
-                .frame(width: 140)
+                .tint(OMColor.terracotta)
+                .frame(width: 120)
             Text(String(format: "%.2f", value))
-                .monospacedDigit().foregroundStyle(.secondary)
+                .font(OMFont.caption)
+                .monospacedDigit()
+                .foregroundStyle(OMColor.inkMuted)
+                .frame(width: 40, alignment: .trailing)
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, OMSpacing.lg)
+        .padding(.vertical, 12)
     }
     var displayName: String {
         switch name {
@@ -105,9 +125,16 @@ private struct ForbiddenRow: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "xmark.circle.fill").foregroundStyle(OMColor.safety)
-            Text(text).font(.callout)
+        HStack(spacing: OMSpacing.md) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(OMColor.safetyRed)
+            Text(text)
+                .font(OMFont.callout)
+                .foregroundStyle(OMColor.ink)
+            Spacer()
         }
+        .padding(.horizontal, OMSpacing.lg)
+        .padding(.vertical, 12)
     }
 }

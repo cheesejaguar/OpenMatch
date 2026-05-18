@@ -127,16 +127,20 @@ private struct StepLikesVisibility: View {
     let onNext: () -> Void
     @State private var choice: LikesVisibility = .visible
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: OMSpacing.md) {
             Text("Who liked you").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.moss)
             Text("Seeing who liked you is always free. You can choose how it's shown — change anytime.")
-                .font(.callout).foregroundStyle(.secondary)
-            Picker("Likes visibility", selection: $choice) {
-                Text("Visible").tag(LikesVisibility.visible)
-                Text("Count only").tag(LikesVisibility.count_only)
-                Text("Hidden").tag(LikesVisibility.hidden)
-            }
-            .pickerStyle(.segmented)
+                .font(OMFont.callout)
+                .foregroundStyle(OMColor.inkMuted)
+            OMSegmented(
+                selection: $choice,
+                options: [
+                    (label: "Visible", value: .visible),
+                    (label: "Count", value: .count_only),
+                    (label: "Hidden", value: .hidden),
+                ]
+            )
+            .padding(.top, 4)
             Button("Continue", action: onNext).buttonStyle(OMPrimaryButtonStyle())
         }
         .padding()

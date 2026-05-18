@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>OpenMatch — Botanic Polish Pass UX Review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #F4EFE6;
+    --bg-elev: #FBF7EF;
+    --ink: #2A1F1A;
+    --ink-muted: #6B5D52;
+    --moss: #2F4F3E;
+    --terracotta: #C2654B;
+    --honey: #D4A340;
+    --sage: #9DAE8E;
+    --border: rgba(42, 31, 26, 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #2A1F1A;
+      --bg-elev: #352822;
+      --ink: #F4EFE6;
+      --ink-muted: #B8AC9F;
+      --moss: #4E7A65;
+      --terracotta: #D88163;
+      --honey: #E6BC5B;
+      --sage: #7E9080;
+      --border: rgba(244, 239, 230, 0.10);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  header {
+    padding: 40px 32px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elev);
+  }
+  h1 {
+    font-family: ui-serif, Georgia, serif;
+    font-style: italic;
+    font-weight: 700;
+    font-size: 44px;
+    color: var(--moss);
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+  h1 .botanic { color: var(--terracotta); }
+  .lede {
+    margin: 8px 0 0;
+    max-width: 720px;
+    color: var(--ink-muted);
+    font-size: 15px;
+  }
+  main { padding: 32px; max-width: 1400px; margin: 0 auto; }
+  section { margin-bottom: 56px; }
+  h2 {
+    font-family: ui-serif, Georgia, serif;
+    font-style: italic;
+    font-weight: 600;
+    font-size: 28px;
+    color: var(--moss);
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .section-sub {
+    color: var(--ink-muted);
+    font-size: 14px;
+    margin: 0 0 20px;
+  }
+  .grid { display: grid; gap: 24px; }
+  .grid.ios { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .grid.admin { grid-template-columns: 1fr 1fr; }
+  figure {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin: 0;
+    box-shadow: 0 1px 0 rgba(42, 31, 26, 0.04), 0 6px 14px -8px rgba(42, 31, 26, 0.18);
+  }
+  figure img {
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    display: block;
+    background: var(--ink);
+  }
+  figcaption { margin-top: 14px; }
+  figcaption h3 {
+    font-family: ui-serif, Georgia, serif;
+    font-style: italic;
+    font-weight: 600;
+    font-size: 19px;
+    margin: 0 0 4px;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  figcaption .num { color: var(--terracotta); margin-right: 6px; }
+  figcaption p {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: 13.5px;
+  }
+  figcaption .fix {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: rgba(47, 79, 62, 0.10);
+    border-left: 3px solid var(--moss);
+    border-radius: 4px;
+    color: var(--ink);
+    font-size: 13px;
+  }
+  figcaption .fix b { color: var(--moss); }
+  .swatches { display: flex; gap: 6px; margin-top: 10px; }
+  .sw {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  footer {
+    padding: 24px 32px 40px;
+    color: var(--ink-muted);
+    font-size: 13px;
+    text-align: center;
+    border-top: 1px solid var(--border);
+  }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    background: rgba(47, 79, 62, 0.08);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--moss);
+  }
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    background: var(--honey);
+    color: var(--ink);
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>OpenMatch · <span class="botanic">Botanic</span> polish pass <span class="tag">round 2</span></h1>
+  <p class="lede">
+    Re-screenshot of the iOS app after addressing the three findings from the
+    first review. iPhone 17 simulator (iOS 26.5) against a local Postgres-seeded
+    backend. The strengths from round 1 (welcome typography, leaf-heart mark,
+    match overlay) are preserved as regression checks.
+  </p>
+  <div class="swatches" title="Palette: moss / terracotta / honey / sage / espresso / bone">
+    <div class="sw" style="background:#2F4F3E"></div>
+    <div class="sw" style="background:#C2654B"></div>
+    <div class="sw" style="background:#D4A340"></div>
+    <div class="sw" style="background:#9DAE8E"></div>
+    <div class="sw" style="background:#2A1F1A"></div>
+    <div class="sw" style="background:#F4EFE6"></div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>iOS — consumer app</h2>
+    <p class="section-sub">
+      DEBUG-only launch envs <code>OPENMATCH_AUTO_LOGIN</code>,
+      <code>OPENMATCH_INITIAL_TAB</code>, and <code>OPENMATCH_FORCE_MATCH</code>
+      now ship in the iOS target so screenshot sessions can re-run cleanly.
+    </p>
+    <div class="grid ios">
+      <figure>
+        <img src="ios/01-welcome.png" alt="Welcome screen" />
+        <figcaption>
+          <h3><span class="num">01</span>Welcome</h3>
+          <p>
+            Regression check — the staggered reveal, moss "OpenMatch"
+            wordmark, terracotta CTA, moss-outlined Apple sign-in, and the
+            leaf-heart mark are all unchanged.
+          </p>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <img src="ios/02-swipe.png" alt="Swipe deck" />
+        <figcaption>
+          <h3><span class="num">02</span>Swipe deck</h3>
+          <p>
+            "Morgan" front card with clean Botanic photo placeholder. Back-card
+            preview shows only its photo layer; no text overlay bleeds through.
+          </p>
+          <div class="fix">
+            <b>Fixed:</b> back-card preview now renders with
+            <code>displayMode: .preview</code> — the summary text + action row
+            + edge glow + bottom gradient are all skipped. Visible behind the
+            front card: just the photo (or Botanic placeholder) at
+            <code>scaleEffect(0.96)</code> / <code>opacity(0.7)</code>.
+          </div>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <img src="ios/03-match-overlay.png" alt="Match overlay" />
+        <figcaption>
+          <h3><span class="num">03</span>Match overlay</h3>
+          <p>
+            Regression check — espresso scrim, honey
+            <em>"It's a match"</em> in Fraunces italic bold, terracotta
+            "Send a message", ghost "Keep swiping". Particle burst layer
+            still fires on entry.
+          </p>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <img src="ios/04-likes.png" alt="Likes tab" />
+        <figcaption>
+          <h3><span class="num">04</span>Likes</h3>
+          <p>
+            Bone background, moss "Likes" nav title in Fraunces italic,
+            terracotta "free, always" banner. Tab bar moss-tinted.
+          </p>
+          <div class="fix">
+            <b>Fixed:</b> ScrollView wrapped in <code>OMScreen</code>;
+            <code>.navigationTitle("Likes")</code> replaced with
+            <code>.omNavTitle("Likes")</code> (Fraunces italic moss
+            principal toolbar slot); previous <code>person.fill</code>
+            avatars in <code>LikeRow</code> swapped for
+            <code>BotanicPlaceholder(.avatar(56))</code>. Rows now use
+            <code>OMShape.card(OMRadius.md)</code> on
+            <code>surfaceElevated</code>.
+          </div>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <img src="ios/05-chat.png" alt="Chat tab" />
+        <figcaption>
+          <h3><span class="num">05</span>Chat</h3>
+          <p>
+            Bone background, moss "Chat" nav title, empty-state with a
+            96pt Botanic placeholder and the conversational copy.
+          </p>
+          <div class="fix">
+            <b>Fixed:</b> <code>List</code> replaced with
+            <code>ScrollView { LazyVStack { OMSection } }</code>. Empty
+            state replaced the SF symbol bubble with a
+            <code>BotanicPlaceholder(.avatar(96))</code>. Match rows now
+            use <code>OMRow</code>-style padding with the Botanic
+            placeholder leading, name in Geist semibold, last message
+            in Geist regular muted.
+          </div>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <img src="ios/06-profile.png" alt="Profile tab" />
+        <figcaption>
+          <h3><span class="num">06</span>Profile</h3>
+          <p>
+            Four <code>OMSection</code> cards on bone: profile summary +
+            Discovery + Privacy &amp; Safety + About. Section headers in
+            Fraunces italic moss small-caps. Sign-out button in safetyRed.
+          </p>
+          <div class="fix">
+            <b>Fixed:</b> <code>List</code> replaced with custom
+            <code>OMSection</code> + <code>OMRow</code> stacks. Each row
+            carries a moss-tinted leading icon (safety center uses
+            safetyRed). Avatar swapped to
+            <code>BotanicPlaceholder(.avatar(64))</code>.
+          </div>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Other restyled screens (not captured)</h2>
+    <p class="section-sub">
+      These views were also fully restyled in this pass but require deeper
+      navigation than the screenshot launch-args can reach. All follow the
+      same <code>OMScreen</code> / <code>OMSection</code> / <code>OMRow</code>
+      pattern visible in Profile (#06) and Chat (#05).
+    </p>
+    <ul style="font-size: 14px; line-height: 1.9; color: var(--ink);">
+      <li><b>Settings</b> — Form replaced with <code>OMSection</code> stacks; toggles via <code>OMToggle</code> (moss tint), navigation rows via <code>OMRow</code> with chevron.</li>
+      <li><b>Edit profile</b> — Form replaced; <code>OMSection("Photos")</code> wraps a 3-up grid with a footer caption; <code>OMSection("Basics")</code> wraps named labeled fields; <code>OMSection("Bio")</code> wraps a multiline TextField.</li>
+      <li><b>Looking for</b> — All four preference groups (Age range, Distance, Goals, Incoming likes) rendered with <code>OMStepper</code>, <code>OMPicker</code>, <code>OMToggle</code>, and <code>OMSegmented</code>.</li>
+      <li><b>Algorithm transparency</b> — Hero title in Fraunces italic; weights as <code>OMSection</code> with terracotta-tinted ProgressView per row; "never use" list as <code>OMSection</code> with safetyRed icons.</li>
+      <li><b>Safety center</b> — All sections converted to <code>OMSection</code>; tips render as icon+text rows; crisis resource links use <code>OMRow</code> with chevron.</li>
+      <li><b>Blocked users</b> — Empty state shows the Botanic placeholder; populated list uses dividers between <code>OMRow</code>s; Unblock uses <code>OMGhostButtonStyle</code>.</li>
+      <li><b>Conversation</b> — Message bubbles recolored: outgoing on moss with bone text, incoming on <code>surfaceElevated</code> with a hairline stroke; input bar has a top divider and a terracotta send button.</li>
+      <li><b>Onboarding likes-visibility step</b> — Segmented control replaced with <code>OMSegmented</code> (capsule selector with moss active state).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Admin dashboard</h2>
+    <p class="section-sub">
+      Admin was already on-brand from PR #26 and didn't change in this pass.
+      Screenshots from the round-1 review remain accurate.
+    </p>
+    <div class="grid admin">
+      <figure>
+        <img src="admin/01-overview.png" alt="Overview" />
+        <figcaption>
+          <h3><span class="num">01</span>Overview</h3>
+          <p>Metric tiles with Fraunces italic numerals on bone.</p>
+        </figcaption>
+      </figure>
+      <figure>
+        <img src="admin/02-users.png" alt="Users" />
+        <figcaption>
+          <h3><span class="num">02</span>Users</h3>
+          <p>Search + status filter; 20 seeded users.</p>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Regenerated locally for offline review after the Botanic polish pass.
+  Postgres on <code>localhost:5433</code> (avoiding port conflict with the
+  default <code>:5432</code>), MailHog on <code>:1025/:8025</code>, backend
+  on <code>:8080</code>. iPhone 17 simulator, iOS 26.5.
+</footer>
+</body>
+</html>

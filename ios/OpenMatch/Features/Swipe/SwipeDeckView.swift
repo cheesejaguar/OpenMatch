@@ -116,7 +116,8 @@ struct SwipeDeckView: View {
                     dragOffset: .zero,
                     onLike: {}, onReject: {}, onUndo: {},
                     onShowDetail: {},
-                    canUndo: false
+                    canUndo: false,
+                    displayMode: .preview
                 )
                 .scaleEffect(0.96)
                 .opacity(0.7)

@@ -21,43 +21,40 @@ struct ChatListView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if vm.matches.isEmpty {
-                    Section {
-                        VStack(spacing: 8) {
-                            Image(systemName: "bubble.left.and.bubble.right")
-                                .font(.largeTitle)
-                                .foregroundStyle(.secondary)
-                            Text("No conversations yet")
-                                .font(.headline)
-                            Text("Match with someone in the Swipe tab to start a chat.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 30)
-                    }
-                } else {
-                    Section("Matches") {
-                        ForEach(vm.matches) { match in
-                            NavigationLink {
-                                if let conv = match.conversation {
-                                    ConversationView(conversationId: conv.id, title: peerName(match))
+            OMScreen {
+                ScrollView {
+                    if vm.matches.isEmpty {
+                        emptyState
+                            .padding(.top, 60)
+                    } else {
+                        LazyVStack(spacing: OMSpacing.lg) {
+                            OMSection("Matches") {
+                                ForEach(Array(vm.matches.enumerated()), id: \.element.id) { idx, match in
+                                    NavigationLink {
+                                        if let conv = match.conversation {
+                                            ConversationView(conversationId: conv.id, title: peerName(match))
+                                        }
+                                    } label: {
+                                        MatchRow(match: match, peerName: peerName(match))
+                                    }
+                                    .buttonStyle(.plain)
+                                    if idx < vm.matches.count - 1 {
+                                        OMSectionDivider()
+                                    }
                                 }
-                            } label: {
-                                MatchRow(match: match, peerName: peerName(match))
                             }
                         }
+                        .padding(.horizontal, OMSpacing.lg)
+                        .padding(.top, OMSpacing.lg)
                     }
                 }
+                .refreshable { await vm.load() }
             }
-            .navigationTitle("Chat")
+            .omNavTitle("Chat")
             .task {
                 vm.api = api
                 await vm.load()
             }
-            .refreshable { await vm.load() }
             .alert("Couldn't load matches", isPresented: .init(
                 get: { vm.error != nil },
                 set: { _ in vm.error = nil }
@@ -67,6 +64,21 @@ struct ChatListView: View {
                 Text(vm.error ?? "")
             }
         }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: OMSpacing.md) {
+            BotanicPlaceholder(.avatar(96))
+            Text("No conversations yet")
+                .font(OMFont.display(22, weight: .semibold, italic: true))
+                .foregroundStyle(OMColor.ink)
+            Text("Match with someone in the Swipe tab to start a chat.")
+                .font(OMFont.callout)
+                .foregroundStyle(OMColor.inkMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, OMSpacing.xxl)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func peerName(_ match: MatchDTO) -> String {
@@ -82,18 +94,24 @@ private struct MatchRow: View {
     let match: MatchDTO
     let peerName: String
     var body: some View {
-        HStack(spacing: 12) {
-            Circle().fill(OMColor.surfaceMuted).frame(width: 44, height: 44)
-                .overlay(Image(systemName: "person.fill").foregroundStyle(.secondary))
+        HStack(spacing: OMSpacing.md) {
+            BotanicPlaceholder(.avatar(44))
             VStack(alignment: .leading, spacing: 2) {
                 Text(peerName)
-                    .font(.headline)
+                    .font(OMFont.body(16, weight: .semibold))
+                    .foregroundStyle(OMColor.ink)
                 Text(match.conversation?.messages?.first?.body ?? "Say hi!")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(OMFont.callout)
+                    .foregroundStyle(OMColor.inkMuted)
                     .lineLimit(1)
             }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(OMColor.inkMuted)
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, OMSpacing.lg)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
     }
 }

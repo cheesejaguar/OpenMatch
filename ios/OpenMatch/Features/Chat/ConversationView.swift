@@ -74,47 +74,59 @@ struct ConversationView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(vm.messages) { m in
-                            MessageBubble(
-                                isMine: m.senderUserId == api.cachedUserId,
-                                text: m.body
-                            )
-                            .id(m.id)
+        OMScreen {
+            VStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(vm.messages) { m in
+                                MessageBubble(
+                                    isMine: m.senderUserId == api.cachedUserId,
+                                    text: m.body
+                                )
+                                .id(m.id)
+                            }
+                        }
+                        .padding(OMSpacing.lg)
+                    }
+                    .onChange(of: vm.messages.count) { _, _ in
+                        if let last = vm.messages.last?.id {
+                            withAnimation { proxy.scrollTo(last, anchor: .bottom) }
                         }
                     }
-                    .padding(16)
                 }
-                .onChange(of: vm.messages.count) { _, _ in
-                    if let last = vm.messages.last?.id {
-                        withAnimation { proxy.scrollTo(last, anchor: .bottom) }
-                    }
-                }
-            }
 
-            HStack(spacing: 8) {
-                TextField("Message", text: $vm.draft, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(1...4)
-                Button {
-                    Task { await vm.send() }
-                } label: {
-                    Image(systemName: "paperplane.fill")
-                        .padding(10)
-                        .background(OMColor.like, in: Circle())
-                        .foregroundStyle(.white)
+                Rectangle()
+                    .fill(OMColor.divider)
+                    .frame(height: 1)
+
+                HStack(spacing: OMSpacing.sm) {
+                    TextField("Message", text: $vm.draft, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .lineLimit(1...4)
+                        .font(OMFont.bodyRegular)
+                        .padding(.horizontal, OMSpacing.md)
+                        .padding(.vertical, 8)
+                        .background(
+                            OMShape.chip().fill(OMColor.surfaceSunken)
+                        )
+                    Button {
+                        Task { await vm.send() }
+                    } label: {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .padding(10)
+                            .background(OMColor.terracotta, in: Circle())
+                            .foregroundStyle(OMColor.onAccent)
+                    }
+                    .disabled(vm.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityLabel("Send message")
                 }
-                .disabled(vm.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityLabel("Send message")
+                .padding(12)
+                .background(OMColor.surfaceElevated)
             }
-            .padding(12)
-            .background(.thinMaterial)
         }
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
+        .omNavTitle(title)
         .task {
             vm.api = api
             vm.attachRealtime()
@@ -141,12 +153,18 @@ private struct MessageBubble: View {
         HStack {
             if isMine { Spacer(minLength: 40) }
             Text(text)
-                .padding(10)
+                .font(OMFont.bodyRegular)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
                 .background(
-                    isMine ? OMColor.like.opacity(0.95) : OMColor.surfaceMuted,
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    isMine ? OMColor.moss : OMColor.surfaceElevated,
+                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                 )
-                .foregroundStyle(isMine ? .white : .primary)
+                .foregroundStyle(isMine ? OMColor.onAccent : OMColor.ink)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(isMine ? Color.clear : OMColor.cardStroke, lineWidth: 1)
+                )
                 .frame(maxWidth: 280, alignment: isMine ? .trailing : .leading)
             if !isMine { Spacer(minLength: 40) }
         }

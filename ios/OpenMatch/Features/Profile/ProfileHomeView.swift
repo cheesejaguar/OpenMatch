@@ -6,41 +6,121 @@ struct ProfileHomeView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    HStack(spacing: 16) {
-                        Circle().fill(OMColor.surfaceMuted).frame(width: 64, height: 64)
-                            .overlay(Image(systemName: "person.crop.circle.fill").font(.largeTitle).foregroundStyle(.secondary))
-                        VStack(alignment: .leading) {
-                            Text("Your profile").font(.headline)
-                            Text("Tap to edit your basics, photos, and bio.")
-                                .font(.caption).foregroundStyle(.secondary)
+            OMScreen {
+                ScrollView {
+                    LazyVStack(spacing: OMSpacing.xl) {
+                        // Profile summary card
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack(spacing: OMSpacing.lg) {
+                                BotanicPlaceholder(.avatar(64))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Your profile")
+                                        .font(OMFont.body(16, weight: .semibold))
+                                        .foregroundStyle(OMColor.ink)
+                                    Text("Tap to edit your basics, photos, and bio.")
+                                        .font(OMFont.caption)
+                                        .foregroundStyle(OMColor.inkMuted)
+                                }
+                                Spacer()
+                            }
+                            .padding(OMSpacing.lg)
+                            OMSectionDivider()
+                            NavigationLink {
+                                EditProfileView()
+                            } label: {
+                                OMRow("Edit profile", systemImage: "pencil", chevron: true)
+                            }
+                            .buttonStyle(.plain)
+                            OMSectionDivider()
+                            NavigationLink {
+                                ProfilePreviewView()
+                            } label: {
+                                OMRow("Preview as others see it", systemImage: "eye", chevron: true)
+                            }
+                            .buttonStyle(.plain)
                         }
+                        .background(
+                            OMShape.card(OMRadius.lg).fill(OMColor.surfaceElevated)
+                        )
+                        .overlay(
+                            OMShape.card(OMRadius.lg).stroke(OMColor.cardStroke, lineWidth: 1)
+                        )
+                        .omShadow(.card)
+
+                        OMSection("Discovery") {
+                            NavigationLink {
+                                LookingForView()
+                            } label: {
+                                OMRow("Looking for", systemImage: "slider.horizontal.3", chevron: true)
+                            }
+                            .buttonStyle(.plain)
+                            OMSectionDivider()
+                            NavigationLink {
+                                AlgorithmView()
+                            } label: {
+                                OMRow("Algorithm transparency", systemImage: "doc.text.magnifyingglass", chevron: true)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        OMSection("Privacy & Safety") {
+                            NavigationLink {
+                                SettingsView()
+                            } label: {
+                                OMRow("Settings", systemImage: "gearshape", chevron: true)
+                            }
+                            .buttonStyle(.plain)
+                            OMSectionDivider()
+                            NavigationLink {
+                                SafetyCenterView()
+                            } label: {
+                                OMRow("Safety center", systemImage: "shield.lefthalf.filled", iconTint: OMColor.safetyRed, chevron: true)
+                            }
+                            .buttonStyle(.plain)
+                            OMSectionDivider()
+                            NavigationLink {
+                                BlockedUsersView()
+                            } label: {
+                                OMRow("Blocked users", systemImage: "person.slash", chevron: true)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        OMSection("About") {
+                            Link(destination: URL(string: "https://github.com/cheesejaguar/openmatch")!) {
+                                OMRow("Open source on GitHub", systemImage: "chevron.left.forwardslash.chevron.right", chevron: true)
+                            }
+                            OMSectionDivider()
+                            Link(destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/safety/community-guidelines.md")!) {
+                                OMRow("Community guidelines", systemImage: "doc.text", chevron: true)
+                            }
+                            OMSectionDivider()
+                            Link(destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/privacy/principles.md")!) {
+                                OMRow("Privacy principles", systemImage: "hand.raised", chevron: true)
+                            }
+                        }
+
+                        Button {
+                            appState.signOut()
+                        } label: {
+                            Text("Sign out")
+                                .font(OMFont.body(16, weight: .semibold))
+                                .foregroundStyle(OMColor.safetyRed)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        }
+                        .background(
+                            OMShape.card(OMRadius.lg).fill(OMColor.surfaceElevated)
+                        )
+                        .overlay(
+                            OMShape.card(OMRadius.lg).stroke(OMColor.safetyRed.opacity(0.30), lineWidth: 1)
+                        )
                     }
-                    NavigationLink("Edit profile") { EditProfileView() }
-                    NavigationLink("Preview as others see it") { ProfilePreviewView() }
-                }
-                Section("Discovery") {
-                    NavigationLink("Looking for") { LookingForView() }
-                    NavigationLink("Algorithm transparency") { AlgorithmView() }
-                }
-                Section("Privacy & Safety") {
-                    NavigationLink("Settings") { SettingsView() }
-                    NavigationLink("Safety center") { SafetyCenterView() }
-                    NavigationLink("Blocked users") { BlockedUsersView() }
-                }
-                Section("About") {
-                    Link("Open source on GitHub", destination: URL(string: "https://github.com/cheesejaguar/openmatch")!)
-                    Link("Community guidelines", destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/safety/community-guidelines.md")!)
-                    Link("Privacy principles", destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/privacy/principles.md")!)
-                }
-                Section {
-                    Button("Sign out", role: .destructive) {
-                        appState.signOut()
-                    }
+                    .padding(.horizontal, OMSpacing.lg)
+                    .padding(.vertical, OMSpacing.lg)
                 }
             }
-            .navigationTitle("You")
+            .omNavTitle("You")
         }
     }
 }
@@ -132,36 +212,61 @@ struct EditProfileView: View {
     @State private var pickedItem: PhotosPickerItem?
 
     var body: some View {
-        Form {
-            Section("Photos") {
-                photoGrid
-                if vm.photos.count < EditProfileViewModel.maxPhotos {
-                    addPhotoPicker(isUploading: vm.uploadingPhoto)
+        OMScreen {
+            ScrollView {
+                LazyVStack(spacing: OMSpacing.xl) {
+                    OMSection(
+                        "Photos",
+                        footer: "Up to \(EditProfileViewModel.maxPhotos) photos. Drag to reorder coming soon."
+                    ) {
+                        photoGrid
+                            .padding(OMSpacing.lg)
+                        if vm.photos.count < EditProfileViewModel.maxPhotos {
+                            OMSectionDivider()
+                            addPhotoPicker(isUploading: vm.uploadingPhoto)
+                        }
+                    }
+
+                    OMSection("Basics") {
+                        labeledField("Display name") {
+                            TextField("How you'll show up", text: $vm.displayName)
+                                .textInputAutocapitalization(.words)
+                                .textFieldStyle(.plain)
+                                .font(OMFont.bodyRegular)
+                        }
+                        OMSectionDivider()
+                        labeledField("City") {
+                            TextField("Optional", text: $vm.city)
+                                .textInputAutocapitalization(.words)
+                                .textFieldStyle(.plain)
+                                .font(OMFont.bodyRegular)
+                        }
+                    }
+
+                    OMSection("Bio") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            TextField("A short bio", text: $vm.bio, axis: .vertical)
+                                .lineLimit(3...6)
+                                .textFieldStyle(.plain)
+                                .font(OMFont.bodyRegular)
+                                .foregroundStyle(OMColor.ink)
+                        }
+                        .padding(OMSpacing.lg)
+                    }
+
+                    Button {
+                        Task { await vm.save() }
+                    } label: {
+                        if vm.isSaving { ProgressView().tint(OMColor.onAccent) } else { Text("Save changes") }
+                    }
+                    .buttonStyle(OMPrimaryButtonStyle())
+                    .disabled(vm.isSaving || vm.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                Text("Up to \(EditProfileViewModel.maxPhotos) photos. Drag to reorder coming soon.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Basics") {
-                TextField("Display name", text: $vm.displayName)
-                    .textInputAutocapitalization(.words)
-                TextField("City", text: $vm.city)
-                    .textInputAutocapitalization(.words)
-            }
-            Section("Bio") {
-                TextField("A short bio", text: $vm.bio, axis: .vertical).lineLimit(3...6)
-            }
-            Section {
-                Button {
-                    Task { await vm.save() }
-                } label: {
-                    if vm.isSaving { ProgressView() } else { Text("Save changes") }
-                }
-                .buttonStyle(OMPrimaryButtonStyle())
-                .disabled(vm.isSaving || vm.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.horizontal, OMSpacing.lg)
+                .padding(.vertical, OMSpacing.lg)
             }
         }
-        .navigationTitle("Edit profile")
+        .omNavTitle("Edit profile")
         .task {
             vm.api = api
             if !vm.isLoading && vm.displayName.isEmpty {
@@ -179,7 +284,7 @@ struct EditProfileView: View {
             }
         }
         .overlay {
-            if vm.isLoading { ProgressView().controlSize(.large) }
+            if vm.isLoading { ProgressView().controlSize(.large).tint(OMColor.moss) }
         }
         .alert("Saved", isPresented: $vm.saved) {
             Button("OK", role: .cancel) {}
@@ -194,6 +299,20 @@ struct EditProfileView: View {
         }
     }
 
+    @ViewBuilder
+    private func labeledField<Field: View>(_ label: String, @ViewBuilder field: () -> Field) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label.uppercased())
+                .font(OMFont.caption.weight(.semibold))
+                .tracking(1)
+                .foregroundStyle(OMColor.inkMuted)
+            field()
+                .foregroundStyle(OMColor.ink)
+        }
+        .padding(.horizontal, OMSpacing.lg)
+        .padding(.vertical, 12)
+    }
+
     private var photoGrid: some View {
         let columns = [GridItem(.adaptive(minimum: 90, maximum: 110), spacing: 8)]
         return LazyVGrid(columns: columns, spacing: 8) {
@@ -203,7 +322,6 @@ struct EditProfileView: View {
                 }
             }
         }
-        .padding(.vertical, 4)
     }
 
     @ViewBuilder
@@ -213,7 +331,17 @@ struct EditProfileView: View {
             matching: .images,
             photoLibrary: .shared()
         ) {
-            Label(isUploading ? "Uploading…" : "Add a photo", systemImage: "plus.circle.fill")
+            HStack(spacing: OMSpacing.md) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(OMColor.terracotta)
+                Text(isUploading ? "Uploading…" : "Add a photo")
+                    .font(OMFont.body(16, weight: .medium))
+                    .foregroundStyle(OMColor.ink)
+                Spacer()
+            }
+            .padding(.horizontal, OMSpacing.lg)
+            .padding(.vertical, 14)
         }
         .disabled(isUploading)
     }
@@ -230,22 +358,21 @@ private struct PhotoTile: View {
                 case .success(let image):
                     image.resizable().scaledToFill()
                 case .empty:
-                    ProgressView()
+                    ProgressView().tint(OMColor.moss)
                 case .failure:
-                    Image(systemName: "photo")
-                        .foregroundStyle(.secondary)
+                    BotanicPlaceholder(.large)
                 @unknown default:
                     EmptyView()
                 }
             }
             .frame(width: 100, height: 100)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .background(OMColor.surfaceMuted, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(OMShape.card(OMRadius.md))
+            .background(OMColor.surfaceSunken, in: OMShape.card(OMRadius.md))
 
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "xmark.circle.fill")
                     .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, .black.opacity(0.6))
+                    .foregroundStyle(OMColor.surface, OMColor.ink.opacity(0.55))
                     .font(.title3)
             }
             .padding(4)
@@ -260,42 +387,65 @@ struct ProfilePreviewView: View {
     @State private var error: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("This is how your profile looks to others.")
-                    .font(.callout).foregroundStyle(.secondary)
-                if let profile {
-                    if let firstPhoto = profile.photos.first {
-                        AsyncImage(url: URL(string: firstPhoto.cdnUrl)) { image in
-                            image.resizable().scaledToFill()
-                        } placeholder: {
-                            ProgressView()
+        OMScreen {
+            ScrollView {
+                VStack(alignment: .leading, spacing: OMSpacing.lg) {
+                    Text("This is how your profile looks to others.")
+                        .font(OMFont.callout)
+                        .foregroundStyle(OMColor.inkMuted)
+                    if let profile {
+                        if let firstPhoto = profile.photos.first {
+                            AsyncImage(url: URL(string: firstPhoto.cdnUrl)) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                BotanicPlaceholder(.large)
+                            }
+                            .frame(height: 320)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(OMShape.card())
+                        } else {
+                            BotanicPlaceholder(.large)
+                                .frame(height: 320)
+                                .frame(maxWidth: .infinity)
+                                .clipShape(OMShape.card())
                         }
-                        .frame(height: 320)
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        VStack(alignment: .leading, spacing: OMSpacing.sm) {
+                            Text(profile.displayName)
+                                .font(OMFont.display(28, weight: .semibold, italic: true))
+                                .foregroundStyle(OMColor.ink)
+                            if let city = profile.city, !city.isEmpty {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "location.fill")
+                                        .imageScale(.small)
+                                        .foregroundStyle(OMColor.moss)
+                                    Text(city)
+                                        .font(OMFont.callout)
+                                        .foregroundStyle(OMColor.inkMuted)
+                                }
+                            }
+                            if !profile.bio.isEmpty {
+                                Text(profile.bio)
+                                    .font(OMFont.bodyRegular)
+                                    .foregroundStyle(OMColor.ink)
+                                    .padding(.top, 4)
+                            }
+                            if !profile.interests.isEmpty {
+                                Text("Interests")
+                                    .font(OMFont.display(14, weight: .semibold, italic: true))
+                                    .tracking(1.2)
+                                    .foregroundStyle(OMColor.moss)
+                                    .padding(.top, OMSpacing.sm)
+                                FlowChips(items: profile.interests)
+                            }
+                        }
+                    } else if error == nil {
+                        ProgressView().tint(OMColor.moss).frame(maxWidth: .infinity)
                     }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(profile.displayName).font(.title).fontWeight(.semibold)
-                        if let city = profile.city, !city.isEmpty {
-                            Text(city).font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        if !profile.bio.isEmpty {
-                            Text(profile.bio).padding(.top, 8)
-                        }
-                        if !profile.interests.isEmpty {
-                            Text("Interests").font(.headline).padding(.top, 8)
-                            Text(profile.interests.joined(separator: " • "))
-                                .font(.callout).foregroundStyle(.secondary)
-                        }
-                    }
-                } else if error == nil {
-                    ProgressView()
                 }
+                .padding(OMSpacing.lg)
             }
-            .padding()
         }
-        .navigationTitle("Preview")
+        .omNavTitle("Preview")
         .task {
             do { profile = try await api.getProfile() }
             catch { self.error = error.localizedDescription }
@@ -308,5 +458,67 @@ struct ProfilePreviewView: View {
         } message: {
             Text(error ?? "")
         }
+    }
+}
+
+private struct FlowChips: View {
+    let items: [String]
+
+    var body: some View {
+        // Wrap chips into rows manually since SwiftUI lacks a true flow layout
+        // on iOS 17. Cap at ~3 per row visually; longer interest strings will
+        // wrap naturally on smaller screens.
+        FlowLayout(spacing: 8) {
+            ForEach(items, id: \.self) { interest in
+                Text(interest)
+                    .font(OMFont.caption.weight(.semibold))
+                    .foregroundStyle(OMColor.moss)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        OMShape.chip().fill(OMColor.surfaceSunken)
+                    )
+                    .overlay(
+                        OMShape.chip().stroke(OMColor.moss.opacity(0.20), lineWidth: 1)
+                    )
+            }
+        }
+    }
+}
+
+// Minimal flow layout for chip wrapping. Uses SwiftUI Layout protocol.
+private struct FlowLayout: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        let (height, _) = layout(in: width, subviews: subviews)
+        return CGSize(width: width.isFinite ? width : 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let (_, placements) = layout(in: bounds.width, subviews: subviews)
+        for (idx, point) in placements.enumerated() {
+            subviews[idx].place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y), proposal: .unspecified)
+        }
+    }
+
+    private func layout(in width: CGFloat, subviews: Subviews) -> (CGFloat, [CGPoint]) {
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var placements: [CGPoint] = []
+        for s in subviews {
+            let size = s.sizeThatFits(.unspecified)
+            if x + size.width > width && x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            placements.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (y + rowHeight, placements)
     }
 }

@@ -32,23 +32,26 @@ struct LikesView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                switch vm.visibility {
-                case .visible:
-                    visibleState
-                case .count_only:
-                    countOnlyState
-                case .hidden:
-                    hiddenState
+            OMScreen {
+                ScrollView {
+                    switch vm.visibility {
+                    case .visible:
+                        visibleState
+                    case .count_only:
+                        countOnlyState
+                    case .hidden:
+                        hiddenState
+                    }
                 }
             }
-            .navigationTitle("Likes")
+            .omNavTitle("Likes")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
                         SettingsView()
                     } label: {
                         Image(systemName: "gear")
+                            .foregroundStyle(OMColor.moss)
                     }
                 }
             }
@@ -57,56 +60,57 @@ struct LikesView: View {
     }
 
     private var visibleState: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: OMSpacing.lg) {
             Text("\(vm.count) people liked you")
-                .font(.title3.bold())
-                .padding(.horizontal, 16)
+                .font(OMFont.display(26, weight: .semibold, italic: true))
+                .foregroundStyle(OMColor.ink)
+                .padding(.horizontal, OMSpacing.lg)
             FreeBanner()
-                .padding(.horizontal, 16)
-            LazyVStack(spacing: 12) {
+                .padding(.horizontal, OMSpacing.lg)
+            LazyVStack(spacing: OMSpacing.md) {
                 ForEach(vm.likes) { like in
                     LikeRow(like: like)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, OMSpacing.lg)
         }
-        .padding(.top, 8)
+        .padding(.top, OMSpacing.sm)
     }
 
     private var countOnlyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "heart.text.square")
-                .font(.system(size: 56))
-                .foregroundStyle(OMColor.like)
+        VStack(spacing: OMSpacing.lg) {
+            BotanicPlaceholder(.avatar(80))
             Text("\(vm.count) people liked you")
-                .font(.title2.bold())
+                .font(OMFont.display(26, weight: .semibold, italic: true))
+                .foregroundStyle(OMColor.ink)
             Text("You've chosen to see only the count. Profiles are hidden until you open them in the Swipe deck. Change this anytime in Settings — it's always free.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(OMFont.callout)
+                .foregroundStyle(OMColor.inkMuted)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 30)
+                .padding(.horizontal, OMSpacing.xl)
             NavigationLink("Settings") { SettingsView() }
                 .buttonStyle(OMPrimaryButtonStyle())
-                .padding(.horizontal, 30)
+                .padding(.horizontal, OMSpacing.xl)
         }
         .padding(.top, 40)
     }
 
     private var hiddenState: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: OMSpacing.lg) {
             Image(systemName: "eye.slash")
-                .font(.system(size: 56))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 48))
+                .foregroundStyle(OMColor.inkMuted)
             Text("Incoming likes are hidden")
-                .font(.title2.bold())
+                .font(OMFont.display(24, weight: .semibold, italic: true))
+                .foregroundStyle(OMColor.ink)
             Text("You can keep them hidden for a calmer experience, or turn them on anytime. This is free either way.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(OMFont.callout)
+                .foregroundStyle(OMColor.inkMuted)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 30)
+                .padding(.horizontal, OMSpacing.xl)
             NavigationLink("Show my likes") { SettingsView() }
                 .buttonStyle(OMPrimaryButtonStyle())
-                .padding(.horizontal, 30)
+                .padding(.horizontal, OMSpacing.xl)
         }
         .padding(.top, 40)
     }
@@ -115,27 +119,29 @@ struct LikesView: View {
 private struct LikeRow: View {
     let like: IncomingLike
     var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(OMColor.surfaceMuted)
-                .frame(width: 56, height: 56)
-                .overlay(
-                    Image(systemName: "person.fill")
-                        .foregroundStyle(.secondary)
-                )
+        HStack(spacing: OMSpacing.md) {
+            BotanicPlaceholder(.avatar(56))
             VStack(alignment: .leading, spacing: 2) {
                 Text(like.from.profile?.displayName ?? "Someone")
-                    .font(.headline)
+                    .font(OMFont.body(16, weight: .semibold))
+                    .foregroundStyle(OMColor.ink)
                 Text(like.from.profile?.bio ?? "")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(OMFont.callout)
+                    .foregroundStyle(OMColor.inkMuted)
                     .lineLimit(1)
             }
             Spacer()
-            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(OMColor.inkMuted)
         }
         .padding(12)
-        .background(OMColor.surfaceMuted.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+        .background(
+            OMShape.card(OMRadius.md).fill(OMColor.surfaceElevated)
+        )
+        .overlay(
+            OMShape.card(OMRadius.md).stroke(OMColor.cardStroke, lineWidth: 1)
+        )
     }
 }
 
@@ -144,11 +150,13 @@ private struct FreeBanner: View {
         HStack(spacing: 8) {
             Image(systemName: "lock.open")
             Text("Seeing who liked you is free. Always.")
-                .font(.callout)
+                .font(OMFont.callout)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(OMColor.onAccent)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(OMColor.like.opacity(0.9), in: RoundedRectangle(cornerRadius: 12))
+        .background(
+            OMShape.card(OMRadius.md).fill(OMColor.terracotta)
+        )
     }
 }

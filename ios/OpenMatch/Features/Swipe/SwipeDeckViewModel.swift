@@ -34,6 +34,15 @@ final class SwipeDeckViewModel: ObservableObject {
             rankingConfigVersion = deck.rankingConfigVersion
             cards = deck.cards.map(ProfileCardModel.init(from:))
             error = nil
+            #if DEBUG
+            // UX-review hook: force the match overlay open with the top
+            // card so screenshot scripts can capture the celebration.
+            // SIMCTL_CHILD_OPENMATCH_FORCE_MATCH=1 xcrun simctl launch …
+            if ProcessInfo.processInfo.environment["OPENMATCH_FORCE_MATCH"] == "1",
+               let top = cards.first {
+                lastMatch = (card: top, matchId: "ux-preview")
+            }
+            #endif
         } catch {
             self.error = error.localizedDescription
         }
