@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { type NextRequest, NextResponse } from "next/server";
 import { adminFetchWithToken, adminPublicFetch } from "../../../../lib/api/admin-client";
 import { setSessionCookie } from "../../../../lib/auth/session";
 
@@ -15,25 +15,24 @@ interface MeResponse {
   permissions: string[];
 }
 
-interface Params {
-  searchParams: Promise<{ challengeId?: string; token?: string; next?: string }>;
-}
+export async function GET(req: NextRequest) {
+  const url = req.nextUrl;
+  const challengeId = url.searchParams.get("challengeId");
+  const token = url.searchParams.get("token");
+  const next = url.searchParams.get("next") ?? "/overview";
 
-export default async function CallbackPage({ searchParams }: Params) {
-  const sp = await searchParams;
-  if (!sp.challengeId || !sp.token) {
-    redirect("/login?error=missing_parameters");
+  if (!challengeId || !token) {
+    return NextResponse.redirect(new URL("/login?error=missing_parameters", url));
   }
+
   const verify = await adminPublicFetch<VerifyResponse>("/api/v1/admin/auth/verify", {
-    challengeId: sp.challengeId,
-    token: sp.token,
+    challengeId,
+    token,
   });
   if (verify.status !== 200) {
-    redirect("/login?error=verify_failed");
+    return NextResponse.redirect(new URL("/login?error=verify_failed", url));
   }
-  // We've got an admin access token but no session cookie yet, so call
-  // /me with an explicit bearer through the same anchored URL builder
-  // used elsewhere.
+
   const meRes = await adminFetchWithToken<MeResponse>(
     "/api/v1/admin/auth/me",
     verify.data.accessToken,
@@ -48,5 +47,5 @@ export default async function CallbackPage({ searchParams }: Params) {
     refreshToken: verify.data.refreshToken,
     accessExpiresAt: verify.data.expiresAt,
   });
-  redirect(sp.next ?? "/overview");
+  return NextResponse.redirect(new URL(next, url));
 }

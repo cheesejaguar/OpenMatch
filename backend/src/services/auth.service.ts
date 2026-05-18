@@ -14,10 +14,13 @@ function hashToken(t: string): string {
 let mailer: nodemailer.Transporter | null = null;
 function getMailer(): nodemailer.Transporter {
   if (!mailer) {
+    const secure = env.SMTP_SECURE ?? env.SMTP_PORT === 465;
     mailer = nodemailer.createTransport({
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
-      secure: false,
+      secure,
+      auth:
+        env.SMTP_USER && env.SMTP_PASS ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
       tls: { rejectUnauthorized: false },
     });
   }
@@ -127,6 +130,32 @@ export async function verifyEmailLogin(
     },
   });
   return { userId: user.id, isNewUser: true };
+}
+
+export interface AppleIdentity {
+  sub: string;
+  email?: string;
+  emailVerified?: boolean;
+}
+
+export async function upsertAppleUser(
+  prisma: PrismaClient,
+  identity: AppleIdentity,
+): Promise<{ user: { id: string }; isNewUser: boolean }> {
+  const existing = await prisma.user.findUnique({ where: { authSubject: identity.sub } });
+  if (existing) return { user: existing, isNewUser: false };
+
+  const emailHash = identity.email ? hashIdentity(identity.email) : null;
+  const user = await prisma.user.create({
+    data: {
+      authProvider: "apple",
+      authSubject: identity.sub,
+      emailHash,
+      dateOfBirth: new Date("2000-01-01"),
+      isAgeVerified: false,
+    },
+  });
+  return { user, isNewUser: true };
 }
 
 export interface IssueSessionContext {
