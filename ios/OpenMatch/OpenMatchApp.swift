@@ -4,6 +4,10 @@ import SwiftUI
 struct OpenMatchApp: App {
     @StateObject private var appState = AppState()
 
+    init() {
+        OMFont.debugDumpAvailableFamilies()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

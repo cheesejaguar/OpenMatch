@@ -6,30 +6,44 @@ struct MatchOverlayView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.75).ignoresSafeArea()
+            OMColor.scrim
+                .ignoresSafeArea()
+                .background(.ultraThinMaterial)
+
+            MatchCelebrationView()
+                .ignoresSafeArea()
+
             VStack(spacing: 18) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 56))
-                    .foregroundStyle(OMColor.like)
-                Text("It's a match!")
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(OMColor.honey)
+                Text("It's a match")
+                    .font(OMFont.display(40, weight: .bold, italic: true))
+                    .tracking(-0.5)
+                    .foregroundStyle(OMColor.honey)
                 Text("You and \(card.displayName) liked each other.")
-                    .font(.callout)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .font(OMFont.callout)
+                    .foregroundStyle(OMColor.surface.opacity(0.92))
                     .multilineTextAlignment(.center)
                 VStack(spacing: 10) {
                     Button("Send a message", action: onDismiss)
                         .buttonStyle(OMPrimaryButtonStyle())
                     Button("Keep swiping", action: onDismiss)
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .font(OMFont.callout)
+                        .foregroundStyle(OMColor.surface.opacity(0.85))
                         .padding(.top, 4)
                 }
                 .padding(.top, 8)
             }
             .padding(30)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(
+                OMShape.card(OMRadius.lg)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                OMShape.card(OMRadius.lg)
+                    .stroke(OMColor.honey.opacity(0.30), lineWidth: 1)
+            )
             .padding(24)
         }
     }

@@ -9,6 +9,9 @@ struct SwipeDeckView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let likeThreshold: CGFloat = 110
+    // Earlier haptic at the "intent" boundary — gives the user feedback
+    // that the swipe is registering before the final commit.
+    private let intentThreshold: CGFloat = 80
 
     init(viewModel: SwipeDeckViewModel? = nil) {
         if let vm = viewModel {
@@ -83,15 +86,16 @@ struct SwipeDeckView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "sparkles")
+            Image(systemName: "leaf.fill")
                 .font(.system(size: 56))
-                .foregroundStyle(OMColor.like.opacity(0.7))
+                .foregroundStyle(OMColor.moss.opacity(0.7))
             Text("Nobody matches your filters right now.")
-                .font(.title3).fontWeight(.semibold)
+                .font(OMFont.subhead)
                 .multilineTextAlignment(.center)
+                .foregroundStyle(OMColor.ink)
             Text("Try broadening your distance or age range. This is free — you'll never be asked to pay.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(OMFont.callout)
+                .foregroundStyle(OMColor.inkMuted)
                 .multilineTextAlignment(.center)
             NavigationLink("Adjust filters") {
                 LookingForView()
@@ -131,9 +135,9 @@ struct SwipeDeckView: View {
                     canUndo: vm.canUndo
                 )
                 .offset(dragOffset)
-                .rotationEffect(.degrees(reduceMotion ? 0 : Double(dragOffset.width / 22)))
+                .rotationEffect(.degrees(reduceMotion ? 0 : Double(rotationDegrees(dragOffset.width))))
                 .gesture(dragGesture)
-                .animation(.spring(response: 0.32, dampingFraction: 0.82), value: dragOffset)
+                .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.78), value: dragOffset)
                 .id(top.profileId)
             }
         }
@@ -159,15 +163,25 @@ struct SwipeDeckView: View {
                 } else if w < -likeThreshold || (w < -30 && velocityProxy > 500) {
                     Task { await commit(.reject) }
                 } else {
-                    dragOffset = .zero
+                    withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.78)) {
+                        dragOffset = .zero
+                    }
                 }
                 hasCrossedThreshold = false
             }
     }
 
+    // Tightened from /22 + uncapped to /28 capped at ±14°. The previous
+    // value let the card tilt to ~50° on a hard fling which felt cartoonish;
+    // a tight cap keeps the motion premium.
+    private func rotationDegrees(_ width: CGFloat) -> CGFloat {
+        let raw = width / 28
+        return min(max(raw, -14), 14)
+    }
+
     private func commit(_ decision: SwipeDecision) async {
-        withAnimation(.easeOut(duration: 0.22)) {
-            dragOffset = CGSize(width: decision == .like ? 1200 : -1200, height: 0)
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.7)) {
+            dragOffset = CGSize(width: decision == .like ? 1400 : -1400, height: 0)
         }
         await vm.commit(decision)
         dragOffset = .zero

@@ -26,7 +26,7 @@ private struct StepBasics: View {
     let onNext: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Welcome").font(.largeTitle.bold())
+            Text("Welcome").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.moss)
             Text("Tell us the basics. You can change everything later. The minimum for a complete profile is two photos, a display name, and your age.")
             Button("Continue", action: onNext).buttonStyle(OMPrimaryButtonStyle())
         }
@@ -64,7 +64,7 @@ private struct StepAgeGate: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Your date of birth").font(.largeTitle.bold())
+            Text("Your date of birth").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.moss)
             Text("OpenMatch is 18+. We never show your date of birth to other users — only your age, if you choose to display it.")
                 .font(.callout).foregroundStyle(.secondary)
 
@@ -128,7 +128,7 @@ private struct StepLikesVisibility: View {
     @State private var choice: LikesVisibility = .visible
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Who liked you").font(.largeTitle.bold())
+            Text("Who liked you").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.moss)
             Text("Seeing who liked you is always free. You can choose how it's shown — change anytime.")
                 .font(.callout).foregroundStyle(.secondary)
             Picker("Likes visibility", selection: $choice) {
@@ -147,8 +147,8 @@ private struct StepDone: View {
     let onFinish: () -> Void
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "checkmark.seal.fill").font(.system(size: 56)).foregroundStyle(OMColor.like)
-            Text("You're in.").font(.largeTitle.bold())
+            Image(systemName: "checkmark.seal.fill").font(.system(size: 56)).foregroundStyle(OMColor.honey)
+            Text("You're in.").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.moss)
             Text("Open the Swipe tab to start browsing. Undo, filters, and seeing likes — all free.")
                 .multilineTextAlignment(.center).foregroundStyle(.secondary)
             Button("Start swiping", action: onFinish).buttonStyle(OMPrimaryButtonStyle())

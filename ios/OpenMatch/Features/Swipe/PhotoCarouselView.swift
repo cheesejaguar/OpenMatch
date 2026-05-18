@@ -8,7 +8,7 @@ struct PhotoCarouselView: View {
         ZStack {
             if photos.isEmpty {
                 LinearGradient(
-                    colors: [OMColor.like.opacity(0.4), OMColor.like.opacity(0.7)],
+                    colors: [OMColor.sage.opacity(0.45), OMColor.moss.opacity(0.65)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
