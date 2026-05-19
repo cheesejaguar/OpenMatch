@@ -97,3 +97,12 @@ export const ErrorCodes = {
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
+
+// Set of every known code; used by the admin client to decide whether
+// to type-narrow a backend error string into an ErrorCode or fall back
+// to INTERNAL_ERROR. Kept in sync with ErrorCodes above.
+const KNOWN_CODES: ReadonlySet<string> = new Set(Object.values(ErrorCodes));
+
+export function isKnownErrorCode(value: unknown): value is ErrorCode {
+  return typeof value === "string" && KNOWN_CODES.has(value);
+}

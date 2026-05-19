@@ -49,6 +49,15 @@ function render(codes) {
   lines.push("");
   lines.push("export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];");
   lines.push("");
+  lines.push("// Set of every known code; used by the admin client to decide whether");
+  lines.push("// to type-narrow a backend error string into an ErrorCode or fall back");
+  lines.push("// to INTERNAL_ERROR. Kept in sync with ErrorCodes above.");
+  lines.push("const KNOWN_CODES: ReadonlySet<string> = new Set(Object.values(ErrorCodes));");
+  lines.push("");
+  lines.push("export function isKnownErrorCode(value: unknown): value is ErrorCode {");
+  lines.push('  return typeof value === "string" && KNOWN_CODES.has(value);');
+  lines.push("}");
+  lines.push("");
   return lines.join("\n");
 }
 
