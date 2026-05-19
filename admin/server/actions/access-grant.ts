@@ -21,8 +21,8 @@ export async function createAccessGrantAction(formData: FormData) {
       reportId: reportId || undefined,
     },
   });
-  if (res.status >= 400) {
-    redirect(`${nextPath}?accessError=1`);
+  if (!res.ok) {
+    redirect(`${nextPath}?accessError=1&code=${encodeURIComponent(res.error.code)}`);
   }
   const url = new URL(nextPath, "http://placeholder");
   url.searchParams.set("accessGrantId", res.data.accessGrantId);

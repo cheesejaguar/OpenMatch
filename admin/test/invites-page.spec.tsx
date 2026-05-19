@@ -9,6 +9,7 @@ import { act, findButton, render } from "./helpers";
 
 vi.mock("../lib/api/admin-client", () => ({
   adminFetch: vi.fn(async () => ({
+    ok: true,
     status: 200,
     data: { items: [], nextCursor: null },
   })),
@@ -35,6 +36,7 @@ describe("Invites page", () => {
       adminFetch: ReturnType<typeof vi.fn>;
     };
     adminFetch.mockResolvedValueOnce({
+      ok: true,
       status: 200,
       data: { items: [], nextCursor: null },
     });
@@ -64,6 +66,7 @@ describe("Invites page", () => {
       adminFetch: ReturnType<typeof vi.fn>;
     };
     adminFetch.mockResolvedValueOnce({
+      ok: true,
       status: 200,
       data: {
         items: [

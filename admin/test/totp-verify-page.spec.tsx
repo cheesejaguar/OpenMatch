@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "./helpers";
 
 vi.mock("../lib/api/admin-client", () => ({
-  adminFetch: vi.fn(async () => ({ status: 200, data: { ok: true } })),
+  adminFetch: vi.fn(async () => ({ ok: true, status: 200, data: { ok: true } })),
 }));
 
 vi.mock("../lib/auth/session", () => ({

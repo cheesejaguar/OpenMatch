@@ -17,8 +17,10 @@ async function submitCode(formData: FormData): Promise<void> {
     method: "POST",
     body: { code },
   });
-  if (res.status !== 200) {
-    redirect(`/login/totp-verify?error=invalid_code&next=${encodeURIComponent(next)}`);
+  if (!res.ok) {
+    redirect(
+      `/login/totp-verify?error=${encodeURIComponent(res.error.code)}&next=${encodeURIComponent(next)}`,
+    );
   }
   redirect(next);
 }
@@ -34,9 +36,9 @@ async function submitRecoveryCode(formData: FormData): Promise<void> {
     method: "POST",
     body: { recoveryCode },
   });
-  if (res.status !== 200) {
+  if (!res.ok) {
     redirect(
-      `/login/totp-verify?recovery=1&error=invalid_recovery&next=${encodeURIComponent(next)}`,
+      `/login/totp-verify?recovery=1&error=${encodeURIComponent(res.error.code)}&next=${encodeURIComponent(next)}`,
     );
   }
   redirect(next);

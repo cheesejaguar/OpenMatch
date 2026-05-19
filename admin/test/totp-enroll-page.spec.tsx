@@ -7,7 +7,7 @@ import { render } from "./helpers";
 // next/navigation (redirect throws — never called in render-only path).
 
 vi.mock("../lib/api/admin-client", () => ({
-  adminFetch: vi.fn(async () => ({ status: 200, data: { ok: true } })),
+  adminFetch: vi.fn(async () => ({ ok: true, status: 200, data: { ok: true } })),
 }));
 
 vi.mock("../lib/auth/session", () => ({

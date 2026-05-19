@@ -39,10 +39,10 @@ final class StubMessageSender: MessageSending {
         case .alwaysSucceed:
             return Self.makeDTO(conversationId: conversationId, body: body)
         case .alwaysFail:
-            throw APIError.http(503, "stub failure")
+            throw APIError.http(status: 503, message: "stub failure")
         case .failNTimesThenSucceed(let n):
             if callCount <= n {
-                throw APIError.http(503, "stub failure")
+                throw APIError.http(status: 503, message: "stub failure")
             }
             return Self.makeDTO(conversationId: conversationId, body: body)
         }

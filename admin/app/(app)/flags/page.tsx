@@ -6,7 +6,7 @@ import type { FeatureFlagListDTO } from "../../../lib/api/types";
 export const dynamic = "force-dynamic";
 
 export default async function FlagsPage() {
-  const { data, status } = await adminFetch<FeatureFlagListDTO>("/api/v1/admin/flags");
+  const res = await adminFetch<FeatureFlagListDTO>("/api/v1/admin/flags");
 
   return (
     <div>
@@ -15,9 +15,11 @@ export default async function FlagsPage() {
         <NewFlagModal />
       </div>
 
-      {status !== 200 ? (
-        <div className="error">Failed to load flags ({status}).</div>
-      ) : data.items.length === 0 ? (
+      {!res.ok ? (
+        <div className="error">
+          Failed to load flags ({res.status} {res.error.code}).
+        </div>
+      ) : res.data.items.length === 0 ? (
         <div className="card muted">No flags defined yet.</div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
@@ -32,7 +34,7 @@ export default async function FlagsPage() {
               </tr>
             </thead>
             <tbody>
-              {data.items.map((f) => (
+              {res.data.items.map((f) => (
                 <tr key={f.id}>
                   <td>
                     <code style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{f.key}</code>

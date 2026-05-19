@@ -14,8 +14,8 @@ interface Params {
 export default async function ReportDetailPage({ params }: Params) {
   const { reportId } = await params;
   const session = (await readSession())!;
-  const { data, status } = await adminFetch<ReportDetailDTO>(`/api/v1/admin/reports/${reportId}`);
-  if (status === 404) {
+  const res = await adminFetch<ReportDetailDTO>(`/api/v1/admin/reports/${reportId}`);
+  if (!res.ok && res.status === 404) {
     return (
       <div>
         <div className="page-header">
@@ -24,16 +24,19 @@ export default async function ReportDetailPage({ params }: Params) {
       </div>
     );
   }
-  if (status !== 200) {
+  if (!res.ok) {
     return (
       <div>
         <div className="page-header">
           <h2>Report</h2>
         </div>
-        <div className="error">Failed to load ({status}).</div>
+        <div className="error">
+          Failed to load ({res.status} {res.error.code}).
+        </div>
       </div>
     );
   }
+  const data = res.data;
 
   const isOpen = data.status === "open" || data.status === "reviewing";
 

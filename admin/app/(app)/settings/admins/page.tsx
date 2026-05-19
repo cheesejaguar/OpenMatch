@@ -28,13 +28,19 @@ export default async function AdminUsersPage() {
     adminFetch<RolesResponse>("/api/v1/admin/roles"),
     adminFetch<AdminsResponse>("/api/v1/admin/admin-users"),
   ]);
-  if (rolesRes.status === 403 || adminsRes.status === 403) {
+  if (!rolesRes.ok || !adminsRes.ok) {
     return (
       <div>
         <div className="page-header">
           <h2>Admin users</h2>
         </div>
-        <div className="error">You don&apos;t have permission to manage admin users.</div>
+        <div className="error">
+          {rolesRes.ok === false && rolesRes.status === 403
+            ? "You don’t have permission to manage admin users."
+            : adminsRes.ok === false && adminsRes.status === 403
+              ? "You don’t have permission to manage admin users."
+              : `Failed to load admin users (${rolesRes.ok ? adminsRes.status : rolesRes.status}).`}
+        </div>
       </div>
     );
   }

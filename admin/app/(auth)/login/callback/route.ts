@@ -29,14 +29,21 @@ export async function GET(req: NextRequest) {
     challengeId,
     token,
   });
-  if (verify.status !== 200) {
-    return NextResponse.redirect(new URL("/login?error=verify_failed", url));
+  if (!verify.ok) {
+    return NextResponse.redirect(
+      new URL(`/login?error=verify_failed&code=${encodeURIComponent(verify.error.code)}`, url),
+    );
   }
 
   const meRes = await adminFetchWithToken<MeResponse>(
     "/api/v1/admin/auth/me",
     verify.data.accessToken,
   );
+  if (!meRes.ok) {
+    return NextResponse.redirect(
+      new URL(`/login?error=me_failed&code=${encodeURIComponent(meRes.error.code)}`, url),
+    );
+  }
   const meData = meRes.data;
   await setSessionCookie({
     adminUserId: meData.adminUserId,
@@ -58,7 +65,7 @@ export async function GET(req: NextRequest) {
     twoFactorAt: string | null;
     twoFactorRequired: boolean;
   }>("/api/v1/admin/auth/totp/status", verify.data.accessToken);
-  if (statusRes.status === 200 && statusRes.data.twoFactorRequired) {
+  if (statusRes.ok && statusRes.data.twoFactorRequired) {
     if (!statusRes.data.enrolled) {
       return NextResponse.redirect(
         new URL(`/login/totp-enroll?next=${encodeURIComponent(next)}`, url),

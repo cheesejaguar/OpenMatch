@@ -25,18 +25,287 @@ private func omRunWithHTTPSpan<T>(_ path: String, _ work: () async throws -> T) 
     #endif
 }
 
-enum APIError: Error, LocalizedError {
+// Round B — typed error cases mirroring the backend ErrorCodes registry
+// in `backend/src/lib/error-codes.ts`. Every code the server emits has a
+// dedicated case so call sites pattern-match the failure mode instead of
+// substring-matching opaque JSON. Payload-bearing codes (outside_metro,
+// country_not_supported, validation_failed) carry their extra fields
+// directly on the case.
+enum APIError: Error, LocalizedError, Equatable {
     case notAuthenticated
-    case http(Int, String?)
-    case decoding(String)
     case transport(Error)
+    case decoding(String)
+    case validation(fields: [APIValidationField])
+    case rateLimited
+
+    // Auth / 2FA
+    case emailRequired
+    case emailInvalid
+    case challengeNotFound
+    case challengeExpired
+    case challengeUsed
+    case tokenMismatch
+    case refreshTokenInvalid
+    case refreshTokenReused
+    case devLoginDisabled
+    case devUserIdRequired
+    case appleNotConfigured
+    case appleIdentityTokenRequired
+    case appleVerificationFailed
+    case twoFactorRequired
+    case totpInvalid
+    case recoveryCodeInvalid
+    case totpNotEnrolled
+
+    // Beta gates
+    case inviteRequired
+    case inviteInvalid
+    case inviteExhausted
+    case inviteExpired
+    case inviteRevoked
+    case signupsPaused
+    case outsideMetro(nearestKm: Double?)
+    case countryNotSupported(reason: String?, note: String?)
+
+    // Profile / photos
+    case underage
+    case invalidDob
+    case profileNotFound
+    case maxPhotosReached
+    case noFile
+    case unsupportedMediaType
+    case payloadTooLarge
+    case photoNotFound
+    case photoNotOwned
+    case duplicatePhotos
+    case minAgeAboveMax
+
+    // Swipe / match / chat
+    case targetNotFound
+    case undoNotAvailable
+    case matchNotFound
+    case conversationNotFound
+    case notParticipant
+    case userBlocked
+    case alreadyBlocked
+
+    // Realtime / safety / admin / internal
+    case realtimeUnconfigured
+    case reportNotFound
+    case dsaNoticeNotFound
+    case adminForbidden
+    case adminRbacDenied
+    case adminUserNotFound
+    case adminActionInvalid
+
+    // Catch-alls
+    case userNotFound
+    case conflict
+    case notFound
+    case unauthorized
+    case forbidden
+    case unknown(code: String, status: Int, message: String?)
+
+    // Generic HTTP error with no parseable code body. Preserved as a
+    // fallback so non-JSON responses (HTML error pages from a proxy,
+    // truncated streams) still surface a status code to the UI.
+    case http(status: Int, message: String?)
 
     var errorDescription: String? {
+        let key = "error.\(localizationKey)"
+        // Look up a localised string. If we don't ship one for this case,
+        // fall back to a generic message rather than the raw key.
+        let localised = NSLocalizedString(key, tableName: "ErrorMessages", bundle: .main, comment: "")
+        if localised != key {
+            switch self {
+            case .outsideMetro(let km):
+                if let km = km {
+                    return String(format: localised, km)
+                }
+                return localised
+            case .countryNotSupported(let reason, let note):
+                if let note = note, !note.isEmpty {
+                    return note
+                }
+                if let reason = reason, !reason.isEmpty {
+                    return String(format: localised, reason)
+                }
+                return localised
+            case .transport(let err):
+                return localised.isEmpty ? err.localizedDescription : localised
+            case .http(let status, let msg):
+                return String(format: localised, status, msg ?? "")
+            case .unknown(let code, _, let msg):
+                if let msg = msg, !msg.isEmpty { return msg }
+                return String(format: localised, code)
+            case .validation(let fields):
+                if let first = fields.first {
+                    return "\(first.path): \(first.message)"
+                }
+                return localised
+            default:
+                return localised
+            }
+        }
+        // Fallback when no .strings file is bundled (tests, previews).
         switch self {
         case .notAuthenticated: return "You're not signed in."
-        case .http(let code, let msg): return "HTTP \(code)\(msg.map { ": \($0)" } ?? "")"
-        case .decoding(let msg): return "Decoding error: \(msg)"
         case .transport(let err): return err.localizedDescription
+        case .decoding(let msg): return "Decoding error: \(msg)"
+        case .http(let status, let msg): return "HTTP \(status)\(msg.map { ": \($0)" } ?? "")"
+        case .unknown(let code, _, let msg):
+            return msg ?? "Something went wrong (\(code))."
+        case .validation(let fields):
+            return fields.first.map { "\($0.path): \($0.message)" } ?? "Some fields are invalid."
+        default:
+            return "Something went wrong."
+        }
+    }
+
+    // Stable identifier used to look up a localised message. Keep in
+    // sync with ErrorMessages.strings keys.
+    private var localizationKey: String {
+        switch self {
+        case .notAuthenticated: return "not_authenticated"
+        case .transport: return "transport"
+        case .decoding: return "decoding"
+        case .validation: return "validation_failed"
+        case .rateLimited: return "rate_limited"
+        case .emailRequired: return "email_required"
+        case .emailInvalid: return "email_invalid"
+        case .challengeNotFound: return "challenge_not_found"
+        case .challengeExpired: return "challenge_expired"
+        case .challengeUsed: return "challenge_used"
+        case .tokenMismatch: return "token_mismatch"
+        case .refreshTokenInvalid: return "refresh_token_invalid"
+        case .refreshTokenReused: return "refresh_token_reused"
+        case .devLoginDisabled: return "dev_login_disabled"
+        case .devUserIdRequired: return "dev_user_id_required"
+        case .appleNotConfigured: return "apple_not_configured"
+        case .appleIdentityTokenRequired: return "apple_identity_token_required"
+        case .appleVerificationFailed: return "apple_verification_failed"
+        case .twoFactorRequired: return "two_factor_required"
+        case .totpInvalid: return "totp_invalid"
+        case .recoveryCodeInvalid: return "recovery_code_invalid"
+        case .totpNotEnrolled: return "totp_not_enrolled"
+        case .inviteRequired: return "invite_required"
+        case .inviteInvalid: return "invite_invalid"
+        case .inviteExhausted: return "invite_exhausted"
+        case .inviteExpired: return "invite_expired"
+        case .inviteRevoked: return "invite_revoked"
+        case .signupsPaused: return "signups_paused"
+        case .outsideMetro: return "outside_metro"
+        case .countryNotSupported: return "country_not_supported"
+        case .underage: return "underage"
+        case .invalidDob: return "invalid_dob"
+        case .profileNotFound: return "profile_not_found"
+        case .maxPhotosReached: return "max_photos_reached"
+        case .noFile: return "no_file"
+        case .unsupportedMediaType: return "unsupported_media_type"
+        case .payloadTooLarge: return "payload_too_large"
+        case .photoNotFound: return "photo_not_found"
+        case .photoNotOwned: return "photo_not_owned"
+        case .duplicatePhotos: return "duplicate_photos"
+        case .minAgeAboveMax: return "min_age_above_max"
+        case .targetNotFound: return "target_not_found"
+        case .undoNotAvailable: return "undo_not_available"
+        case .matchNotFound: return "match_not_found"
+        case .conversationNotFound: return "conversation_not_found"
+        case .notParticipant: return "not_participant"
+        case .userBlocked: return "user_blocked"
+        case .alreadyBlocked: return "already_blocked"
+        case .realtimeUnconfigured: return "realtime_unconfigured"
+        case .reportNotFound: return "report_not_found"
+        case .dsaNoticeNotFound: return "dsa_notice_not_found"
+        case .adminForbidden: return "admin_forbidden"
+        case .adminRbacDenied: return "admin_rbac_denied"
+        case .adminUserNotFound: return "admin_user_not_found"
+        case .adminActionInvalid: return "admin_action_invalid"
+        case .userNotFound: return "user_not_found"
+        case .conflict: return "conflict"
+        case .notFound: return "not_found"
+        case .unauthorized: return "unauthorized"
+        case .forbidden: return "forbidden"
+        case .unknown: return "unknown"
+        case .http: return "http"
+        }
+    }
+
+    static func == (lhs: APIError, rhs: APIError) -> Bool {
+        switch (lhs, rhs) {
+        case (.notAuthenticated, .notAuthenticated),
+             (.rateLimited, .rateLimited),
+             (.emailRequired, .emailRequired),
+             (.emailInvalid, .emailInvalid),
+             (.challengeNotFound, .challengeNotFound),
+             (.challengeExpired, .challengeExpired),
+             (.challengeUsed, .challengeUsed),
+             (.tokenMismatch, .tokenMismatch),
+             (.refreshTokenInvalid, .refreshTokenInvalid),
+             (.refreshTokenReused, .refreshTokenReused),
+             (.devLoginDisabled, .devLoginDisabled),
+             (.devUserIdRequired, .devUserIdRequired),
+             (.appleNotConfigured, .appleNotConfigured),
+             (.appleIdentityTokenRequired, .appleIdentityTokenRequired),
+             (.appleVerificationFailed, .appleVerificationFailed),
+             (.twoFactorRequired, .twoFactorRequired),
+             (.totpInvalid, .totpInvalid),
+             (.recoveryCodeInvalid, .recoveryCodeInvalid),
+             (.totpNotEnrolled, .totpNotEnrolled),
+             (.inviteRequired, .inviteRequired),
+             (.inviteInvalid, .inviteInvalid),
+             (.inviteExhausted, .inviteExhausted),
+             (.inviteExpired, .inviteExpired),
+             (.inviteRevoked, .inviteRevoked),
+             (.signupsPaused, .signupsPaused),
+             (.underage, .underage),
+             (.invalidDob, .invalidDob),
+             (.profileNotFound, .profileNotFound),
+             (.maxPhotosReached, .maxPhotosReached),
+             (.noFile, .noFile),
+             (.unsupportedMediaType, .unsupportedMediaType),
+             (.payloadTooLarge, .payloadTooLarge),
+             (.photoNotFound, .photoNotFound),
+             (.photoNotOwned, .photoNotOwned),
+             (.duplicatePhotos, .duplicatePhotos),
+             (.minAgeAboveMax, .minAgeAboveMax),
+             (.targetNotFound, .targetNotFound),
+             (.undoNotAvailable, .undoNotAvailable),
+             (.matchNotFound, .matchNotFound),
+             (.conversationNotFound, .conversationNotFound),
+             (.notParticipant, .notParticipant),
+             (.userBlocked, .userBlocked),
+             (.alreadyBlocked, .alreadyBlocked),
+             (.realtimeUnconfigured, .realtimeUnconfigured),
+             (.reportNotFound, .reportNotFound),
+             (.dsaNoticeNotFound, .dsaNoticeNotFound),
+             (.adminForbidden, .adminForbidden),
+             (.adminRbacDenied, .adminRbacDenied),
+             (.adminUserNotFound, .adminUserNotFound),
+             (.adminActionInvalid, .adminActionInvalid),
+             (.userNotFound, .userNotFound),
+             (.conflict, .conflict),
+             (.notFound, .notFound),
+             (.unauthorized, .unauthorized),
+             (.forbidden, .forbidden):
+            return true
+        case (.transport(let l), .transport(let r)):
+            return (l as NSError).domain == (r as NSError).domain &&
+                (l as NSError).code == (r as NSError).code
+        case (.decoding(let l), .decoding(let r)):
+            return l == r
+        case (.validation(let l), .validation(let r)):
+            return l == r
+        case (.outsideMetro(let l), .outsideMetro(let r)):
+            return l == r
+        case (.countryNotSupported(let lr, let ln), .countryNotSupported(let rr, let rn)):
+            return lr == rr && ln == rn
+        case (.unknown(let lc, let ls, let lm), .unknown(let rc, let rs, let rm)):
+            return lc == rc && ls == rs && lm == rm
+        case (.http(let ls, let lm), .http(let rs, let rm)):
+            return ls == rs && lm == rm
+        default:
+            return false
         }
     }
 }
@@ -366,23 +635,29 @@ final class APIClient: ObservableObject {
     func profileCompleteness() async throws -> ProfileCompletenessDTO {
         do {
             return try await get("/api/v1/profile/me/completeness")
-        } catch APIError.http(let code, _) where code == 404 {
-            let p = try await getProfile()
-            let displayName = p.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let hasPhotos = p.photos.count >= 2
-            let hasName = !displayName.isEmpty
-            // Server still owns 18+ validation. Until the dedicated
-            // endpoint exists, treat "moderationStatus != pending"
-            // *and* photos+name as a proxy for "ready to swipe".
-            let isAgeVerified = p.moderationStatus != "pending_age_check"
-            return ProfileCompletenessDTO(
-                isComplete: hasPhotos && hasName && isAgeVerified,
-                hasPhotos: hasPhotos,
-                hasDisplayName: hasName,
-                isAgeVerified: isAgeVerified,
-                photoCount: p.photos.count
-            )
+        } catch APIError.notFound {
+            return try await fallbackCompleteness()
+        } catch APIError.http(let status, _) where status == 404 {
+            return try await fallbackCompleteness()
         }
+    }
+
+    private func fallbackCompleteness() async throws -> ProfileCompletenessDTO {
+        let p = try await getProfile()
+        let displayName = p.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasPhotos = p.photos.count >= 2
+        let hasName = !displayName.isEmpty
+        // Server still owns 18+ validation. Until the dedicated
+        // endpoint exists, treat "moderationStatus != pending"
+        // *and* photos+name as a proxy for "ready to swipe".
+        let isAgeVerified = p.moderationStatus != "pending_age_check"
+        return ProfileCompletenessDTO(
+            isComplete: hasPhotos && hasName && isAgeVerified,
+            hasPhotos: hasPhotos,
+            hasDisplayName: hasName,
+            isAgeVerified: isAgeVerified,
+            photoCount: p.photos.count
+        )
     }
 
     // MARK: - HTTP plumbing
@@ -417,7 +692,7 @@ final class APIClient: ObservableObject {
         }
         if http.statusCode == 401 { throw APIError.notAuthenticated }
         if !(200..<300).contains(http.statusCode) {
-            throw APIError.http(http.statusCode, String(data: data, encoding: .utf8))
+            throw APIError.decode(data: data, status: http.statusCode)
         }
         return data
     }
@@ -532,8 +807,7 @@ final class APIClient: ObservableObject {
             throw APIError.notAuthenticated
         }
         guard (200..<300).contains(http.statusCode) else {
-            let msg = String(data: respData, encoding: .utf8)
-            let err = APIError.http(http.statusCode, msg)
+            let err = APIError.decode(data: respData, status: http.statusCode)
             // Round D — 5xx is a real server fault worth a Sentry event;
             // 4xx is expected user-facing flow (rate limit, invalid invite).
             if http.statusCode >= 500 { Crash.capture(err) }
@@ -599,8 +873,7 @@ final class APIClient: ObservableObject {
             }
         }
         guard (200..<300).contains(http.statusCode) else {
-            let msg = String(data: data, encoding: .utf8)
-            let err = APIError.http(http.statusCode, msg)
+            let err = APIError.decode(data: data, status: http.statusCode)
             if http.statusCode >= 500 { Crash.capture(err) }
             throw err
         }

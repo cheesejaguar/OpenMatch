@@ -11,7 +11,7 @@ interface Params {
 
 export default async function ReportsPage({ searchParams }: Params) {
   const sp = await searchParams;
-  const { data, status } = await adminFetch<{
+  const res = await adminFetch<{
     reports: ReportSummaryDTO[];
     nextCursor: string | null;
   }>("/api/v1/admin/reports", {
@@ -22,17 +22,19 @@ export default async function ReportsPage({ searchParams }: Params) {
       limit: 50,
     },
   });
+  const data = res.ok ? res.data : null;
+  const status = res.status;
 
   // Oldest 5 open reports — pulled from a second, narrower fetch so
   // the panel reflects "oldest globally" instead of "oldest on this
   // filter page".
-  const oldestRes =
-    status === 200
-      ? await adminFetch<{ reports: ReportSummaryDTO[] }>("/api/v1/admin/reports", {
-          query: { status: "open", limit: 5 },
-        })
-      : null;
-  const oldest = (oldestRes?.data?.reports ?? [])
+  const oldestRes = res.ok
+    ? await adminFetch<{ reports: ReportSummaryDTO[] }>("/api/v1/admin/reports", {
+        query: { status: "open", limit: 5 },
+      })
+    : null;
+  const oldestSource = oldestRes && oldestRes.ok ? oldestRes.data.reports : [];
+  const oldest = oldestSource
     .slice()
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
     .slice(0, 5);
@@ -104,9 +106,11 @@ export default async function ReportsPage({ searchParams }: Params) {
         </button>
       </form>
 
-      {status !== 200 ? (
-        <div className="error">Failed to load ({status}).</div>
-      ) : data.reports.length === 0 ? (
+      {!res.ok ? (
+        <div className="error">
+          Failed to load ({status} {res.error.code}).
+        </div>
+      ) : data!.reports.length === 0 ? (
         <div className="card muted">No reports match.</div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
@@ -124,7 +128,7 @@ export default async function ReportsPage({ searchParams }: Params) {
               </tr>
             </thead>
             <tbody>
-              {data.reports.map((r) => {
+              {data!.reports.map((r) => {
                 // SLA only applies while the report is open / reviewing.
                 const isOpen = r.status === "open" || r.status === "reviewing";
                 const st = isOpen ? slaState(r.createdAt, undefined, now) : null;

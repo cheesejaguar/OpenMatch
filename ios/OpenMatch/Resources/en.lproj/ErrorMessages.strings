@@ -1,0 +1,87 @@
+/* ErrorMessages.strings
+ *
+ * User-facing copy for every APIError case. Keys mirror the backend
+ * error codes registry in backend/src/lib/error-codes.ts. The iOS
+ * `APIError.errorDescription` getter looks up "error.<code>" here.
+ *
+ * Format specifiers:
+ *   - %.1f / %f — outside_metro uses %.1f for the nearest distance in km.
+ *   - %@ / %1$@, %2$@ — country_not_supported can interpolate a reason.
+ *   - http uses %1$d for status and %2$@ for the optional body string.
+ */
+
+// Generic
+"error.not_authenticated" = "You're not signed in.";
+"error.transport" = "Couldn't reach the server. Check your connection and try again.";
+"error.decoding" = "We had trouble reading the server's reply.";
+"error.validation_failed" = "Please check the highlighted fields and try again.";
+"error.rate_limited" = "You're moving fast. Give it a few seconds and try again.";
+"error.unauthorized" = "Please sign in again.";
+"error.forbidden" = "You don't have access to that.";
+"error.not_found" = "We couldn't find what you were looking for.";
+"error.conflict" = "That action conflicts with the current state. Refresh and try again.";
+
+// Auth / 2FA
+"error.email_required" = "Please enter your email address.";
+"error.email_invalid" = "That email address doesn't look right.";
+"error.challenge_not_found" = "We can't find your sign-in request anymore. Start again.";
+"error.challenge_expired" = "Your sign-in code expired. Request a new one.";
+"error.challenge_used" = "That sign-in code was already used. Request a new one.";
+"error.token_mismatch" = "That code didn't match. Double-check and try again.";
+"error.refresh_token_invalid" = "Your session expired. Please sign in again.";
+"error.refresh_token_reused" = "We signed you out of every device for security. Please sign in again.";
+"error.dev_login_disabled" = "Developer sign-in isn't available in this build.";
+"error.dev_user_id_required" = "Developer sign-in needs a user id.";
+"error.apple_not_configured" = "Sign in with Apple isn't available in this build.";
+"error.apple_identity_token_required" = "Apple didn't return an identity token. Try again.";
+"error.apple_verification_failed" = "We couldn't verify your Apple sign-in. Try again.";
+"error.two_factor_required" = "Two-factor authentication is required.";
+"error.totp_invalid" = "That code didn't match. Double-check your authenticator app.";
+"error.recovery_code_invalid" = "That recovery code isn't valid or has already been used.";
+"error.totp_not_enrolled" = "Two-factor authentication isn't set up yet.";
+
+// Beta gates
+"error.invite_required" = "You'll need an invite code to sign up.";
+"error.invite_invalid" = "That invite code isn't recognized.";
+"error.invite_exhausted" = "That invite code has been used up.";
+"error.invite_expired" = "That invite code has expired.";
+"error.invite_revoked" = "That invite code has been revoked.";
+"error.signups_paused" = "Signups are temporarily paused. Try again later.";
+"error.outside_metro" = "OpenMatch is opening one metro at a time. Join the waitlist and we'll let you know when we're in your area.";
+"error.country_not_supported" = "OpenMatch isn't available in your region yet.";
+
+// Profile / photos
+"error.underage" = "You must be 18 or older to use OpenMatch.";
+"error.invalid_dob" = "That date of birth doesn't look right.";
+"error.profile_not_found" = "We couldn't find your profile. Set one up first.";
+"error.max_photos_reached" = "You've reached the photo limit. Remove one before adding more.";
+"error.no_file" = "Pick a photo to upload first.";
+"error.unsupported_media_type" = "That file type isn't supported. Try JPEG or PNG.";
+"error.payload_too_large" = "That photo is too large. Pick a smaller one.";
+"error.photo_not_found" = "That photo is no longer available.";
+"error.photo_not_owned" = "That photo doesn't belong to you.";
+"error.duplicate_photos" = "Duplicate photos aren't allowed.";
+"error.min_age_above_max" = "Minimum age can't be greater than maximum age.";
+
+// Discovery / swipe / match / chat
+"error.target_not_found" = "That profile is no longer available.";
+"error.undo_not_available" = "We can't undo that swipe anymore.";
+"error.match_not_found" = "That match is no longer available.";
+"error.conversation_not_found" = "That conversation is no longer available.";
+"error.not_participant" = "You don't have access to that conversation.";
+"error.user_blocked" = "You can't message this person.";
+"error.already_blocked" = "You've already blocked this person.";
+
+// Realtime / safety / admin
+"error.realtime_unconfigured" = "Realtime messaging isn't available right now.";
+"error.report_not_found" = "That report no longer exists.";
+"error.dsa_notice_not_found" = "That notice no longer exists.";
+"error.admin_forbidden" = "You don't have permission to do that.";
+"error.admin_rbac_denied" = "You don't have permission to do that.";
+"error.admin_user_not_found" = "That admin user doesn't exist.";
+"error.admin_action_invalid" = "That admin action isn't valid right now.";
+
+// Misc
+"error.user_not_found" = "That user doesn't exist.";
+"error.unknown" = "Something went wrong (%@). Please try again.";
+"error.http" = "HTTP %1$d %2$@";

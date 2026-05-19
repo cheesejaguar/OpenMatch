@@ -37,6 +37,7 @@ describe("Flags page", () => {
       adminFetch: ReturnType<typeof vi.fn>;
     };
     adminFetch.mockResolvedValueOnce({
+      ok: true,
       status: 200,
       data: {
         items: [

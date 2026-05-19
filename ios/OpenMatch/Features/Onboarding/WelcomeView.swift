@@ -247,15 +247,32 @@ struct WelcomeView: View {
         }
     }
 
-    // Maps backend invite-gate errors to user-readable copy. Anything
-    // we don't recognise falls back to the raw localizedDescription.
+    // Maps backend invite-gate errors to user-readable copy. The
+    // typed APIError cases below come from the central registry in
+    // `backend/src/lib/error-codes.ts`; unrecognised errors fall back
+    // to the localised description that APIError.errorDescription
+    // produces from the .strings bundle.
     private func mapInviteError(from error: Error) -> String {
-        if case APIError.http(let code, let body?) = error, code == 400 {
-            if body.contains("invite_required") {
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .inviteRequired:
                 return "An invite code is required during the beta. Tap your invite link or paste your code above."
-            }
-            if body.contains("invite_invalid") {
+            case .inviteInvalid:
                 return "That invite code doesn't look right. Double-check the link in your invite email."
+            case .inviteExhausted:
+                return "That invite code has already been used up. Ask the sender for a fresh one."
+            case .inviteExpired:
+                return "That invite code has expired."
+            case .inviteRevoked:
+                return "That invite code has been revoked. Reach out to support if you think this is a mistake."
+            case .signupsPaused:
+                return "Signups are temporarily paused. Try again later."
+            case .outsideMetro:
+                return apiError.errorDescription ?? "OpenMatch isn't live in your area yet."
+            case .countryNotSupported:
+                return apiError.errorDescription ?? "OpenMatch isn't available in your region yet."
+            default:
+                break
             }
         }
         return error.localizedDescription

@@ -16,10 +16,12 @@ interface Params {
 
 export default async function AuditPage({ searchParams }: Params) {
   const sp = await searchParams;
-  const { data, status } = await adminFetch<{
+  const res = await adminFetch<{
     events: AuditEventDTO[];
     nextCursor: string | null;
   }>("/api/v1/admin/audit", { query: { ...sp, limit: 100 } });
+  const data = res.ok ? res.data : null;
+  const status = res.status;
 
   return (
     <div>
@@ -52,11 +54,13 @@ export default async function AuditPage({ searchParams }: Params) {
         </button>
       </form>
 
-      {status === 403 ? (
+      {!res.ok && res.status === 403 ? (
         <div className="error">You don&apos;t have permission to view the audit log.</div>
-      ) : status !== 200 ? (
-        <div className="error">Failed to load ({status}).</div>
-      ) : data.events.length === 0 ? (
+      ) : !res.ok ? (
+        <div className="error">
+          Failed to load ({status} {res.error.code}).
+        </div>
+      ) : data!.events.length === 0 ? (
         <div className="card muted">No audit events match.</div>
       ) : (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>
@@ -73,7 +77,7 @@ export default async function AuditPage({ searchParams }: Params) {
               </tr>
             </thead>
             <tbody>
-              {data.events.map((e) => (
+              {data!.events.map((e) => (
                 <tr key={e.id}>
                   <td className="muted">{e.createdAt.slice(0, 19).replace("T", " ")}</td>
                   <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>

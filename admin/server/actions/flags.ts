@@ -1,12 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { adminFetch } from "../../lib/api/admin-client";
+import { type AdminApiError, adminFetch } from "../../lib/api/admin-client";
 
 export interface ToggleFlagResult {
   ok: boolean;
   status: number;
+  /** Backend error code (e.g. validation_failed, forbidden) or a client-side code. */
   error?: string;
+  /** Full typed error payload when the backend rejected the request. */
+  apiError?: AdminApiError;
 }
 
 const FLAG_KEY_RE = /^[a-z][a-z0-9_]*$/;
@@ -17,8 +20,8 @@ export async function toggleFlag(key: string, enabled: boolean): Promise<ToggleF
     method: "PATCH",
     body: { enabled },
   });
-  if (res.status < 200 || res.status >= 300) {
-    return { ok: false, status: res.status, error: "server_rejected" };
+  if (!res.ok) {
+    return { ok: false, status: res.status, error: res.error.code, apiError: res.error };
   }
   revalidatePath("/flags");
   return { ok: true, status: res.status };
@@ -34,7 +37,10 @@ export interface CreateFlagInput {
 export interface CreateFlagResult {
   ok: boolean;
   status: number;
+  /** Backend error code (e.g. validation_failed, conflict) or a client-side code. */
   error?: string;
+  /** Full typed error payload when the backend rejected the request. */
+  apiError?: AdminApiError;
 }
 
 export async function createFlag(input: CreateFlagInput): Promise<CreateFlagResult> {
@@ -47,8 +53,8 @@ export async function createFlag(input: CreateFlagInput): Promise<CreateFlagResu
     body.variants = input.variants;
   }
   const res = await adminFetch("/api/v1/admin/flags", { method: "POST", body });
-  if (res.status < 200 || res.status >= 300) {
-    return { ok: false, status: res.status, error: "server_rejected" };
+  if (!res.ok) {
+    return { ok: false, status: res.status, error: res.error.code, apiError: res.error };
   }
   revalidatePath("/flags");
   return { ok: true, status: res.status };

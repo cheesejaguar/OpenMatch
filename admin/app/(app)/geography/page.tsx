@@ -97,7 +97,7 @@ export default async function GeographyPage({ searchParams }: Params) {
   const metro = sp.metro || DEFAULT_METRO;
   const res = await adminFetch<GeographyDTO>("/api/v1/admin/geography", { query: { metro } });
 
-  if (res.status === 404) {
+  if (!res.ok && res.status === 404) {
     return (
       <div>
         <div className="page-header">
@@ -111,13 +111,15 @@ export default async function GeographyPage({ searchParams }: Params) {
       </div>
     );
   }
-  if (res.status !== 200) {
+  if (!res.ok) {
     return (
       <div>
         <div className="page-header">
           <h2>Geographic insights</h2>
         </div>
-        <div className="error">Failed to load geography ({res.status}).</div>
+        <div className="error">
+          Failed to load geography ({res.status} {res.error.code}).
+        </div>
       </div>
     );
   }

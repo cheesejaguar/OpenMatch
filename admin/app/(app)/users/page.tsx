@@ -10,12 +10,13 @@ export const dynamic = "force-dynamic";
 
 export default async function UsersPage({ searchParams }: SearchParams) {
   const sp = await searchParams;
-  const { data, status } = await adminFetch<{
+  const res = await adminFetch<{
     users: UserSummaryDTO[];
     nextCursor: string | null;
   }>("/api/v1/admin/users", {
     query: { query: sp.query, status: sp.status, cursor: sp.cursor, limit: 50 },
   });
+  const data = res.ok ? res.data : null;
 
   return (
     <div>
@@ -47,9 +48,11 @@ export default async function UsersPage({ searchParams }: SearchParams) {
         </button>
       </form>
 
-      {status !== 200 ? (
-        <div className="error">Search failed ({status}).</div>
-      ) : data.users.length === 0 ? (
+      {!res.ok ? (
+        <div className="error">
+          Search failed ({res.status} {res.error.code}).
+        </div>
+      ) : data!.users.length === 0 ? (
         <div className="card muted">No users match.</div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
@@ -66,7 +69,7 @@ export default async function UsersPage({ searchParams }: SearchParams) {
               </tr>
             </thead>
             <tbody>
-              {data.users.map((u) => (
+              {data!.users.map((u) => (
                 <tr key={u.userId}>
                   <td>
                     <Link href={`/users/${u.userId}`}>{u.userId}</Link>

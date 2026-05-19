@@ -27,11 +27,11 @@ export default async function UserDetailPage({ params }: Params) {
   const { userId } = await params;
   const session = (await readSession())!;
   const perms = session.permissions;
-  const [{ data: user, status }, { data: notes }] = await Promise.all([
+  const [userRes, notesRes] = await Promise.all([
     adminFetch<UserDetailDTO>(`/api/v1/admin/users/${userId}`),
     adminFetch<NotesResponse>(`/api/v1/admin/users/${userId}/notes`),
   ]);
-  if (status === 404) {
+  if (!userRes.ok && userRes.status === 404) {
     return (
       <div>
         <div className="page-header">
@@ -40,16 +40,20 @@ export default async function UserDetailPage({ params }: Params) {
       </div>
     );
   }
-  if (status !== 200) {
+  if (!userRes.ok) {
     return (
       <div>
         <div className="page-header">
           <h2>User</h2>
         </div>
-        <div className="error">Failed to load ({status}).</div>
+        <div className="error">
+          Failed to load ({userRes.status} {userRes.error.code}).
+        </div>
       </div>
     );
   }
+  const user = userRes.data;
+  const notes = notesRes.ok ? notesRes.data : null;
   const canBanTemp = has(perms, PERMISSIONS.USER_BAN_TEMPORARY);
   const canBanPerm = has(perms, PERMISSIONS.USER_BAN_PERMANENT);
   const canUnban = has(perms, PERMISSIONS.USER_UNBAN);

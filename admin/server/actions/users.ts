@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { adminFetch } from "../../lib/api/admin-client";
+import { type AdminApiError, adminFetch } from "../../lib/api/admin-client";
+import { ErrorCodes } from "../../lib/api/error-codes";
+
+type ActionResult = { ok: true } | { ok: false; status: number; error: AdminApiError };
 
 const REASON_CODES = [
   "harassment",
@@ -25,7 +28,7 @@ function asReasonCode(v: FormDataEntryValue | null): ReasonCode {
   return (REASON_CODES as readonly string[]).includes(s) ? (s as ReasonCode) : "other";
 }
 
-export async function banUserAction(userId: string, formData: FormData) {
+export async function banUserAction(userId: string, formData: FormData): Promise<ActionResult> {
   const type = String(formData.get("banType") ?? "temporary") as
     | "temporary"
     | "permanent"
@@ -45,14 +48,12 @@ export async function banUserAction(userId: string, formData: FormData) {
     method: "POST",
     body,
   });
-  if (res.status >= 400) {
-    return { ok: false as const, status: res.status, data: res.data };
-  }
+  if (!res.ok) return { ok: false, status: res.status, error: res.error };
   revalidatePath(`/users/${userId}`);
-  return { ok: true as const };
+  return { ok: true };
 }
 
-export async function unbanUserAction(userId: string, formData: FormData) {
+export async function unbanUserAction(userId: string, formData: FormData): Promise<ActionResult> {
   const body = {
     reason: String(formData.get("reason") ?? ""),
     internalNote: String(formData.get("internalNote") ?? ""),
@@ -63,21 +64,25 @@ export async function unbanUserAction(userId: string, formData: FormData) {
     method: "POST",
     body,
   });
-  if (res.status >= 400) {
-    return { ok: false as const, status: res.status, data: res.data };
-  }
+  if (!res.ok) return { ok: false, status: res.status, error: res.error };
   revalidatePath(`/users/${userId}`);
-  return { ok: true as const };
+  return { ok: true };
 }
 
-export async function addNoteAction(userId: string, formData: FormData) {
+export async function addNoteAction(userId: string, formData: FormData): Promise<ActionResult> {
   const body = { body: String(formData.get("body") ?? "") };
-  if (!body.body.trim()) return { ok: false as const, status: 400, data: { error: "empty" } };
+  if (!body.body.trim()) {
+    return {
+      ok: false,
+      status: 400,
+      error: { code: ErrorCodes.VALIDATION_FAILED, message: "body required" },
+    };
+  }
   const res = await adminFetch(`/api/v1/admin/users/${userId}/notes`, {
     method: "POST",
     body,
   });
-  if (res.status >= 400) return { ok: false as const, status: res.status, data: res.data };
+  if (!res.ok) return { ok: false, status: res.status, error: res.error };
   revalidatePath(`/users/${userId}`);
-  return { ok: true as const };
+  return { ok: true };
 }

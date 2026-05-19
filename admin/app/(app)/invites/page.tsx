@@ -34,7 +34,7 @@ export default async function InvitesPage({ searchParams }: Params) {
     sp.status && ["active", "revoked", "expired", "exhausted"].includes(sp.status)
       ? sp.status
       : "all";
-  const { data, status: httpStatus } = await adminFetch<InviteListDTO>("/api/v1/admin/invites", {
+  const res = await adminFetch<InviteListDTO>("/api/v1/admin/invites", {
     query: {
       cohort: sp.cohort,
       status: status as string,
@@ -42,7 +42,7 @@ export default async function InvitesPage({ searchParams }: Params) {
       limit: 100,
     },
   });
-
+  const data = res.ok ? res.data : null;
   const cohortLabels = Array.from(new Set((data?.items ?? []).map((i) => i.cohortLabel))).sort();
   const now = new Date();
 
@@ -85,9 +85,11 @@ export default async function InvitesPage({ searchParams }: Params) {
         </FilterBar>
       </form>
 
-      {httpStatus !== 200 ? (
-        <div className="error">Failed to load ({httpStatus}).</div>
-      ) : data.items.length === 0 ? (
+      {!res.ok ? (
+        <div className="error">
+          Failed to load ({res.status} {res.error.code}).
+        </div>
+      ) : data!.items.length === 0 ? (
         <div className="card muted">No invite codes match those filters.</div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
@@ -104,7 +106,7 @@ export default async function InvitesPage({ searchParams }: Params) {
               </tr>
             </thead>
             <tbody>
-              {data.items.map((inv) => {
+              {data!.items.map((inv) => {
                 const st = deriveStatus(inv, now);
                 return (
                   <tr key={inv.id}>
