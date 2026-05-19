@@ -20,6 +20,7 @@ const decideSchema = z.object({
 
 export const adminDsaRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
   // Re-use the report-resolve permission for DSA actions. A future
   // round can split this into a dedicated `dsa.review` permission if
   // operator volume justifies it.

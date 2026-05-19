@@ -25,6 +25,7 @@ const createSchema = z.object({
 
 export const adminInvitesRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
   app.addHook(
     "preHandler",
     app.requireAnyPermission([PERMISSIONS.BETA_INVITE_MANAGE, PERMISSIONS.ADMIN_MANAGE_ROLES]),

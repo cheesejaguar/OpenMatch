@@ -45,7 +45,7 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
         const session = await issueAdminSession(
           app.prisma,
           adminUserId,
-          (id) => app.signAdminAccessToken(id),
+          (id, sid) => app.signAdminAccessToken(id, sid),
           { userAgent: req.headers["user-agent"] ?? null, ipHash },
         );
         // Look up roles snapshot for the audit row.
@@ -86,7 +86,7 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
       const rotated = await rotateAdminSession(
         app.prisma,
         body.refreshToken,
-        (id) => app.signAdminAccessToken(id),
+        (id, sid) => app.signAdminAccessToken(id, sid),
         { userAgent: req.headers["user-agent"] ?? null, ipHash },
       );
       if (!rotated) return reply.code(401).send({ error: "invalid_refresh" });

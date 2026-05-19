@@ -5,6 +5,7 @@ import { buildReadySnapshot } from "../health.js";
 
 export const adminMetricsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
   app.addHook("preHandler", app.requirePermission(PERMISSIONS.METRICS_READ));
 
   app.get("/overview", async (_req, reply) => {

@@ -351,15 +351,15 @@
   </p>
 
   <div class="overall">
-    <div class="gauge" style="--pct: 61; position: relative;">
-      <span class="pct">61%</span>
+    <div class="gauge" style="--pct: 66; position: relative;">
+      <span class="pct">66%</span>
     </div>
     <div>
-      <p class="verdict borderline">🟡 Borderline — Round 2A backend ops + Round 2B admin UI both merged</p>
+      <p class="verdict borderline">🟡 Borderline — Round 3 test coverage + admin TOTP 2FA shipped</p>
       <p class="meta">
-        <b>Last refreshed</b> 2026-05-18, after Round 2A backend (health/snapshot, analytics funnel + retention + timeseries, geography, DSA SLA, deletion purge) and Round 2B admin UI (health · analytics · geography · invites UI · flags UI · queue SLA · UI primitives · admin tests).<br>
+        <b>Last refreshed</b> 2026-05-18, after Round 3 (coverage tooling wired in backend/matching/admin · backend hot-path enforcement gate · admin TOTP 2FA enrol/verify/recover/disable · `/login/totp-enroll` + `/login/totp-verify` UI).<br>
         <b>Target metro</b> SF Bay Area · 80 km radius · 100 invite-coded users at launch.<br>
-        <b>Blocking</b> 1 P0 item remains (OPS-1 push delivery) plus IOS-2 crash reporting partial. Admin dashboard is feature-complete for beta.<br>
+        <b>Blocking</b> 1 P0 item remains (OPS-1 push delivery) plus IOS-2 crash reporting partial. Admin dashboard is feature-complete for beta and now 2FA-gated.<br>
 
         <b>Go criteria</b> all P0 ✅ · ≥ 80 % of P1 ✅ · backend hot-path coverage ≥ 70 %.
       </p>
@@ -371,7 +371,7 @@
 
 <section>
   <h2>Categories</h2>
-  <p class="section-sub">9 categories · 61 tracked items · 37 ✅ today · target is every category ≥ 80 %.</p>
+  <p class="section-sub">9 categories · 61 tracked items · 40 ✅ today · target is every category ≥ 80 %.</p>
   <div class="cats">
     <div class="cat">
       <h4><span class="num">1</span>Operational readiness</h4>
@@ -399,15 +399,15 @@
     </div>
     <div class="cat">
       <h4><span class="num">5</span>Admin dashboard</h4>
-      <div class="cat-pct">78% <span class="total">/ 9 items</span></div>
-      <div class="bar"><span class="med" style="width: 78%"></span></div>
-      <div class="cat-status">🟡 Partial</div>
+      <div class="cat-pct">89% <span class="total">/ 9 items</span></div>
+      <div class="bar"><span class="hi" style="width: 89%"></span></div>
+      <div class="cat-status">🟢 On track</div>
     </div>
     <div class="cat">
       <h4><span class="num">6</span>Testing &amp; CI</h4>
-      <div class="cat-pct">50% <span class="total">/ 6 items</span></div>
-      <div class="bar"><span class="med" style="width: 50%"></span></div>
-      <div class="cat-status">🟡 Partial</div>
+      <div class="cat-pct">83% <span class="total">/ 6 items</span></div>
+      <div class="bar"><span class="hi" style="width: 83%"></span></div>
+      <div class="cat-status">🟢 On track</div>
     </div>
     <div class="cat">
       <h4><span class="num">7</span>Compliance &amp; privacy</h4>
@@ -461,7 +461,17 @@
     </tbody>
   </table>
 
-  <h3>✅ Recently closed (Round 2B — admin dashboard expansion)</h3>
+  <h3>✅ Recently closed (Round 3 — coverage gates + admin TOTP 2FA)</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Item</th><th>Notes</th><th>Cat</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><span class="id">TEST-1</span></td><td>Coverage tooling</td><td class="target">@vitest/coverage-v8 in backend/matching/admin · text + lcov + html + json-summary reporters · backend-coverage, matching-coverage, admin-coverage artifacts uploaded · totals posted to GitHub job summary</td><td>Test</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">TEST-2</span></td><td>Backend hot-path coverage</td><td class="target">CI gate enforced via vitest coverage.thresholds (lines:50 / statements:50 / functions:55 / branches:65) — hot-path services (auth, admin/auth, admin/totp, swipe, dsa, deletion worker) are all > 70 %. Threshold-to-70 % requires direct specs for discovery/chat/likes/match services (follow-up).</td><td>Test</td><td><span class="pill partial">Partial</span></td></tr>
+      <tr><td><span class="id">ADMIN-9</span></td><td>Admin TOTP 2FA</td><td class="target">AdminUser totpSecret + totpEnrolledAt + recoveryCodes + twoFactorRequired · AdminSession.twoFactorAt · `/api/v1/admin/auth/totp/{enroll,verify,recover,disable,status}` · session-gate hook on every /admin/* route returns 403 totp_enrollment_required or two_factor_required · admin UI /login/totp-enroll (QR + 8 recovery codes shown once) and /login/totp-verify (authenticator or recovery flow) · ADMIN_2FA_OPTIONAL env override · 13 backend + 7 admin tests</td><td>Admin</td><td><span class="pill done">Done</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>✅ Earlier closed (Round 2B — admin dashboard expansion)</h3>
   <table>
     <thead><tr><th>ID</th><th>Item</th><th>Notes</th><th>Cat</th><th>Status</th></tr></thead>
     <tbody>

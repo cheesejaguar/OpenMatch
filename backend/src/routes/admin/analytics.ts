@@ -47,6 +47,7 @@ async function cohortUserIds(
 
 export const adminAnalyticsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
   app.addHook("preHandler", app.requirePermission(PERMISSIONS.METRICS_READ));
 
   // ---- Funnel ----------------------------------------------------------

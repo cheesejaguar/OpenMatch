@@ -26,6 +26,7 @@ const patchSchema = z.object({
 
 export const adminFlagsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
   app.addHook("preHandler", app.requirePermission(PERMISSIONS.FEATURE_FLAG_MANAGE));
 
   app.get("/", async (_req, reply) => {

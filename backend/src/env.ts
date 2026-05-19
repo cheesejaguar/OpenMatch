@@ -27,6 +27,13 @@ const schema = z.object({
   // CSV of allowlisted admin emails. Until real OIDC ships (Phase 7) this
   // is the gate on who may receive an admin magic-link.
   ADMIN_ALLOWED_EMAILS: z.string().default(""),
+  // Lifts the 2FA requirement for all admin routes. Defaults to `false`
+  // (2FA enforced). Operators use this in local dev to skip TOTP entry
+  // when iterating on dashboards. MUST be `false` in production.
+  ADMIN_2FA_OPTIONAL: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
   // Short-lived signed grant TTL for sensitive access (messages, photos
   // outside report context). PRD §16.4 references this.
   ADMIN_ACCESS_GRANT_TTL_SECONDS: z.coerce.number().int().positive().default(1800),

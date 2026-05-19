@@ -57,6 +57,7 @@ const noteSchema = z.object({ body: z.string().min(1).max(8000) });
 
 export const adminUserRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
 
   // GET /users : search
   app.get(

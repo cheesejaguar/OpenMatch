@@ -15,6 +15,7 @@ const updateRolesSchema = z.object({
 
 export const adminRoleRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
 
   // Listing roles is widely useful (the admin UI uses it to render
   // permission tooltips and the "assign role" picker), so it's gated on

@@ -16,6 +16,7 @@ const listSchema = z.object({
 
 export const adminAuditRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
   app.addHook("preHandler", app.requirePermission(PERMISSIONS.AUDIT_READ));
 
   app.get("/", async (req, reply) => {

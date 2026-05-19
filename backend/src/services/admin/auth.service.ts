@@ -158,15 +158,22 @@ export async function verifyAdminLogin(
   return { adminUserId: admin.id, email: admin.email };
 }
 
+export interface AdminSessionTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: Date;
+  sessionId: string;
+}
+
 export async function issueAdminSession(
   prisma: PrismaClient,
   adminUserId: string,
-  signAccess: (adminUserId: string) => string,
+  signAccess: (adminUserId: string, sessionId?: string) => string,
   meta: { userAgent?: string | null; ipHash?: string | null } = {},
-): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date }> {
+): Promise<AdminSessionTokens> {
   const refreshToken = randomBytes(TOKEN_BYTES).toString("hex");
   const expiresAt = new Date(Date.now() + env.ADMIN_REFRESH_TTL_SECONDS * 1000);
-  await prisma.adminSession.create({
+  const session = await prisma.adminSession.create({
     data: {
       adminUserId,
       refreshToken: hashToken(refreshToken),
@@ -175,25 +182,39 @@ export async function issueAdminSession(
       ipHash: meta.ipHash ?? null,
     },
   });
-  return { accessToken: signAccess(adminUserId), refreshToken, expiresAt };
+  return {
+    accessToken: signAccess(adminUserId, session.id),
+    refreshToken,
+    expiresAt,
+    sessionId: session.id,
+  };
 }
 
 export async function rotateAdminSession(
   prisma: PrismaClient,
   refreshToken: string,
-  signAccess: (adminUserId: string) => string,
+  signAccess: (adminUserId: string, sessionId?: string) => string,
   meta: { userAgent?: string | null; ipHash?: string | null } = {},
-): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date } | null> {
+): Promise<AdminSessionTokens | null> {
   const tokenHash = hashToken(refreshToken);
   const session = await prisma.adminSession.findUnique({ where: { refreshToken: tokenHash } });
   if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
     return null;
   }
+  // Rotation preserves the prior session's 2FA-elevation state so the
+  // admin doesn't get prompted for a TOTP code every 15 minutes.
+  const refreshed = await issueAdminSession(prisma, session.adminUserId, signAccess, meta);
+  if (session.twoFactorAt) {
+    await prisma.adminSession.update({
+      where: { id: refreshed.sessionId },
+      data: { twoFactorAt: session.twoFactorAt },
+    });
+  }
   await prisma.adminSession.update({
     where: { id: session.id },
     data: { revokedAt: new Date() },
   });
-  return issueAdminSession(prisma, session.adminUserId, signAccess, meta);
+  return refreshed;
 }
 
 export async function revokeAdminSession(
