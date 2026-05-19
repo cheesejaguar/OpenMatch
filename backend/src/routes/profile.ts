@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 import {
   ALLOWED_MIME_TYPES,
   deleteProfilePhoto,
@@ -62,7 +64,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         profile: { include: { photos: { orderBy: { sortOrder: "asc" } } } },
       },
     });
-    if (!user) return reply.code(404).send({ error: "not_found" });
+    if (!user) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     return user;
   });
 
@@ -94,23 +96,25 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     if (declared) {
       const metro = await app.checkMetro(req, { location: declared });
       if (!metro.allow) {
-        return reply.code(451).send({
-          error: "outside_metro",
-          message:
-            "OpenMatch is opening one metro at a time. Join the waitlist to be notified when we expand.",
-          nearestKm: metro.nearestKm,
-        });
+        return sendHttpError(
+          reply,
+          httpError(ErrorCodes.OUTSIDE_METRO, {
+            message:
+              "OpenMatch is opening one metro at a time. Join the waitlist to be notified when we expand.",
+            details: { nearestKm: metro.nearestKm },
+          }),
+        );
       }
     }
 
     if (body.dateOfBirth) {
       const dob = new Date(body.dateOfBirth);
       if (Number.isNaN(dob.getTime())) {
-        return reply.code(400).send({ error: "invalid_dob" });
+        return sendHttpError(reply, httpError(ErrorCodes.INVALID_DOB));
       }
       const age = Math.floor((Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
       if (age < 18) {
-        return reply.code(403).send({ error: "underage" });
+        return sendHttpError(reply, httpError(ErrorCodes.UNDERAGE));
       }
       await app.prisma.user.update({
         where: { id: req.userId! },
@@ -162,19 +166,19 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         where: { userId: req.userId! },
         select: { id: true, photos: { select: { id: true } } },
       });
-      if (!profile) return reply.code(404).send({ error: "profile_not_found" });
+      if (!profile) return sendHttpError(reply, httpError(ErrorCodes.PROFILE_NOT_FOUND));
       if (profile.photos.length >= 9) {
-        return reply.code(400).send({ error: "max_photos_reached" });
+        return sendHttpError(reply, httpError(ErrorCodes.MAX_PHOTOS_REACHED));
       }
 
       const file = await req.file();
-      if (!file) return reply.code(400).send({ error: "no_file" });
+      if (!file) return sendHttpError(reply, httpError(ErrorCodes.NO_FILE));
       if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
-        return reply.code(415).send({ error: "unsupported_media_type" });
+        return sendHttpError(reply, httpError(ErrorCodes.UNSUPPORTED_MEDIA_TYPE));
       }
       const buffer = await file.toBuffer();
       if (buffer.byteLength > MAX_PHOTO_BYTES) {
-        return reply.code(413).send({ error: "payload_too_large" });
+        return sendHttpError(reply, httpError(ErrorCodes.PAYLOAD_TOO_LARGE));
       }
 
       try {
@@ -194,7 +198,10 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(201).send(photo);
       } catch (err) {
         const e = err as { statusCode?: number; message?: string };
-        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "upload_failed" });
+        const status = e.statusCode ?? 500;
+        // Preserve the original status when blob storage gave us a 4xx;
+        // fall back to upload_failed otherwise.
+        return reply.code(status).send({ error: e.message ?? ErrorCodes.UPLOAD_FAILED });
       }
     },
   );
@@ -204,13 +211,13 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       where: { userId: req.userId! },
       select: { id: true },
     });
-    if (!profile) return reply.code(404).send({ error: "profile_not_found" });
+    if (!profile) return sendHttpError(reply, httpError(ErrorCodes.PROFILE_NOT_FOUND));
 
     const photo = await app.prisma.profilePhoto.findUnique({
       where: { id: req.params.photoId },
     });
     if (!photo || photo.profileId !== profile.id) {
-      return reply.code(404).send({ error: "photo_not_found" });
+      return sendHttpError(reply, httpError(ErrorCodes.PHOTO_NOT_FOUND));
     }
 
     await deleteProfilePhoto(photo.storageKey, photo.cdnUrl);
@@ -240,14 +247,14 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       where: { userId: req.userId! },
       select: { id: true, photos: { select: { id: true } } },
     });
-    if (!profile) return reply.code(404).send({ error: "profile_not_found" });
+    if (!profile) return sendHttpError(reply, httpError(ErrorCodes.PROFILE_NOT_FOUND));
 
     const owned = new Set(profile.photos.map((p) => p.id));
     if (body.photoIds.some((id) => !owned.has(id))) {
-      return reply.code(400).send({ error: "photo_not_owned" });
+      return sendHttpError(reply, httpError(ErrorCodes.PHOTO_NOT_OWNED));
     }
     if (new Set(body.photoIds).size !== body.photoIds.length) {
-      return reply.code(400).send({ error: "duplicate_photos" });
+      return sendHttpError(reply, httpError(ErrorCodes.DUPLICATE_PHOTOS));
     }
 
     await app.prisma.$transaction(
@@ -267,8 +274,10 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       where: { id: req.params.profileId },
       include: { photos: { orderBy: { sortOrder: "asc" } } },
     });
-    if (!profile) return reply.code(404).send({ error: "not_found" });
-    if (profile.visibilityStatus === "hidden") return reply.code(404).send({ error: "not_found" });
+    if (!profile) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
+    if (profile.visibilityStatus === "hidden") {
+      return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
+    }
     return profile;
   });
 };

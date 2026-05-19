@@ -1,6 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 import {
   consumeRecoveryCode,
   disableTotp,
@@ -55,13 +57,13 @@ export const adminTotpRoutes: FastifyPluginAsync = async (app) => {
       const principal = req.admin!;
       const body = codeSchema.parse(req.body);
       const ok = await verifyTotpCode(app.prisma, principal.adminUserId, body.code);
-      if (!ok) return reply.code(401).send({ error: "invalid_totp_code" });
+      if (!ok) return sendHttpError(reply, httpError(ErrorCodes.INVALID_TOTP_CODE));
       if (!principal.sessionId) {
         // The bearer token has no associated session id (helper-minted
         // token). We accept the TOTP code but cannot elevate a session
         // that doesn't exist; the client is expected to re-issue tokens
         // via /auth/verify which now carries `sid` in the claims.
-        return reply.code(409).send({ error: "session_missing_sid" });
+        return sendHttpError(reply, httpError(ErrorCodes.SESSION_MISSING_SID));
       }
       await elevateAdminSession(app.prisma, principal.sessionId);
       await writeAudit(
@@ -87,9 +89,9 @@ export const adminTotpRoutes: FastifyPluginAsync = async (app) => {
         principal.adminUserId,
         body.recoveryCode,
       );
-      if (!result.ok) return reply.code(401).send({ error: "invalid_recovery_code" });
+      if (!result.ok) return sendHttpError(reply, httpError(ErrorCodes.INVALID_RECOVERY_CODE));
       if (!principal.sessionId) {
-        return reply.code(409).send({ error: "session_missing_sid" });
+        return sendHttpError(reply, httpError(ErrorCodes.SESSION_MISSING_SID));
       }
       await elevateAdminSession(app.prisma, principal.sessionId);
       await writeAudit(

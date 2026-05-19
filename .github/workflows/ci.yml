@@ -54,6 +54,15 @@ jobs:
       - name: Format check (Biome)
         run: npm run format:check
 
+      # Round-A error-contract: docs/api/ERRORS.md is generated from
+      # backend/src/lib/error-codes.ts. Regenerate it and fail the build
+      # if anything differs — every code change must be accompanied by a
+      # docs refresh in the same PR.
+      - name: Verify error docs are up to date
+        run: |
+          node scripts/generate-error-docs.mjs
+          git diff --exit-code docs/api/ERRORS.md
+
       - name: Generate Prisma client
         run: npx prisma generate
         working-directory: backend

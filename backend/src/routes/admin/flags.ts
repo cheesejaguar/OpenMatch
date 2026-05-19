@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 
 // Admin CRUD for feature flags. Flips invalidate the in-memory
 // evaluator cache for that key immediately on the originating instance;
@@ -97,7 +99,7 @@ export const adminFlagsRoutes: FastifyPluginAsync = async (app) => {
     const body = patchSchema.parse(req.body);
     const principal = req.admin!;
     const existing = await app.prisma.featureFlag.findUnique({ where: { key: req.params.key } });
-    if (!existing) return reply.code(404).send({ error: "not_found" });
+    if (!existing) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     const updated = await app.prisma.featureFlag.update({
       where: { key: req.params.key },
       data: {

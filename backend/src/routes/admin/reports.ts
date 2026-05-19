@@ -7,6 +7,8 @@ import {
 } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
 import { permsFrom } from "../../lib/admin/serialize.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 import {
   getReportDetail,
   listReports,
@@ -77,7 +79,7 @@ export const adminReportRoutes: FastifyPluginAsync = async (app) => {
         req.params.reportId,
         permsFrom(principal.permissions),
       );
-      if (!detail) return reply.code(404).send({ error: "not_found" });
+      if (!detail) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       await writeAudit(
         app.prisma,
         auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
@@ -180,10 +182,12 @@ export const adminReportRoutes: FastifyPluginAsync = async (app) => {
         body.resolution === "permanent_ban" &&
         !principal.permissions.includes(PERMISSIONS.USER_BAN_PERMANENT)
       ) {
-        return reply.code(403).send({
-          error: "forbidden",
-          required: PERMISSIONS.USER_BAN_PERMANENT,
-        });
+        return sendHttpError(
+          reply,
+          httpError(ErrorCodes.FORBIDDEN, {
+            details: { required: PERMISSIONS.USER_BAN_PERMANENT },
+          }),
+        );
       }
       try {
         const { report, action } = await withAuditedTransaction(
@@ -223,7 +227,8 @@ export const adminReportRoutes: FastifyPluginAsync = async (app) => {
         });
       } catch (err) {
         const e = err as { statusCode?: number; message?: string };
-        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
+        const status = e.statusCode ?? 500;
+        return reply.code(status).send({ error: e.message ?? ErrorCodes.INTERNAL_ERROR });
       }
     },
   );

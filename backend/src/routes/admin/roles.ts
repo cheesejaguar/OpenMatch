@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 
 const createAdminSchema = z.object({
   email: z.string().email(),
@@ -67,7 +69,7 @@ export const adminRoleRoutes: FastifyPluginAsync = async (app) => {
       const existing = await app.prisma.adminUser.findUnique({
         where: { email: body.email.toLowerCase() },
       });
-      if (existing) return reply.code(409).send({ error: "already_exists" });
+      if (existing) return sendHttpError(reply, httpError(ErrorCodes.ALREADY_EXISTS));
       const roles = await app.prisma.adminRole.findMany({
         where: { name: { in: body.roleNames } },
       });
@@ -114,7 +116,7 @@ export const adminRoleRoutes: FastifyPluginAsync = async (app) => {
         });
         const willRemoveSysAdmin = !body.roleNames.includes("system_admin");
         if (willRemoveSysAdmin && remainingAdminCount === 0) {
-          return reply.code(409).send({ error: "would_lock_out_system_admin" });
+          return sendHttpError(reply, httpError(ErrorCodes.WOULD_LOCK_OUT_SYSTEM_ADMIN));
         }
       }
       const roles = await app.prisma.adminRole.findMany({

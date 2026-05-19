@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 import { acknowledgeNotice, decideNotice } from "../../services/dsa.service.js";
 
 // Admin operator actions on DSA Art. 16 notices. Two state transitions
@@ -73,7 +75,7 @@ export const adminDsaRoutes: FastifyPluginAsync = async (app) => {
       where: { id: req.params.id },
       select: { id: true, acknowledgedAt: true },
     });
-    if (!existing) return reply.code(404).send({ error: "not_found" });
+    if (!existing) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     if (existing.acknowledgedAt) {
       return reply.send({ id: existing.id, acknowledgedAt: existing.acknowledgedAt });
     }
@@ -97,7 +99,7 @@ export const adminDsaRoutes: FastifyPluginAsync = async (app) => {
       where: { id: req.params.id },
       select: { id: true },
     });
-    if (!existing) return reply.code(404).send({ error: "not_found" });
+    if (!existing) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     const updated = await decideNotice(
       app.prisma,
       req.params.id,

@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../env.js";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError } from "../lib/http-error.js";
 import { runPushRetryOnce } from "../services/push.service.js";
 import { runAlertCheckOnce } from "../workers/alerter.js";
 import { runDailyDigestOnce } from "../workers/daily-digest.js";
@@ -19,7 +21,8 @@ import { runDsaSlaCheckOnce } from "../workers/dsa-sla.js";
 function checkBearer(req: FastifyRequest, reply: FastifyReply): boolean {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
-    void reply.code(401).send({ error: "unauthorized" });
+    const err = httpError(ErrorCodes.UNAUTHORIZED);
+    void reply.code(err.statusCode).send(err.body);
     return false;
   }
   const token = header.slice("Bearer ".length).trim();
@@ -28,7 +31,8 @@ function checkBearer(req: FastifyRequest, reply: FastifyReply): boolean {
   // against a real production secret. We still avoid a vanilla `===`
   // on raw strings via a length check + char-by-char xor.
   if (!constantTimeEqual(token, env.INTERNAL_WORKER_TOKEN)) {
-    void reply.code(401).send({ error: "unauthorized" });
+    const err = httpError(ErrorCodes.UNAUTHORIZED);
+    void reply.code(err.statusCode).send(err.body);
     return false;
   }
   return true;

@@ -1,4 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 import { ably, conversationChannel } from "../lib/realtime.js";
 
 // Issues a short-lived Ably token request scoped to the user's conversation
@@ -11,7 +13,7 @@ export const realtimeRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/token", async (_req, reply) => {
     if (!ably) {
-      return reply.code(503).send({ error: "realtime_unconfigured" });
+      return sendHttpError(reply, httpError(ErrorCodes.REALTIME_UNCONFIGURED));
     }
     const userId = (_req as { userId?: string }).userId!;
 

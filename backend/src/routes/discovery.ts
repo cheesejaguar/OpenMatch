@@ -2,17 +2,27 @@ import { randomUUID } from "node:crypto";
 import { currentConfig, explain } from "@openmatch/matching";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 import { formatDistance, haversineKm } from "../lib/location.js";
 import { buildDeck } from "../services/discovery.service.js";
+
+// Zod-validated deck querystring. Replaces a hand-rolled
+// `Number.parseInt(req.query.limit ?? "10")` so the handler gets a
+// typed `limit: number` and bad input now surfaces as a 400 with
+// `error: "validation_failed"` instead of silently coercing to 10.
+const deckQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
 
 export const discoveryRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  app.get<{ Querystring: { limit?: string } }>(
+  app.get(
     "/deck",
     { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
     async (req, reply) => {
-      const limit = Math.min(Math.max(Number.parseInt(req.query.limit ?? "10", 10) || 10, 1), 50);
+      const { limit } = deckQuerySchema.parse(req.query);
       const deckSessionId = randomUUID();
       try {
         const deck = await buildDeck({
@@ -78,9 +88,13 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
           }),
         });
       } catch (err) {
+        // Discovery service throws { statusCode: 400, message: "<code>" }
+        // for the viewer-not-ready / no-location cases. Forward the code
+        // verbatim so iOS branches on viewer_has_no_location vs
+        // viewer_not_initialized.
         const e = err as { statusCode?: number; message?: string };
         if (e.statusCode === 400) {
-          return reply.code(400).send({ error: e.message });
+          return reply.code(400).send({ error: e.message ?? ErrorCodes.INVALID_REQUEST });
         }
         throw err;
       }
@@ -94,13 +108,13 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
     const candidate = await app.prisma.profile.findUnique({
       where: { id: req.params.profileId },
     });
-    if (!candidate) return reply.code(404).send({ error: "not_found" });
+    if (!candidate) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     const viewer = await app.prisma.user.findUnique({
       where: { id: req.userId! },
       include: { profile: true, preferences: true },
     });
     if (!viewer || !viewer.profile || !viewer.preferences) {
-      return reply.code(400).send({ error: "viewer_not_initialized" });
+      return sendHttpError(reply, httpError(ErrorCodes.VIEWER_NOT_INITIALIZED));
     }
     // Use the matching package's explain() with a minimal hydrated pair.
     // Distance & activity bucket are computed from raw rows.
@@ -115,7 +129,7 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
     const vLoc = vLocRows[0];
     const cLoc = cLocRows[0];
     if (!vLoc || !cLoc) {
-      return reply.code(400).send({ error: "missing_location" });
+      return sendHttpError(reply, httpError(ErrorCodes.MISSING_LOCATION));
     }
     const vLat = vLoc.lat;
     const vLng = vLoc.lng;

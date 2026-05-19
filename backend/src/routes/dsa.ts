@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 import { openNotice } from "../services/dsa.service.js";
 
 // DSA notice-and-action intake — also fulfils:
@@ -148,7 +150,7 @@ export const dsaRoutes: FastifyPluginAsync = async (app) => {
           reporterUserId: true,
         },
       });
-      if (!ticket) return reply.code(404).send({ error: "not_found" });
+      if (!ticket) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
 
       let authorised = false;
       try {
@@ -171,7 +173,7 @@ export const dsaRoutes: FastifyPluginAsync = async (app) => {
 
       if (!authorised) {
         // Same response as an unknown ticket — no existence confirmation.
-        return reply.code(404).send({ error: "not_found" });
+        return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       }
 
       // Authorised — return the full record minus internal identifiers.

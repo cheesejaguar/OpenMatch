@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 
 // MetroBoundary CRUD for the beta geo-fence. The plugin
 // `metro-gate.ts` consumes this table at request time.
@@ -55,7 +57,7 @@ export const adminMetrosRoutes: FastifyPluginAsync = async (app) => {
     const body = patchSchema.parse(req.body);
     const principal = req.admin!;
     const existing = await app.prisma.metroBoundary.findUnique({ where: { id: req.params.id } });
-    if (!existing) return reply.code(404).send({ error: "not_found" });
+    if (!existing) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     const row = await app.prisma.metroBoundary.update({
       where: { id: req.params.id },
       data: {

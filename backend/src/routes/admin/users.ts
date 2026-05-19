@@ -7,6 +7,8 @@ import {
 } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
 import { permsFrom, serializePhoto } from "../../lib/admin/serialize.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 import {
   applyBan,
   applyUnban,
@@ -85,7 +87,7 @@ export const adminUserRoutes: FastifyPluginAsync = async (app) => {
       const principal = req.admin!;
       const perms = permsFrom(principal.permissions);
       const detail = await getUserDetail(app.prisma, req.params.userId, perms);
-      if (!detail) return reply.code(404).send({ error: "not_found" });
+      if (!detail) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       await writeAudit(
         app.prisma,
         auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
@@ -109,7 +111,7 @@ export const adminUserRoutes: FastifyPluginAsync = async (app) => {
         where: { userId: req.params.userId },
         include: { photos: { orderBy: { sortOrder: "asc" } } },
       });
-      if (!profile) return reply.code(404).send({ error: "not_found" });
+      if (!profile) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       // Photos URLs are already CDN-served in this codebase. A future
       // hardening pass will mint short-lived signed URLs here.
       const dto = profile.photos.map((p) => serializePhoto(p, p.cdnUrl));
@@ -180,7 +182,7 @@ export const adminUserRoutes: FastifyPluginAsync = async (app) => {
       ? PERMISSIONS.USER_BAN_PERMANENT
       : PERMISSIONS.USER_BAN_TEMPORARY;
     if (!principal.permissions.includes(required)) {
-      return reply.code(403).send({ error: "forbidden", required });
+      return sendHttpError(reply, httpError(ErrorCodes.FORBIDDEN, { details: { required } }));
     }
     const expiresAt =
       body.type === "temporary" && body.durationDays
@@ -220,8 +222,12 @@ export const adminUserRoutes: FastifyPluginAsync = async (app) => {
         expiresAt: ban.expiresAt?.toISOString() ?? null,
       });
     } catch (err) {
+      // admin/users.service throws { statusCode: 4xx, message: "<code>" }
+      // (e.g. "no_active_ban"). Preserve the code; only collapse to
+      // internal_error for genuine 5xx.
       const e = err as { statusCode?: number; message?: string };
-      return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
+      const status = e.statusCode ?? 500;
+      return reply.code(status).send({ error: e.message ?? ErrorCodes.INTERNAL_ERROR });
     }
   });
 

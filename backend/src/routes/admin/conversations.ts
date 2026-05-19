@@ -7,6 +7,8 @@ import {
   createAccessGrant,
   requireAccessGrant,
 } from "../../lib/admin/sensitive-access.js";
+import { type ErrorCode, ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 
 const accessGrantSchema = z.object({
   entityType: z.enum(["conversation", "photo", "user", "profile", "message"]),
@@ -84,7 +86,7 @@ export const adminConversationRoutes: FastifyPluginAsync = async (app) => {
           },
         },
       });
-      if (!convo) return reply.code(404).send({ error: "not_found" });
+      if (!convo) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       await writeAudit(
         app.prisma,
         auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
@@ -162,14 +164,19 @@ export const adminConversationRoutes: FastifyPluginAsync = async (app) => {
         });
       } catch (err) {
         if (err instanceof AccessReasonRequiredError) {
-          return reply.code(412).send({
-            error: err.code,
-            entityType: err.entityType,
-            entityId: err.entityId,
-          });
+          // err.code is the literal "access_reason_required" string from
+          // lib/admin/sensitive-access.ts; route through the registry so
+          // the type stays narrow.
+          return sendHttpError(
+            reply,
+            httpError(err.code as ErrorCode, {
+              details: { entityType: err.entityType, entityId: err.entityId },
+            }),
+          );
         }
         const e = err as { statusCode?: number; message?: string };
-        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
+        const status = e.statusCode ?? 500;
+        return reply.code(status).send({ error: e.message ?? ErrorCodes.INTERNAL_ERROR });
       }
     },
   );

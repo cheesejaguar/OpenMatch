@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 
 const listSchema = z.object({
   status: z.enum(["open", "resolved", "all"]).default("open"),
@@ -54,7 +56,7 @@ export const adminFeedbackRoutes: FastifyPluginAsync = async (app) => {
     async (req, reply) => {
       const principal = req.admin!;
       const existing = await app.prisma.betaFeedback.findUnique({ where: { id: req.params.id } });
-      if (!existing) return reply.code(404).send({ error: "not_found" });
+      if (!existing) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       if (existing.resolvedAt) {
         return reply.send({
           id: existing.id,
