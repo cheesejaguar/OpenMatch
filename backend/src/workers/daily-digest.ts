@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { env } from "../env.js";
+import { requestContext } from "../lib/request-context.js";
 
 // MON-1 — Daily success-digest email worker.
 //
@@ -151,6 +152,16 @@ export async function runDailyDigestOnce(
     transport?: nodemailer.Transporter;
     asOf?: Date;
   } = {},
+): Promise<DailyDigestRunReport> {
+  return requestContext.workerRun("daily-digest", () => runDailyDigestInner(prisma, opts));
+}
+
+async function runDailyDigestInner(
+  prisma: PrismaClient,
+  opts: {
+    transport?: nodemailer.Transporter;
+    asOf?: Date;
+  },
 ): Promise<DailyDigestRunReport> {
   const startedAt = Date.now();
   const digest = await buildDailyDigest(prisma, opts.asOf);

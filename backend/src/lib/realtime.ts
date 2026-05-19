@@ -1,5 +1,6 @@
 import Ably from "ably";
 import { env } from "../env.js";
+import { withSpan } from "./spans.js";
 
 // Ably is OpenMatch's managed realtime fan-out for chat. The REST client is
 // used server-side to publish messages and mint capability-scoped tokens
@@ -26,11 +27,13 @@ export function conversationChannel(conversationId: string): string {
 }
 
 export async function publishMessage(conversationId: string, payload: unknown): Promise<void> {
-  if (!ably) return;
-  try {
-    await ably.channels.get(conversationChannel(conversationId)).publish("message", payload);
-  } catch {
-    // Realtime fan-out is best-effort; the message is already persisted in
-    // the DB and clients will fetch it on reconnect / next poll.
-  }
+  return withSpan("realtime.publishMessage", "realtime.publishMessage", async () => {
+    if (!ably) return;
+    try {
+      await ably.channels.get(conversationChannel(conversationId)).publish("message", payload);
+    } catch {
+      // Realtime fan-out is best-effort; the message is already persisted in
+      // the DB and clients will fetch it on reconnect / next poll.
+    }
+  });
 }

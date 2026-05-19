@@ -9,6 +9,7 @@ import type {
 import { currentConfig, getDiscoveryDeck } from "@openmatch/matching";
 import type { PrismaClient } from "@prisma/client";
 import { haversineKm } from "../lib/location.js";
+import { withSpan } from "../lib/spans.js";
 
 const ACTIVITY_BUCKETS: Array<{ maxHours: number; bucket: ActivityBucket }> = [
   { maxHours: 24, bucket: "within24h" },
@@ -95,6 +96,10 @@ export interface BuildDeckInput {
 }
 
 export async function buildDeck(input: BuildDeckInput) {
+  return withSpan("discovery.buildDeck", "discovery.buildDeck", () => buildDeckInner(input));
+}
+
+async function buildDeckInner(input: BuildDeckInput) {
   const now = input.now ?? new Date();
   const viewerUser = await input.prisma.user.findUnique({
     where: { id: input.viewerUserId },

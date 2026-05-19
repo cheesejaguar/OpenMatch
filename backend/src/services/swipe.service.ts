@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { withSpan } from "../lib/spans.js";
 import { tryDispatchPush } from "./push.service.js";
 
 const UNDO_WINDOW_MS = 5 * 60 * 1000;
@@ -26,6 +27,13 @@ export interface RecordSwipeResult {
 }
 
 export async function recordSwipe(
+  prisma: PrismaClient,
+  input: RecordSwipeInput,
+): Promise<RecordSwipeResult> {
+  return withSpan("swipe.recordSwipe", "swipe.recordSwipe", () => recordSwipeInner(prisma, input));
+}
+
+async function recordSwipeInner(
   prisma: PrismaClient,
   input: RecordSwipeInput,
 ): Promise<RecordSwipeResult> {

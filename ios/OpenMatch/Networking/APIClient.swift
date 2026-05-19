@@ -1,5 +1,29 @@
 import Foundation
 import UIKit
+#if canImport(Sentry)
+import Sentry
+#endif
+
+// Round D — iOS network observability.
+//
+// Every outbound HTTP request is wrapped in a Sentry performance span
+// keyed by HTTP path so the Sentry SDK can attribute backend latency
+// to the calling iOS screen. Transport errors (DNS, connection refused,
+// TLS) and 5xx responses additionally feed `Crash.capture(...)` so
+// they show up as Sentry events even when the user retries before the
+// app crashes. 4xx errors stay silent — they're expected user-facing
+// errors (invalid invite code, rate limit, etc.).
+
+@inline(__always)
+private func omRunWithHTTPSpan<T>(_ path: String, _ work: () async throws -> T) async rethrows -> T {
+    #if canImport(Sentry)
+    let span = SentrySDK.startTransaction(name: path, operation: "http.client")
+    defer { span.finish() }
+    return try await work()
+    #else
+    return try await work()
+    #endif
+}
 
 enum APIError: Error, LocalizedError {
     case notAuthenticated
@@ -369,8 +393,10 @@ final class APIClient: ObservableObject {
     private struct RefreshRequest: Codable { let refreshToken: String }
 
     private func get<T: Decodable>(_ path: String) async throws -> T {
-        let nilBody: EmptyBody? = nil
-        return try await request(path: path, method: "GET", body: nilBody)
+        try await omRunWithHTTPSpan(path) {
+            let nilBody: EmptyBody? = nil
+            return try await request(path: path, method: "GET", body: nilBody)
+        }
     }
 
     // Raw GET that returns the response body as Data without decoding.
@@ -397,20 +423,28 @@ final class APIClient: ObservableObject {
     }
 
     private func post<B: Encodable, T: Decodable>(_ path: String, body: B) async throws -> T {
-        try await request(path: path, method: "POST", body: body)
+        try await omRunWithHTTPSpan(path) {
+            try await request(path: path, method: "POST", body: body)
+        }
     }
 
     private func patch<B: Encodable, T: Decodable>(_ path: String, body: B) async throws -> T {
-        try await request(path: path, method: "PATCH", body: body)
+        try await omRunWithHTTPSpan(path) {
+            try await request(path: path, method: "PATCH", body: body)
+        }
     }
 
     private func put<B: Encodable, T: Decodable>(_ path: String, body: B) async throws -> T {
-        try await request(path: path, method: "PUT", body: body)
+        try await omRunWithHTTPSpan(path) {
+            try await request(path: path, method: "PUT", body: body)
+        }
     }
 
     private func delete<T: Decodable>(_ path: String) async throws -> T {
-        let nilBody: EmptyBody? = nil
-        return try await request(path: path, method: "DELETE", body: nilBody)
+        try await omRunWithHTTPSpan(path) {
+            let nilBody: EmptyBody? = nil
+            return try await request(path: path, method: "DELETE", body: nilBody)
+        }
     }
 
     // Multipart/form-data upload. Hand-rolled because @fastify/multipart
@@ -423,6 +457,26 @@ final class APIClient: ObservableObject {
         mimeType: String,
         data: Data,
         isRetry: Bool = false
+    ) async throws -> T {
+        try await omRunWithHTTPSpan(path) {
+            try await uploadMultipartInner(
+                path,
+                fileFieldName: fileFieldName,
+                filename: filename,
+                mimeType: mimeType,
+                data: data,
+                isRetry: isRetry
+            )
+        }
+    }
+
+    private func uploadMultipartInner<T: Decodable>(
+        _ path: String,
+        fileFieldName: String,
+        filename: String,
+        mimeType: String,
+        data: Data,
+        isRetry: Bool
     ) async throws -> T {
         guard let url = URL(string: path, relativeTo: baseURL) else {
             throw APIError.transport(URLError(.badURL))
@@ -455,6 +509,10 @@ final class APIClient: ObservableObject {
         } catch let err as APIError {
             throw err
         } catch {
+            // Round D — transport-level failures (DNS, TLS, refused
+            // connection) feed Sentry so an outage shows up before
+            // the user opens a bug report.
+            Crash.capture(error)
             throw APIError.transport(error)
         }
 
@@ -475,7 +533,11 @@ final class APIClient: ObservableObject {
         }
         guard (200..<300).contains(http.statusCode) else {
             let msg = String(data: respData, encoding: .utf8)
-            throw APIError.http(http.statusCode, msg)
+            let err = APIError.http(http.statusCode, msg)
+            // Round D — 5xx is a real server fault worth a Sentry event;
+            // 4xx is expected user-facing flow (rate limit, invalid invite).
+            if http.statusCode >= 500 { Crash.capture(err) }
+            throw err
         }
         do {
             return try decoder.decode(T.self, from: respData)
@@ -514,6 +576,8 @@ final class APIClient: ObservableObject {
         } catch let err as APIError {
             throw err
         } catch {
+            // Round D — see uploadMultipart for the rationale.
+            Crash.capture(error)
             throw APIError.transport(error)
         }
 
@@ -536,7 +600,9 @@ final class APIClient: ObservableObject {
         }
         guard (200..<300).contains(http.statusCode) else {
             let msg = String(data: data, encoding: .utf8)
-            throw APIError.http(http.statusCode, msg)
+            let err = APIError.http(http.statusCode, msg)
+            if http.statusCode >= 500 { Crash.capture(err) }
+            throw err
         }
         do {
             return try decoder.decode(T.self, from: data)
