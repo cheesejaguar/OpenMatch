@@ -2,8 +2,10 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import sensible from "@fastify/sensible";
 import swagger from "@fastify/swagger";
+import * as Sentry from "@sentry/node";
 import Fastify from "fastify";
 import { env } from "./env.js";
+import { initSentry, sentryFastifyErrorHook, sentryUserHook } from "./lib/sentry.js";
 import adminAuthPlugin from "./plugins/admin-auth.js";
 import adminRbacPlugin from "./plugins/admin-rbac.js";
 import authPlugin from "./plugins/auth.js";
@@ -29,6 +31,7 @@ import { adminReportRoutes } from "./routes/admin/reports.js";
 import { adminRoleRoutes } from "./routes/admin/roles.js";
 import { adminTotpRoutes } from "./routes/admin/totp.js";
 import { adminUserRoutes } from "./routes/admin/users.js";
+import { adminWaitlistRoutes } from "./routes/admin/waitlist.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { authRoutes } from "./routes/auth.js";
 import { chatRoutes } from "./routes/chat.js";
@@ -48,6 +51,11 @@ import { realtimeRoutes } from "./routes/realtime.js";
 import { safetyRoutes } from "./routes/safety.js";
 import { swipesRoutes } from "./routes/swipes.js";
 import { transparencyRoutes } from "./routes/transparency.js";
+import { waitlistRoutes } from "./routes/waitlist.js";
+
+// OPS-3 — initialise Sentry at module load (before any route handler can
+// throw). When SENTRY_DSN is absent this is a no-op.
+initSentry();
 
 export async function buildServer() {
   const app = Fastify({
@@ -108,7 +116,25 @@ export async function buildServer() {
   await app.register(flagsPlugin);
   await app.register(metroGatePlugin);
 
-  app.get("/health", async () => ({ ok: true }));
+  // OPS-3: tag every authenticated request with its userId for Sentry.
+  // Runs after the per-route preHandler that populates req.userId.
+  app.addHook("preHandler", sentryUserHook);
+
+  // PERF-1: /health stays the cheap liveness probe but also reports the
+  // current Postgres pool usage so an external monitor can graph it.
+  app.get("/health", async () => {
+    const out: { ok: true; pool?: { activeConnections: number } } = { ok: true };
+    try {
+      const rows = await app.prisma.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT count(*)::bigint AS count FROM pg_stat_activity WHERE usename = current_user`,
+      );
+      const n = rows[0]?.count;
+      if (n !== undefined) out.pool = { activeConnections: Number(n) };
+    } catch {
+      // managed Postgres may forbid pg_stat_activity reads — ignore.
+    }
+    return out;
+  });
   await app.register(healthRoutes);
 
   await app.register(internalRoutes, { prefix: "/api/v1/internal" });
@@ -129,6 +155,7 @@ export async function buildServer() {
   await app.register(transparencyRoutes, { prefix: "/api/v1/transparency" });
   await app.register(privacyRoutes, { prefix: "/api/v1/privacy" });
   await app.register(dsaRoutes, { prefix: "/api/v1/dsa" });
+  await app.register(waitlistRoutes, { prefix: "/api/v1/waitlist" });
 
   await app.register(adminAuthRoutes, { prefix: "/api/v1/admin/auth" });
   await app.register(adminTotpRoutes, { prefix: "/api/v1/admin/auth/totp" });
@@ -146,11 +173,20 @@ export async function buildServer() {
   await app.register(adminAnalyticsRoutes, { prefix: "/api/v1/admin/analytics" });
   await app.register(adminGeographyRoutes, { prefix: "/api/v1/admin/geography" });
   await app.register(adminDsaRoutes, { prefix: "/api/v1/admin/dsa-notices" });
+  await app.register(adminWaitlistRoutes, { prefix: "/api/v1/admin/waitlist" });
 
-  app.setErrorHandler((err, _req, reply) => {
+  app.setErrorHandler((err, req, reply) => {
     const e = err as { statusCode?: number; message?: string };
+    const status = e.statusCode ?? 500;
     app.log.error({ err }, "request_failed");
-    reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
+    // OPS-3: ship 5xx errors to Sentry with the userId tagged.
+    if (status >= 500) sentryFastifyErrorHook(req, err);
+    reply.code(status).send({ error: e.message ?? "internal_error" });
+  });
+
+  app.addHook("onClose", async () => {
+    // OPS-3: drain pending Sentry events on graceful shutdown.
+    await Sentry.flush(2000).catch(() => undefined);
   });
 
   return app;

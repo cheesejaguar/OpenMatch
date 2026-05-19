@@ -1,5 +1,8 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../env.js";
+import { runPushRetryOnce } from "../services/push.service.js";
+import { runAlertCheckOnce } from "../workers/alerter.js";
+import { runDailyDigestOnce } from "../workers/daily-digest.js";
 import { runDeletionPurgeOnce } from "../workers/deletion.js";
 import { runDsaSlaCheckOnce } from "../workers/dsa-sla.js";
 
@@ -72,6 +75,58 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
         durationMs: report.durationMs,
       },
       "dsa_sla_check_run",
+    );
+    return reply.send(report);
+  });
+
+  // OPS-1: APNs delivery retry. Picks up the last 60s of failures and
+  // gives them one more attempt.
+  app.post("/run-push-retry", { config: { rateLimit } }, async (req, reply) => {
+    if (!checkBearer(req, reply)) return;
+    const report = await runPushRetryOnce(app.prisma);
+    app.log.info(
+      {
+        event: "internal.push_retry",
+        retried: report.retried,
+        succeeded: report.succeeded,
+        failed: report.failed,
+        durationMs: report.durationMs,
+      },
+      "push_retry_run",
+    );
+    return reply.send(report);
+  });
+
+  // MON-1: daily success digest. Builds the snapshot and (when SMTP is
+  // configured) emails the admin allowlist.
+  app.post("/run-daily-digest", { config: { rateLimit } }, async (req, reply) => {
+    if (!checkBearer(req, reply)) return;
+    const report = await runDailyDigestOnce(app.prisma);
+    app.log.info(
+      {
+        event: "internal.daily_digest",
+        emailed: report.emailed,
+        recipients: report.recipients,
+        durationMs: report.durationMs,
+      },
+      "daily_digest_run",
+    );
+    return reply.send(report);
+  });
+
+  // MON-2: on-call alerter. Evaluates the alert conditions and posts
+  // any newly-firing ones to Slack (when SLACK_WEBHOOK_URL is set).
+  app.post("/run-alert-check", { config: { rateLimit } }, async (req, reply) => {
+    if (!checkBearer(req, reply)) return;
+    const report = await runAlertCheckOnce(app.prisma);
+    app.log.info(
+      {
+        event: "internal.alert_check",
+        fired: report.fired,
+        suppressed: report.suppressed,
+        durationMs: report.durationMs,
+      },
+      "alert_check_run",
     );
     return reply.send(report);
   });

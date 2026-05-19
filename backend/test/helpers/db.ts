@@ -46,6 +46,9 @@ const TABLES = [
   "AlgorithmAuditRecord",
   "FeatureFlag",
   "MetroBoundary",
+  "PushDeliveryLog",
+  "AlertFired",
+  "WaitlistEntry",
 ];
 
 export async function resetDb(): Promise<void> {

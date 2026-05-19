@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import fp from "fastify-plugin";
 import ws from "ws";
 import { env } from "../env.js";
+import { ensureConnectionLimit } from "../lib/db-url.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -27,9 +28,11 @@ function buildClient(): PrismaClient {
   // protocol and connections hang. Use adapter-pg in those environments —
   // production still uses Neon.
   const useNeonAdapter = env.NODE_ENV === "production" || /\.neon\.tech\b/.test(env.DATABASE_URL);
-  const adapter = useNeonAdapter
-    ? new PrismaNeon({ connectionString: env.DATABASE_URL })
-    : new PrismaPg(env.DATABASE_URL);
+  // PERF-1: append connection_limit=20 if the operator didn't set one.
+  // Bounds the per-instance pool so we don't exhaust Neon's connection
+  // ceiling under Fluid Compute's many-instance concurrency.
+  const url = ensureConnectionLimit(env.DATABASE_URL);
+  const adapter = useNeonAdapter ? new PrismaNeon({ connectionString: url }) : new PrismaPg(url);
   return new PrismaClient({ adapter });
 }
 

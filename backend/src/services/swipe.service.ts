@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { tryDispatchPush } from "./push.service.js";
 
 const UNDO_WINDOW_MS = 5 * 60 * 1000;
 
@@ -92,6 +93,9 @@ export async function recordSwipe(
       },
     });
     if (!reciprocal || reciprocal.status === "withdrawn") {
+      // OPS-1: outbound like with no reciprocal → "you have a new like"
+      // push to the target (if their prefs allow it).
+      queueLikePush(prisma, input.targetUserId);
       return { swipeId: swipe.id, matched: false };
     }
     if (input.skipMatch) {
@@ -128,7 +132,42 @@ export async function recordSwipe(
       data: { status: "matched" },
     });
 
+    // OPS-1: fire match-push to both participants. Best-effort —
+    // failures must not roll back the swipe transaction. We dispatch
+    // OUTSIDE the tx body via setImmediate so the tx commit completes
+    // before push lookups run against the (potentially) replicated
+    // read model.
+    queueMatchPush(prisma, input.viewerUserId, input.targetUserId);
+
     return { swipeId: swipe.id, matched: true, matchId: match.id };
+  });
+}
+
+function queueLikePush(prisma: PrismaClient, targetUserId: string): void {
+  setImmediate(() => {
+    tryDispatchPush(prisma, {
+      userId: targetUserId,
+      category: "like",
+      alert: { title: "Someone likes you", body: "Open OpenMatch to see who." },
+      threadId: `likes:${targetUserId}`,
+    });
+  });
+}
+
+function queueMatchPush(prisma: PrismaClient, userA: string, userB: string): void {
+  setImmediate(() => {
+    tryDispatchPush(prisma, {
+      userId: userA,
+      category: "match",
+      alert: { title: "New match", body: "You have a new match on OpenMatch." },
+      threadId: `match:${userB}`,
+    });
+    tryDispatchPush(prisma, {
+      userId: userB,
+      category: "match",
+      alert: { title: "New match", body: "You have a new match on OpenMatch." },
+      threadId: `match:${userA}`,
+    });
   });
 }
 
