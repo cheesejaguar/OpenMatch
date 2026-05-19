@@ -36,16 +36,21 @@
 	<string>development</string>
 	<key>UIAppFonts</key>
 	<array>
+		<string>Fonts/Fraunces9pt-Light.ttf</string>
 		<string>Fonts/Fraunces9pt-Regular.ttf</string>
 		<string>Fonts/Fraunces9pt-Italic.ttf</string>
 		<string>Fonts/Fraunces9pt-SemiBold.ttf</string>
 		<string>Fonts/Fraunces9pt-SemiBoldItalic.ttf</string>
 		<string>Fonts/Fraunces9pt-Bold.ttf</string>
 		<string>Fonts/Fraunces9pt-BoldItalic.ttf</string>
+		<string>Fonts/Fraunces9pt-Black.ttf</string>
+		<string>Fonts/Fraunces9pt-BlackItalic.ttf</string>
+		<string>Fonts/Geist-Light.ttf</string>
 		<string>Fonts/Geist-Regular.ttf</string>
 		<string>Fonts/Geist-Medium.ttf</string>
 		<string>Fonts/Geist-SemiBold.ttf</string>
 		<string>Fonts/Geist-Bold.ttf</string>
+		<string>Fonts/Geist-Black.ttf</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
