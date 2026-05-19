@@ -69,5 +69,13 @@ struct MatchOverlayView: View {
             .shadow(color: .black.opacity(0.30), radius: 36, x: 0, y: 18)
             .padding(24)
         }
+        .onAppear {
+            // IOS-9 — ask for push permission only after the user has
+            // seen the value (their first match). Fire-and-forget.
+            Task {
+                await Analytics.shared.record("match.shown")
+                _ = await PushService.shared.requestAuthorization()
+            }
+        }
     }
 }

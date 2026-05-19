@@ -351,15 +351,16 @@
   </p>
 
   <div class="overall">
-    <div class="gauge" style="--pct: 34; position: relative;">
-      <span class="pct">34%</span>
+    <div class="gauge" style="--pct: 43; position: relative;">
+      <span class="pct">43%</span>
     </div>
     <div>
-      <p class="verdict">🟠 Not ready for public beta — Round 1A backend infra merged</p>
+      <p class="verdict">🟠 Not ready for public beta — Round 1A backend + Round 1B iOS merged</p>
       <p class="meta">
-        <b>Last refreshed</b> 2026-05-18, after Round 1A backend infra merged.<br>
+        <b>Last refreshed</b> 2026-05-18, after Round 1A backend infra + Round 1B iOS launch readiness merged.<br>
         <b>Target metro</b> SF Bay Area · 80 km radius · 100 invite-coded users at launch.<br>
-        <b>Blocking</b> 6 P0 items remain (iOS + admin halves of BETA/OPS, plus push/Sentry/admin health). 7 P1 items still open.<br>
+        <b>Blocking</b> 3 P0 items remain (OPS-1 push delivery, ADMIN-1 health panel, ADMIN-4/5 admin UI). Backend cohort gate + iOS half of P0+P1 are closed.<br>
+
         <b>Go criteria</b> all P0 ✅ · ≥ 80 % of P1 ✅ · backend hot-path coverage ≥ 70 %.
       </p>
     </div>
@@ -370,7 +371,7 @@
 
 <section>
   <h2>Categories</h2>
-  <p class="section-sub">9 categories · 61 tracked items · 21 ✅ today · target is every category ≥ 80 %.</p>
+  <p class="section-sub">9 categories · 61 tracked items · 26 ✅ today · target is every category ≥ 80 %.</p>
   <div class="cats">
     <div class="cat">
       <h4><span class="num">1</span>Operational readiness</h4>
@@ -386,15 +387,15 @@
     </div>
     <div class="cat">
       <h4><span class="num">3</span>Beta cohort management</h4>
-      <div class="cat-pct">40% <span class="total">/ 5 items</span></div>
-      <div class="bar"><span class="med" style="width: 40%"></span></div>
+      <div class="cat-pct">60% <span class="total">/ 5 items</span></div>
+      <div class="bar"><span class="med" style="width: 60%"></span></div>
       <div class="cat-status">🟡 Partial</div>
     </div>
     <div class="cat">
       <h4><span class="num">4</span>iOS user experience</h4>
-      <div class="cat-pct">40% <span class="total">/ 10 items</span></div>
-      <div class="bar"><span class="med" style="width: 40%"></span></div>
-      <div class="cat-status">🟡 Partial</div>
+      <div class="cat-pct">90% <span class="total">/ 10 items</span></div>
+      <div class="bar"><span class="hi" style="width: 90%"></span></div>
+      <div class="cat-status">🟢 On track</div>
     </div>
     <div class="cat">
       <h4><span class="num">5</span>Admin dashboard</h4>
@@ -449,14 +450,14 @@
   <h2>Severity-ordered findings</h2>
   <p class="section-sub">Every P0 must close. ≥ 80 % of P1 must close. P2/P3 acceptable into beta with a written follow-up plan.</p>
 
-  <h3>🔴 P0 — Blockers (6 open)</h3>
+  <h3>🔴 P0 — Blockers (3 open · 1 partial)</h3>
   <table>
     <thead><tr><th>ID</th><th>Item</th><th>Target / DoD</th><th>Cat</th><th>Status</th></tr></thead>
     <tbody>
       <tr><td><span class="id">OPS-1</span></td><td>Push notifications (APNs)</td><td class="target">Backend worker fans match/message → APNs · iOS APNs cert + entitlement</td><td>Ops</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">IOS-1</span></td><td>APNs capability + token registration</td><td class="target">aps-environment entitlement · UIApplicationDelegate registers token · backend endpoint shipped Round 1A</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">IOS-2</span></td><td>Crash reporting</td><td class="target">Sentry SDK in OpenMatchApp.init · DSN via Info.plist · release tagging</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">IOS-3</span></td><td>In-app analytics</td><td class="target">POSTs AnalyticsEvent to backend (endpoint shipped Round 1A) · debounced batching</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
+      <tr><td><span class="id">IOS-1</span></td><td>APNs capability + token registration</td><td class="target">aps-environment entitlement · UIApplicationDelegate registers token · backend endpoint shipped Round 1A</td><td>iOS</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">IOS-2</span></td><td>Crash reporting</td><td class="target">Sentry SDK in OpenMatchApp.init · DSN via Info.plist · release tagging</td><td>iOS</td><td><span class="pill partial">Partial</span></td></tr>
+      <tr><td><span class="id">IOS-3</span></td><td>In-app analytics</td><td class="target">POSTs AnalyticsEvent to backend (endpoint shipped Round 1A) · debounced batching</td><td>iOS</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">ADMIN-1</span></td><td>Health panel</td><td class="target">Backend/Postgres/Redis/Ably tiles · p95 latency · 5xx rate</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">ADMIN-4</span></td><td>Invite-code admin UI</td><td class="target">Generate · list · revoke · funnel (backend shipped Round 1A)</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">ADMIN-5</span></td><td>Feature-flag admin UI</td><td class="target">Flip flags · cohort overrides · history (backend shipped Round 1A)</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
@@ -485,10 +486,10 @@
       <tr><td><span class="id">SAFE-1</span></td><td>Automated CSAM scanning</td><td class="target">PhotoDNA/Safer integration · auto-flag · NCMEC report stub</td><td>Safety</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">SAFE-4</span></td><td>DSA Art. 16 SLA tracking</td><td class="target">Notice.dueAt · 75% alert · weekly widget</td><td>Safety</td><td><span class="pill partial">Partial</span></td></tr>
       <tr><td><span class="id">BETA-3</span></td><td>Waitlist endpoint</td><td class="target">Public rate-limited email capture</td><td>Beta</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">BETA-5</span></td><td>iOS invite-code entry</td><td class="target">Welcome surfaces code entry when gate is on</td><td>Beta</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">IOS-4</span></td><td>In-app feedback</td><td class="target">Settings → Send feedback with device + version</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">IOS-5</span></td><td>Onboarding · photos step</td><td class="target">≥ 2 photos required before swipe deck</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">IOS-6</span></td><td>Profile-completeness gate</td><td class="target">iOS polls completeness · redirects when below</td><td>iOS</td><td><span class="pill partial">Partial</span></td></tr>
+      <tr><td><span class="id">BETA-5</span></td><td>iOS invite-code entry</td><td class="target">Welcome surfaces code entry when gate is on</td><td>Beta</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">IOS-4</span></td><td>In-app feedback</td><td class="target">Settings → Send feedback with device + version</td><td>iOS</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">IOS-5</span></td><td>Onboarding · photos step</td><td class="target">≥ 2 photos required before swipe deck</td><td>iOS</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">IOS-6</span></td><td>Profile-completeness gate</td><td class="target">iOS polls completeness · redirects when below</td><td>iOS</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">IOS-9</span></td><td>Permissions UX polish</td><td class="target">Each permission asked just-in-time with clear rationale</td><td>iOS</td><td><span class="pill partial">Partial</span></td></tr>
       <tr><td><span class="id">ADMIN-2</span></td><td>Funnel + retention analytics</td><td class="target">DAU/WAU · funnel · D1/D7/D30 cohorts</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">ADMIN-3</span></td><td>Geographic insights</td><td class="target">Cohort distribution within metro · neighborhood breakdown</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>

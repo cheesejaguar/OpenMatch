@@ -51,6 +51,13 @@ final class SwipeDeckViewModel: ObservableObject {
     func commit(_ decision: SwipeDecision) async {
         guard let api else { return }
         guard let card = cards.first else { return }
+        await Analytics.shared.record(
+            decision == .like ? "swipe.like" : "swipe.reject",
+            [
+                "cardSessionId": .s(deckSessionId),
+                "algorithmVersion": .s(algorithmVersion),
+            ]
+        )
         let pending = PendingSwipeAction(
             id: UUID(),
             card: card,

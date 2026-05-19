@@ -26,6 +26,19 @@ final class AppState: ObservableObject {
         self.auth = client.hasSession ? .loggedIn(userId: client.cachedUserId ?? "self") : .loggedOut
         if client.hasSession {
             RealtimeService.shared.connect(api: client)
+            Crash.setUser(id: client.cachedUserId)
+        }
+        // Analytics is fire-and-forget; attach now so any pre-login
+        // events (e.g. signup funnel) reach the backend.
+        Task { await Analytics.shared.attach(api: client) }
+
+        // Forward APNs device tokens to the backend whenever they
+        // arrive. We only have one AppState per process, but we
+        // capture weakly to be safe.
+        AppDelegate.shared.onDeviceToken = { [weak self] token in
+            guard let self else { return }
+            guard self.api.hasSession else { return }
+            Task { try? await self.api.registerDeviceToken(token) }
         }
         #if DEBUG
         // UX-review hook: launching with -OPENMATCH_AUTO_LOGIN <userId>
@@ -49,11 +62,13 @@ final class AppState: ObservableObject {
     func didSignIn(userId: String) {
         auth = .loggedIn(userId: userId)
         RealtimeService.shared.connect(api: api)
+        Crash.setUser(id: userId)
     }
 
     func signOut() {
         RealtimeService.shared.disconnect()
         api.clearSession()
+        Crash.setUser(id: nil)
         auth = .loggedOut
     }
 }
