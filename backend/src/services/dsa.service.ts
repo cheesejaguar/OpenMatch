@@ -1,5 +1,12 @@
 import type { NoticeAndActionCategory, NoticeAndActionStatus, PrismaClient } from "@prisma/client";
 
+// DSA Art. 16 SLA windows. Acknowledgement within 24h, decision within
+// 48h — those numbers are the column defaults; the existing per-category
+// `slaDueAt` legacy field continues to track the response-time targets
+// (CSAM 24h / NCII 48h / other 7d).
+const DSA_ACK_SLA_HOURS = 24;
+const DSA_DECISION_SLA_HOURS = 48;
+
 // DSA notice-and-action intake (Art. 16) + statement-of-reasons (Art. 17).
 //
 // Unlike `Report` (user-to-user in-app), this surface is open to any
@@ -48,7 +55,14 @@ export interface OpenNoticeInput {
 }
 
 export async function openNotice(prisma: PrismaClient, input: OpenNoticeInput) {
-  const slaDueAt = new Date(Date.now() + defaultSlaHours(input.category) * 3600 * 1000);
+  const now = new Date();
+  const slaDueAt = new Date(now.getTime() + defaultSlaHours(input.category) * 3600 * 1000);
+  // SAFE-4: every notice carries an ack + decision deadline. These are
+  // independent of the per-category `slaDueAt`: they encode the DSA
+  // procedural promise (acknowledge fast, decide soon after) rather
+  // than the content-specific takedown target.
+  const slaAckDueAt = new Date(now.getTime() + DSA_ACK_SLA_HOURS * 3600 * 1000);
+  const slaDecisionDueAt = new Date(now.getTime() + DSA_DECISION_SLA_HOURS * 3600 * 1000);
   return prisma.noticeAndActionReport.create({
     data: {
       category: input.category,
@@ -68,14 +82,55 @@ export async function openNotice(prisma: PrismaClient, input: OpenNoticeInput) {
       jurisdictionClaim: input.jurisdictionClaim ?? null,
       legalBasisClaim: input.legalBasisClaim ?? null,
       slaDueAt,
+      slaAckDueAt,
+      slaDecisionDueAt,
     },
   });
 }
 
-export async function acknowledgeNotice(prisma: PrismaClient, id: string) {
+// Mark a notice as acknowledged. Distinct from `decideNotice`:
+// acknowledgement is "we've seen this and are working on it" and stops
+// the 24h ack-SLA clock; decision is the substantive ruling.
+export async function acknowledgeNotice(
+  prisma: PrismaClient,
+  id: string,
+  adminUserId?: string | null,
+) {
   return prisma.noticeAndActionReport.update({
     where: { id },
-    data: { status: "acknowledged", acknowledgedAt: new Date() },
+    data: {
+      status: "acknowledged",
+      acknowledgedAt: new Date(),
+      acknowledgedByAdminUserId: adminUserId ?? null,
+    },
+  });
+}
+
+export type NoticeDecision = "actioned" | "rejected" | "withdrawn";
+
+export async function decideNotice(
+  prisma: PrismaClient,
+  id: string,
+  adminUserId: string,
+  decision: NoticeDecision,
+) {
+  const now = new Date();
+  const existing = await prisma.noticeAndActionReport.findUnique({
+    where: { id },
+    select: { acknowledgedAt: true },
+  });
+  return prisma.noticeAndActionReport.update({
+    where: { id },
+    data: {
+      status: decision,
+      // If the ack hadn't been recorded yet (operator skipped straight
+      // to a decision), fill it now so the SLA-breach worker doesn't
+      // also flag the ack window.
+      acknowledgedAt: existing?.acknowledgedAt ?? now,
+      respondedAt: now,
+      resolvedAt: now,
+      decidedByAdminUserId: adminUserId,
+    },
   });
 }
 

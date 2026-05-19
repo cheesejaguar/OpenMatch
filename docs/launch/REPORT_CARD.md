@@ -4,9 +4,9 @@
 > as PRs land. This file is the canonical scorecard — the HTML viewer at
 > `docs/launch/index.html` is a rendering of these tables for offline review.
 
-**Last refreshed:** 2026-05-18 (after Round 1A backend infra + Round 1B iOS launch readiness merged)
-**Overall readiness:** 🟠 **43 / 100**
-**Verdict:** **NOT READY** for public beta. Backend cohort gate + iOS half of P0+P1 are closed; admin UI, Sentry DSN, and the remaining backend P1 items still open.
+**Last refreshed:** 2026-05-18 (after Round 2A backend ops merged)
+**Overall readiness:** 🟠 **52 / 100**
+**Verdict:** **NOT READY** for public beta. Backend cohort gate, deletion purge worker, DSA SLA, /ready probe, and admin analytics/health/geography backends are closed; admin UI (Round 2B), Sentry DSN, and the remaining P0 items still open.
 
 ---
 
@@ -42,16 +42,21 @@
 
 | # | Category | Items | Done | Score | Status |
 |---|---|---|---|---|---|
-| 1 | Operational readiness | 8 | 2 | 25 % | 🔴 |
-| 2 | Safety & trust | 7 | 3 | 43 % | 🟡 |
+| 1 | Operational readiness | 8 | 4 | 50 % | 🟡 |
+| 2 | Safety & trust | 7 | 4 | 57 % | 🟡 |
 | 3 | Beta cohort management | 5 | 3 | 60 % | 🟡 |
 | 4 | iOS user experience | 10 | 9 | 90 % | 🟢 |
 | 5 | Admin dashboard | 9 | 2 | 22 % | 🔴 |
 | 6 | Testing & CI | 6 | 2 | 33 % | 🔴 |
-| 7 | Compliance & privacy | 6 | 4 | 67 % | 🟢 |
+| 7 | Compliance & privacy | 6 | 5 | 83 % | 🟢 |
 | 8 | Performance & capacity | 4 | 1 | 25 % | 🔴 |
 | 9 | Post-launch monitoring | 6 | 1 | 17 % | 🔴 |
-| **Total** | | **61** | **26** | **43 %** | 🟠 |
+| **Total** | | **61** | **31** | **52 %** | 🟠 |
+
+> Note: ADMIN-1/2/3 backend halves shipped this round (`/api/v1/admin/health/snapshot`,
+> `/api/v1/admin/analytics/{funnel,retention,timeseries}`, `/api/v1/admin/geography`)
+> but those items still count as ⚠️ overall because the operator-facing UI is
+> Round 2B. They are not yet counted as "done" in the table above.
 
 ---
 
@@ -63,8 +68,8 @@
 | OPS-2 | Feature flags / kill switches | Toggle features, disable signups, lower rate limits without redeploy | `FeatureFlag` table · `app.flags.evaluate(key, ctx)` · admin UI to flip flags · runtime cache w/ 30-s TTL | **P0** | ✅ | shipped Round 1A (backend half — admin UI is ADMIN-5 in Round 2B) |
 | OPS-3 | Crash + error reporting | All backend errors land in Sentry / equivalent within 60 s | Sentry SDK installed in `backend/src/server.ts` · DSN in env · sample-rate config · release tagging · unhandled-rejection capture | **P1** | ❌ | Pino logs locally; no exporter |
 | OPS-4 | Structured request logging | Every request gets a request-id; logs are queryable by user-id / endpoint / status | Fastify request-id plugin · log shipper to Axiom / Datadog / Vercel Logs | **P1** | ⚠️ | Pino is wired; no shipper |
-| OPS-5 | /health & /ready endpoints | Vercel and uptime monitor can probe service health | `/health` returns 200 if process up · `/ready` checks Postgres + Ably + Redis · admin dashboard surfaces both | **P1** | ⚠️ | `/health` returns `{ok:true}` only; no readiness probe |
-| OPS-6 | Metrics endpoint | Admin dashboard can plot p50/p95 latency, request count, error rate | Internal `/api/v1/admin/metrics/timeseries` returning windowed counts · driven from request-log table or Postgres analytics | **P1** | ❌ | only `/overview` aggregate exists |
+| OPS-5 | /health & /ready endpoints | Vercel and uptime monitor can probe service health | `/health` returns 200 if process up · `/ready` checks Postgres + Ably + Redis · admin dashboard surfaces both | **P1** | ✅ | shipped Round 2A: `GET /ready` runs Postgres + Ably + Redis probes (configured-aware), cached 5 s, 503 when any configured dep fails; `GET /api/v1/admin/health/snapshot` returns ready + pool stats + 5-min error rate + queue depths |
+| OPS-6 | Metrics endpoint | Admin dashboard can plot p50/p95 latency, request count, error rate | Internal `/api/v1/admin/metrics/timeseries` returning windowed counts · driven from request-log table or Postgres analytics | **P1** | ✅ | shipped Round 2A: `GET /api/v1/admin/metrics/timeseries?metric=requests\|errors\|p95_latency` (AnalyticsEvent-sourced; p95 returns null until OPS-4 request log lands) |
 | OPS-7 | Cron / scheduled-job health | Visible last-run timestamp + success/failure for every scheduled job | Cron jobs registered in `vercel.ts` · `CronRun` audit table · admin "Cron health" card | **P2** | ❌ | no cron infra yet |
 | OPS-8 | Rollback runbook | Documented one-command rollback for backend and admin | `docs/ops/rollback.md` · `vercel rollback` command tested against a known-bad deploy | **P2** | ❌ | undocumented |
 
@@ -77,7 +82,7 @@
 | SAFE-1 | Automated CSAM scanning | All uploaded photos pass through hash-matching against NCMEC / PhotoDNA before going live | PhotoDNA (or StopNCII / Safer) API integration · hash check on upload · auto-flag + freeze user on match · NCMEC report stub | **P1** | ❌ | manual queue only; `ncmec.service.ts` is a stub waiting on registration |
 | SAFE-2 | Reporting + blocking | Users can report and block; bans cascade through sessions | reporter flow · admin queue · two-way block · session revocation on ban | **P2** | ✅ | shipped in `Workstream B/C` |
 | SAFE-3 | Scam-rule engine | Heuristic detection of payment / off-platform solicitation | `backend/src/services/safety/scam-rules.ts` runs on profile + messages · auto-tags profile · feeds report queue | **P2** | ✅ | shipped Workstream D |
-| SAFE-4 | DSA notice-and-action SLA | Notices acknowledged in ≤ 24 h, decision in ≤ 48 h per EU 2022/2065 | `Notice.dueAt` populated · alert at 75 % time-elapsed · weekly DSA dashboard widget | **P1** | ⚠️ | endpoints exist (`backend/src/routes/dsa.ts`) but no SLA tracking |
+| SAFE-4 | DSA notice-and-action SLA | Notices acknowledged in ≤ 24 h, decision in ≤ 48 h per EU 2022/2065 | `Notice.dueAt` populated · alert at 75 % time-elapsed · weekly DSA dashboard widget | **P1** | ✅ | shipped Round 2A: `slaAckDueAt` + `slaDecisionDueAt` on every notice, `runDsaSlaCheckOnce` worker marks breaches hourly via Vercel cron, `POST /api/v1/admin/dsa-notices/:id/{acknowledge,decide}` with audit rows |
 | SAFE-5 | Underage detection | Users who falsely claim 18+ are caught before/after onboarding | iOS DOB picker (server re-validates) · escalation pipeline using Apple Declared Age Range when available · admin review queue | **P2** | ⚠️ | DOB picker shipped; no escalation |
 | SAFE-6 | Block evasion detection | Banned users can't simply create a new account on the same device / IP | device-fingerprint hashing · IP-similarity heuristic · admin "linked accounts" view | **P2** | ❌ | no signal collected |
 | SAFE-7 | Photo moderation queue UX | Moderators can clear queue with single-keystroke decisions, see history | keyboard shortcuts in admin · prior-decision context · age-of-queue warning | **P3** | ⚠️ | basic queue exists; lacks shortcuts |
@@ -117,9 +122,9 @@
 
 | ID | Item | Goal | Target / DoD | Severity | Status | Notes |
 |---|---|---|---|---|---|---|
-| ADMIN-1 | Health panel | Operator sees real-time service health at a glance | tiles for backend / Postgres / Redis / Ably status · 5xx rate · p95 latency · admin "Health" route | **P0** | ❌ | only safety metrics today |
-| ADMIN-2 | Funnel + retention analytics | Daily DAU / WAU · onboarding funnel · D1/D7/D30 retention · time-to-first-match | new `/analytics` route · cohort-segmentable · downloadable CSV | **P1** | ❌ | nothing today |
-| ADMIN-3 | Geographic insights | Cohort distribution within metro by neighborhood / zip | `/api/v1/admin/geography` aggregates · simple choropleth or table view | **P1** | ❌ | nothing |
+| ADMIN-1 | Health panel | Operator sees real-time service health at a glance | tiles for backend / Postgres / Redis / Ably status · 5xx rate · p95 latency · admin "Health" route | **P0** | ⚠️ | Round 2A: backend `/api/v1/admin/health/snapshot` exposes ready probe + pool usage + error_rate_5m + queue depths. UI is ADMIN-1 in Round 2B. |
+| ADMIN-2 | Funnel + retention analytics | Daily DAU / WAU · onboarding funnel · D1/D7/D30 retention · time-to-first-match | new `/analytics` route · cohort-segmentable · downloadable CSV | **P1** | ⚠️ | Round 2A: backend `/api/v1/admin/analytics/{funnel,retention,timeseries}` cohort-segmentable by `BetaInviteCode.cohortLabel`. UI is ADMIN-2 in Round 2B. |
+| ADMIN-3 | Geographic insights | Cohort distribution within metro by neighborhood / zip | `/api/v1/admin/geography` aggregates · simple choropleth or table view | **P1** | ⚠️ | Round 2A: backend `/api/v1/admin/geography?metro=<slug>` bins active users into 0.05° lat/lng buckets with match counts. UI is ADMIN-3 in Round 2B. |
 | ADMIN-4 | Invite code UI | Admin can generate, list, revoke codes · sees redemption funnel | `/admin/invites` route · bulk generate (with cohort label) · search by code or user | **P0** | ❌ | depends on BETA-1 |
 | ADMIN-5 | Feature flag UI | Admin can flip flags safely, with audit | `/admin/flags` route · enable/disable · per-cohort overrides · history | **P0** | ❌ | depends on OPS-2 |
 | ADMIN-6 | Queue SLA dashboard | Moderators see oldest items, throughput, SLA breaches | `/reports` + `/photos` get SLA columns · oldest-N panel | **P1** | ⚠️ | counts present; ages missing |
@@ -148,8 +153,8 @@
 |---|---|---|---|---|---|---|
 | COMP-1 | Privacy notice + consent capture | User sees + accepts privacy notice + Art. 9 sensitive consent before any signal collection | shipped via Workstream A/C · onboarding records consent rows | **P1** | ✅ | shipped |
 | COMP-2 | DSAR / data export | User can export all their data on demand | `/privacy/export` endpoint produces JSON · iOS Settings → Export | **P1** | ✅ | shipped |
-| COMP-3 | Account deletion grace period | User can delete; data purged after 24 h grace | scheduled · 24 h cancel window · admin can preserve for fraud | **P1** | ⚠️ | endpoint exists; **no purge worker** |
-| COMP-4 | DSA Art. 16 notices | Anyone can submit a notice; we respond per SLA | route + service shipped · UI for status check pending | **P1** | ⚠️ | endpoint exists; SLA tracking missing (SAFE-4) |
+| COMP-3 | Account deletion grace period | User can delete; data purged after 24 h grace | scheduled · 24 h cancel window · admin can preserve for fraud | **P1** | ✅ | shipped Round 2A: `runDeletionPurgeOnce` worker anonymises User + Profile, hard-deletes sessions/swipes/likes/devices/analytics/feedback, retains matches + messages as tombstones; `POST /api/v1/internal/run-deletion-purge` cronned every 15 min |
+| COMP-4 | DSA Art. 16 notices | Anyone can submit a notice; we respond per SLA | route + service shipped · UI for status check pending | **P1** | ✅ | shipped Round 2A — SLA tracking complete (see SAFE-4); status-lookup endpoint already shipped Round 1 |
 | COMP-5 | Country gate (sanctions / unsupported geos) | Sign-ups from OFAC SDN / ILGA-criminalised geos blocked | `country-policy.ts` enforces; quarterly review documented | **P1** | ✅ | shipped Workstream H |
 | COMP-6 | iOS Privacy Manifest | `PrivacyInfo.xcprivacy` declares every required-reason API + tracked data | manifest shipped · audited in CI · App Store privacy answers ready | **P1** | ✅ | shipped Workstream G |
 
@@ -266,4 +271,5 @@ This section tracks every PR that moved a score in the table above.
 | 2026-05-18 | (baseline) | — | 0 → 31 |
 | 2026-05-18 | Round 1A — backend cohort gate | BETA-1 BETA-2 OPS-2 (backend) + per-endpoint rate limits + 3 stub endpoints (/analytics/event, /notifications/device-token, /feedback) | 31 → 34 |
 | 2026-05-18 | Round 1B — iOS launch readiness | IOS-1 ✅ · IOS-2 ⚠️ · IOS-3 ✅ · IOS-4 ✅ · IOS-5 ✅ · IOS-6 ✅ · BETA-5 ✅ | 34 → 43 |
+| 2026-05-18 | Round 2A — backend ops | OPS-5 ✅ · OPS-6 ✅ · SAFE-4 ✅ · COMP-3 ✅ · COMP-4 ✅ · ADMIN-1 ⚠️ (backend) · ADMIN-2 ⚠️ (backend) · ADMIN-3 ⚠️ (backend) | 43 → 52 |
 | | | | |
