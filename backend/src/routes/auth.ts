@@ -1,6 +1,9 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { env } from "../env.js";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 import { verifyAppleIdentityToken } from "../services/apple-auth.service.js";
 import {
   issueSession,
@@ -53,11 +56,11 @@ async function enforceCountryGate(
       "blocked_unsupported_geography",
     );
   }
-  reply.code(451).send({
-    error: "country_not_supported",
-    reason: decision.reason,
-    message: decision.note,
+  const err = httpError(ErrorCodes.COUNTRY_NOT_SUPPORTED, {
+    message: decision.note ?? undefined,
+    details: { reason: decision.reason },
   });
+  reply.code(err.statusCode).send(err.body);
   return false;
 }
 
@@ -85,6 +88,18 @@ const verifySchema = z.object({
 
 const refreshSchema = z.object({ refreshToken: z.string() });
 
+// Round A — DTO contracts for the /refresh response. These mirror the
+// shape `rotateRefreshToken` returns. iOS depends on this exact set of
+// fields; locking it in a Fastify response schema means any future
+// drift fails CI rather than the on-device JSON decoder. `expiresAt`
+// is a JS Date in-memory but JSON-serialises to an ISO string; the
+// Zod `coerce` flag accepts both representations during validation.
+const sessionTokensSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  expiresAt: z.union([z.string(), z.date()]),
+});
+
 // Auth endpoints get tight per-IP rate limits. These exist to slow down
 // credential stuffing and email-enumeration probes; they're additive to
 // the global limit and intentionally lower than the chat-send limit.
@@ -95,6 +110,11 @@ const AUTH_LIMITS = {
 };
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
+  // Round A — opt this scope into Zod request/response schemas. Only
+  // the /refresh route is annotated so far; the other endpoints keep
+  // their existing hand-rolled validation.
+  const r = app.withTypeProvider<ZodTypeProvider>();
+
   app.post("/start", { config: { rateLimit: AUTH_LIMITS.start } }, async (req, reply) => {
     const body = startSchema.parse(req.body);
     if (!(await enforceCountryGate(app, req, reply))) return;
@@ -104,7 +124,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     // exempted, but keeping the rule simple makes the operator's mental
     // model easier.)
     if (await app.flags.evaluate("signups_paused")) {
-      return reply.code(503).send({ error: "signups_paused" });
+      return sendHttpError(reply, httpError(ErrorCodes.SIGNUPS_PAUSED));
     }
 
     // Metro gate: only enforced on the write paths. If iOS sent
@@ -113,19 +133,21 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (body.declaredLocation) {
       const metro = await app.checkMetro(req, { location: body.declaredLocation });
       if (!metro.allow) {
-        return reply.code(451).send({
-          error: "outside_metro",
-          message:
-            "OpenMatch is opening one metro at a time. Join the waitlist to be notified when we expand.",
-          nearestKm: metro.nearestKm,
-        });
+        return sendHttpError(
+          reply,
+          httpError(ErrorCodes.OUTSIDE_METRO, {
+            message:
+              "OpenMatch is opening one metro at a time. Join the waitlist to be notified when we expand.",
+            details: { nearestKm: metro.nearestKm },
+          }),
+        );
       }
     }
 
     const inviteRequired = await app.flags.evaluate("invite_required");
 
     if (body.method === "email") {
-      if (!body.email) return reply.code(400).send({ error: "email_required" });
+      if (!body.email) return sendHttpError(reply, httpError(ErrorCodes.EMAIL_REQUIRED));
       // Email magic-link flow: validation of the invite happens at
       // /verify time (when the User is actually created). We do an
       // early-reject here purely as a UX courtesy so testers don't get
@@ -134,10 +156,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         const normalized = body.inviteCode.trim().toUpperCase();
         const row = await app.prisma.betaInviteCode.findUnique({ where: { code: normalized } });
         if (!row || row.revokedAt || (row.expiresAt && row.expiresAt < new Date())) {
-          return reply.code(400).send({ error: "invite_invalid" });
+          return sendHttpError(reply, httpError(ErrorCodes.INVITE_INVALID));
         }
         if (row.usedCount >= row.maxUses) {
-          return reply.code(409).send({ error: "invite_exhausted" });
+          return sendHttpError(reply, httpError(ErrorCodes.INVITE_EXHAUSTED));
         }
       }
       const result = await startEmailLogin(app.prisma, { email: body.email });
@@ -151,7 +173,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     if (body.method === "apple") {
       if (!body.appleIdentityToken) {
-        return reply.code(400).send({ error: "appleIdentityToken_required" });
+        return sendHttpError(reply, httpError(ErrorCodes.APPLE_IDENTITY_TOKEN_REQUIRED));
       }
       try {
         const identity = await verifyAppleIdentityToken(body.appleIdentityToken);
@@ -164,41 +186,46 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       } catch (err) {
         const e = err as { statusCode?: number; message?: string };
         if (e.statusCode === 501) {
-          return reply.code(501).send({
-            error: "apple_not_configured",
-            message:
-              "Configure APPLE_TEAM_ID, APPLE_CLIENT_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY to enable Sign in with Apple.",
-          });
+          return sendHttpError(
+            reply,
+            httpError(ErrorCodes.APPLE_NOT_CONFIGURED, {
+              message:
+                "Configure APPLE_TEAM_ID, APPLE_CLIENT_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY to enable Sign in with Apple.",
+            }),
+          );
         }
         if (e.statusCode === 400 || e.statusCode === 409) {
-          return reply.code(e.statusCode).send({
-            error: e.message ?? "invite_invalid",
-          });
+          // Service-thrown errors carry their canonical code as `message`.
+          // Preserve them verbatim so iOS can branch on e.g. invite_invalid
+          // vs invite_exhausted vs invite_expired without a parallel mapping.
+          return reply.code(e.statusCode).send({ error: e.message ?? ErrorCodes.INVITE_INVALID });
         }
-        return reply.code(401).send({
-          error: "apple_verification_failed",
-          message: err instanceof Error ? err.message : "invalid_identity_token",
-        });
+        return sendHttpError(
+          reply,
+          httpError(ErrorCodes.APPLE_VERIFICATION_FAILED, {
+            message: err instanceof Error ? err.message : "invalid_identity_token",
+          }),
+        );
       }
     }
 
     if (body.method === "dev") {
       if (!env.ALLOW_DEV_LOGIN) {
-        return reply.code(403).send({ error: "dev_login_disabled" });
+        return sendHttpError(reply, httpError(ErrorCodes.DEV_LOGIN_DISABLED));
       }
       if (!body.devUserId) {
-        return reply.code(400).send({ error: "devUserId_required" });
+        return sendHttpError(reply, httpError(ErrorCodes.DEV_USER_ID_REQUIRED));
       }
       const user = await app.prisma.user.findUnique({
         where: { id: body.devUserId },
       });
-      if (!user) return reply.code(404).send({ error: "user_not_found" });
+      if (!user) return sendHttpError(reply, httpError(ErrorCodes.USER_NOT_FOUND));
       // Dev login resolves to an existing user (returning sign-in), so
       // the new-user invite gate normally wouldn't apply. We still
       // honour an explicit `DEV_LOGIN_BYPASSES_INVITE=false` for tests
       // that want to exercise the gated path end-to-end.
       if (inviteRequired && !env.DEV_LOGIN_BYPASSES_INVITE && !body.inviteCode) {
-        return reply.code(400).send({ error: "invite_code_required" });
+        return sendHttpError(reply, httpError(ErrorCodes.INVITE_CODE_REQUIRED));
       }
       const session = await issueSession(
         app.prisma,
@@ -209,7 +236,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.send({ ...session, userId: user.id, isNewUser: false });
     }
 
-    return reply.code(400).send({ error: "unknown_method" });
+    return sendHttpError(reply, httpError(ErrorCodes.UNKNOWN_METHOD));
   });
 
   app.post("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
@@ -232,7 +259,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     } catch (err) {
       const e = err as { statusCode?: number; message?: string };
       if (e.statusCode === 400 || e.statusCode === 409) {
-        return reply.code(e.statusCode).send({ error: e.message ?? "invalid_request" });
+        return reply.code(e.statusCode).send({ error: e.message ?? ErrorCodes.INVALID_REQUEST });
       }
       throw err;
     }
@@ -259,29 +286,43 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     } catch (err) {
       const e = err as { statusCode?: number; message?: string };
       if (e.statusCode === 400 || e.statusCode === 409) {
-        return reply.code(e.statusCode).send({ error: e.message ?? "invalid_request" });
+        return reply.code(e.statusCode).send({ error: e.message ?? ErrorCodes.INVALID_REQUEST });
       }
       throw err;
     }
   });
 
-  app.post("/refresh", { config: { rateLimit: AUTH_LIMITS.refresh } }, async (req, reply) => {
-    const body = refreshSchema.parse(req.body);
-    const next = await rotateRefreshToken(app.prisma, body.refreshToken, (p) => app.jwt.sign(p), {
-      ...requestContext(req),
-      logReuse: (userId) => {
-        // Security event: a revoked refresh token has been presented.
-        // The service has revoked the entire session family for this
-        // user. Log loudly; downstream alerting may page on this.
-        app.log.warn(
-          { event: "auth.refresh_token_reuse", userId, ip: requestContext(req).ip },
-          "refresh_token_reuse_detected",
-        );
+  r.post(
+    "/refresh",
+    {
+      config: { rateLimit: AUTH_LIMITS.refresh },
+      schema: {
+        body: refreshSchema,
+        response: { 200: sessionTokensSchema },
       },
-    });
-    if (!next) return reply.code(401).send({ error: "invalid_refresh_token" });
-    return reply.send(next);
-  });
+    },
+    async (req, reply) => {
+      const next = await rotateRefreshToken(
+        app.prisma,
+        req.body.refreshToken,
+        (p) => app.jwt.sign(p),
+        {
+          ...requestContext(req),
+          logReuse: (userId) => {
+            // Security event: a revoked refresh token has been presented.
+            // The service has revoked the entire session family for this
+            // user. Log loudly; downstream alerting may page on this.
+            app.log.warn(
+              { event: "auth.refresh_token_reuse", userId, ip: requestContext(req).ip },
+              "refresh_token_reuse_detected",
+            );
+          },
+        },
+      );
+      if (!next) return sendHttpError(reply, httpError(ErrorCodes.INVALID_REFRESH_TOKEN));
+      return reply.send(next);
+    },
+  );
 
   app.post("/logout", async (req, reply) => {
     const body = refreshSchema.parse(req.body);
@@ -304,7 +345,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: app.authenticate },
     async (req, reply) => {
       const result = await revokeUserSession(app.prisma, req.userId!, req.params.sessionId);
-      if (!result.revoked) return reply.code(404).send({ error: "not_found" });
+      if (!result.revoked) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       return reply.code(204).send();
     },
   );

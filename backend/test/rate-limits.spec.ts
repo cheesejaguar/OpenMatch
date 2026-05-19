@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { ErrorCodes } from "../src/lib/error-codes.js";
 import authPlugin from "../src/plugins/auth.js";
 import ratelimitPlugin from "../src/plugins/ratelimit.js";
 import { feedbackRoutes } from "../src/routes/feedback.js";
@@ -57,7 +58,7 @@ describe("per-endpoint rate limits", () => {
       // this codebase the project's custom builder + global error
       // handler can surface it as either 429 or 500 depending on
       // Fastify version — both are equivalent for the gate's purpose.)
-      expect(eleventh.json().error).toBe("rate_limited");
+      expect(eleventh.json().error).toBe(ErrorCodes.RATE_LIMITED);
       expect([429, 500]).toContain(eleventh.statusCode);
     } finally {
       await app.close();

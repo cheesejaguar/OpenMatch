@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 import { buildInviteCode } from "../../lib/invite-codes.js";
 
 // Admin CRUD for beta invite codes. Generates batches at a time, lets
@@ -135,7 +137,7 @@ export const adminInvitesRoutes: FastifyPluginAsync = async (app) => {
     const existing = await app.prisma.betaInviteCode.findUnique({
       where: { id: req.params.id },
     });
-    if (!existing) return reply.code(404).send({ error: "not_found" });
+    if (!existing) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     if (existing.revokedAt) {
       return reply.send({
         id: existing.id,

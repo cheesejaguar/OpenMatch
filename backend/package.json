@@ -39,6 +39,7 @@
     "@vercel/node": "^3.2.0",
     "ably": "^2.3.0",
     "fastify": "^5.8.5",
+    "fastify-type-provider-zod": "^6.1.0",
     "jose": "^6.2.3",
     "nodemailer": "^6.9.13",
     "pino": "^9.5.0",

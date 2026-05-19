@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 
 // Batched analytics event sink. iOS debounces events client-side and
 // posts in batches of up to 50; we persist each one with the user
@@ -31,7 +33,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
       const userId = req.userId;
       if (!userId) {
         // Anonymous events explicitly rejected (see file header).
-        return reply.code(401).send({ error: "unauthorized" });
+        return sendHttpError(reply, httpError(ErrorCodes.UNAUTHORIZED));
       }
       const data = body.events.map((e) => ({
         userId,

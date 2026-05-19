@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 import {
   buildExportBundle,
   cancelAccountDeletion,
@@ -129,12 +131,14 @@ export const privacyRoutes: FastifyPluginAsync = async (app) => {
             { event: "privacy.policy_doc_missing", scope: err.scope },
             "policy_document_missing",
           );
-          return reply.code(503).send({
-            error: "policy_document_missing",
-            scope: err.scope,
-            message:
-              "No effective PolicyDocument is published for this scope. Configure a PolicyDocument before collecting consent.",
-          });
+          return sendHttpError(
+            reply,
+            httpError(ErrorCodes.POLICY_DOCUMENT_MISSING, {
+              message:
+                "No effective PolicyDocument is published for this scope. Configure a PolicyDocument before collecting consent.",
+              details: { scope: err.scope },
+            }),
+          );
         }
         throw err;
       }
@@ -264,8 +268,11 @@ export const privacyRoutes: FastifyPluginAsync = async (app) => {
       );
       return reply.send({ id: cancelled.id, status: cancelled.status });
     } catch (err) {
+      // privacy.service throws { statusCode: 4xx, message: "<code>" }
+      // for no_scheduled_deletion / grace_period_expired.
       const e = err as { statusCode?: number; message?: string };
-      return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
+      const status = e.statusCode ?? 500;
+      return reply.code(status).send({ error: e.message ?? ErrorCodes.INTERNAL_ERROR });
     }
   });
 

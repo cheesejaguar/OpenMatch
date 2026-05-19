@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { currentConfig } from "@openmatch/matching";
 import type { FastifyPluginAsync } from "fastify";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 
 // All transparency routes are public by design (no auth required). The two
 // endpoints that touch the filesystem are rate-limited per IP to bound disk
@@ -53,7 +55,7 @@ export const transparencyRoutes: FastifyPluginAsync = async (app) => {
         reply.header("content-type", "text/markdown");
         return md;
       } catch {
-        return reply.code(404).send({ error: "not_found" });
+        return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       }
     },
   );

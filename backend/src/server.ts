@@ -4,8 +4,12 @@ import sensible from "@fastify/sensible";
 import swagger from "@fastify/swagger";
 import * as Sentry from "@sentry/node";
 import Fastify from "fastify";
+import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import pino from "pino";
+import { ZodError } from "zod";
 import { env } from "./env.js";
+import { ErrorCodes } from "./lib/error-codes.js";
+import { HttpError, httpError, zodErrorToHttp } from "./lib/http-error.js";
 import { requestContext } from "./lib/request-context.js";
 import { initSentry, sentryFastifyErrorHook, sentryUserHook } from "./lib/sentry.js";
 import adminAuthPlugin from "./plugins/admin-auth.js";
@@ -131,6 +135,14 @@ export async function buildServer() {
     done();
   });
 
+  // Round A — wire fastify-type-provider-zod compilers globally so any
+  // route opting in via `.withTypeProvider<ZodTypeProvider>()` gets
+  // Zod-based request validation + response serialisation. Routes that
+  // don't opt in keep Fastify's default JSON-schema validators, so this
+  // is backwards-compatible.
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
+
   await app.register(sensible);
   await app.register(cors, {
     origin: [
@@ -176,6 +188,66 @@ export async function buildServer() {
   // OPS-3: tag every authenticated request with its userId for Sentry.
   // Runs after the per-route preHandler that populates req.userId.
   app.addHook("preHandler", sentryUserHook);
+
+  // Round A — Unified error handler. Every API error response in
+  // OpenMatch flows through here so the body shape is consistent for
+  // iOS + admin. See backend/src/lib/error-codes.ts for the registry
+  // and docs/api/ERRORS.md for the generated reference.
+  //
+  // Registered BEFORE any `app.register(routes, ...)` so it's inherited
+  // by every encapsulated child context. (Fastify error handlers are
+  // resolved against the encapsulation chain at request time; a handler
+  // attached after route registration won't catch throws from those
+  // routes' scopes.)
+  app.setErrorHandler((err, req, reply) => {
+    // Typed errors thrown by route handlers + services. Already have the
+    // canonical body assembled — just emit it.
+    if (err instanceof HttpError) {
+      return reply.code(err.statusCode).send(err.body);
+    }
+    // Zod parse() failures bubble up here when handlers don't catch
+    // them. Translate to validation_failed with a structured fields[]
+    // payload. `instanceof` is unreliable when multiple zod copies are
+    // loaded (vitest pre-bundling), so we also accept a duck-typed
+    // ZodError by name + shape.
+    if (
+      err instanceof ZodError ||
+      ((err as { name?: string }).name === "ZodError" &&
+        Array.isArray((err as { issues?: unknown }).issues))
+    ) {
+      const e = zodErrorToHttp(err as ZodError);
+      return reply.code(e.statusCode).send(e.body);
+    }
+    // Fastify's built-in JSON-schema validation errors (route schemas).
+    if ((err as { validation?: unknown }).validation) {
+      const e = httpError(ErrorCodes.VALIDATION_FAILED, {
+        details: { fields: (err as { validation: unknown }).validation as unknown },
+      });
+      return reply.code(e.statusCode).send(e.body);
+    }
+    // Rate limit hits surface as a Fastify error with statusCode 429.
+    const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+    if (statusCode === 429) {
+      return reply.code(429).send({
+        error: ErrorCodes.RATE_LIMITED,
+        message: "Too many requests",
+      });
+    }
+    // Legacy throws from services that set { statusCode, message: "<code>" }.
+    // Honour them so we don't accidentally upgrade a 4xx to a 500
+    // during the migration. Once every service is converted to
+    // HttpError these branches can be deleted.
+    if (statusCode >= 400 && statusCode < 500) {
+      const message = (err as { message?: string }).message;
+      return reply
+        .code(statusCode)
+        .send({ error: message && message.length > 0 ? message : ErrorCodes.INVALID_REQUEST });
+    }
+    // 5xx — log + Sentry. Body is opaque; details only in Sentry.
+    app.log.error({ err, reqId: req.id }, "request_failed");
+    sentryFastifyErrorHook(req, err);
+    return reply.code(500).send({ error: ErrorCodes.INTERNAL_ERROR });
+  });
 
   // PERF-1: /health stays the cheap liveness probe but also reports the
   // current Postgres pool usage so an external monitor can graph it.
@@ -233,15 +305,6 @@ export async function buildServer() {
   await app.register(adminGeographyRoutes, { prefix: "/api/v1/admin/geography" });
   await app.register(adminDsaRoutes, { prefix: "/api/v1/admin/dsa-notices" });
   await app.register(adminWaitlistRoutes, { prefix: "/api/v1/admin/waitlist" });
-
-  app.setErrorHandler((err, req, reply) => {
-    const e = err as { statusCode?: number; message?: string };
-    const status = e.statusCode ?? 500;
-    app.log.error({ err }, "request_failed");
-    // OPS-3: ship 5xx errors to Sentry with the userId tagged.
-    if (status >= 500) sentryFastifyErrorHook(req, err);
-    reply.code(status).send({ error: e.message ?? "internal_error" });
-  });
 
   app.addHook("onClose", async () => {
     // OPS-3: drain pending Sentry events on graceful shutdown.

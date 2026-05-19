@@ -3,6 +3,8 @@ import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
 import { serializePhoto } from "../../lib/admin/serialize.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 
 const queueSchema = z.object({
   queue: z.enum(["pending", "flagged", "removed", "all"]).default("pending"),
@@ -73,7 +75,7 @@ export const adminPhotoRoutes: FastifyPluginAsync = async (app) => {
     const photo = await app.prisma.profilePhoto.findUnique({
       where: { id: req.params.photoId },
     });
-    if (!photo) return reply.code(404).send({ error: "not_found" });
+    if (!photo) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     const updated = await app.prisma.$transaction(async (tx) => {
       const updated = await tx.profilePhoto.update({
         where: { id: photo.id },

@@ -1,5 +1,7 @@
 import { currentConfig } from "@openmatch/matching";
 import type { FastifyPluginAsync } from "fastify";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 import { listIncomingLikes, rejectIncomingLike } from "../services/likes.service.js";
 import { recordSwipe } from "../services/swipe.service.js";
 
@@ -22,12 +24,12 @@ export const likesRoutes: FastifyPluginAsync = async (app) => {
         where: { id: req.params.likeId },
       });
       if (!like || like.toUserId !== req.userId!) {
-        return reply.code(404).send({ error: "not_found" });
+        return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       }
       const targetProfile = await app.prisma.profile.findUnique({
         where: { userId: like.fromUserId },
       });
-      if (!targetProfile) return reply.code(404).send({ error: "not_found" });
+      if (!targetProfile) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       const result = await recordSwipe(app.prisma, {
         viewerUserId: req.userId!,
         targetUserId: like.fromUserId,
@@ -45,7 +47,7 @@ export const likesRoutes: FastifyPluginAsync = async (app) => {
     { config: { rateLimit: LIKES_LIMIT } },
     async (req, reply) => {
       const result = await rejectIncomingLike(app.prisma, req.params.likeId, req.userId!);
-      if (!result.rejected) return reply.code(404).send({ error: "not_found" });
+      if (!result.rejected) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       return reply.send({ rejected: true });
     },
   );

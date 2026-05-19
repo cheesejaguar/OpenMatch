@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ErrorCodes } from "../lib/error-codes.js";
 import {
   blockUser,
   listBlockedUsers,
@@ -59,8 +60,11 @@ export const safetyRoutes: FastifyPluginAsync = async (app) => {
         );
         return reply.send({ reportId: report.id, status: report.status });
       } catch (err) {
+        // safety.service throws { statusCode, message: "<code>" } for the
+        // self-target / blocked / not-found cases.
         const e = err as { statusCode?: number; message?: string };
-        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
+        const status = e.statusCode ?? 500;
+        return reply.code(status).send({ error: e.message ?? ErrorCodes.INTERNAL_ERROR });
       }
     },
   );
@@ -82,8 +86,11 @@ export const safetyRoutes: FastifyPluginAsync = async (app) => {
         );
         return reply.code(204).send();
       } catch (err) {
+        // safety.service throws { statusCode, message: "<code>" } for the
+        // self-target / blocked / not-found cases.
         const e = err as { statusCode?: number; message?: string };
-        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
+        const status = e.statusCode ?? 500;
+        return reply.code(status).send({ error: e.message ?? ErrorCodes.INTERNAL_ERROR });
       }
     },
   );

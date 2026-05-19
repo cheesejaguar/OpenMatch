@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 import { publishMessage } from "../lib/realtime.js";
 import { listConversations, listMessages, postMessage } from "../services/chat.service.js";
 
@@ -18,7 +20,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
     "/:conversationId/messages",
     async (req, reply) => {
       const result = await listMessages(app.prisma, req.params.conversationId, req.userId!);
-      if (!result) return reply.code(404).send({ error: "not_found" });
+      if (!result) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       return result;
     },
   );
@@ -42,8 +44,13 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         await publishMessage(req.params.conversationId, { type: "message", payload: msg });
         return reply.send(msg);
       } catch (err) {
+        // chat service throws { statusCode: 4xx, message: "<code>" } for
+        // validation-shaped failures (empty/oversize/not_participant).
+        // Preserve the status + code; only fall back to internal_error
+        // on a true unexpected throw.
         const e = err as { statusCode?: number; message?: string };
-        return reply.code(e.statusCode ?? 500).send({ error: e.message ?? "internal_error" });
+        const status = e.statusCode ?? 500;
+        return reply.code(status).send({ error: e.message ?? ErrorCodes.INTERNAL_ERROR });
       }
     },
   );

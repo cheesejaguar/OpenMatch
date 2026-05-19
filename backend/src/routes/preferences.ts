@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ErrorCodes } from "../lib/error-codes.js";
+import { httpError, sendHttpError } from "../lib/http-error.js";
 
 const updatePrefs = z.object({
   minAge: z.number().int().min(18).max(120).optional(),
@@ -36,7 +38,7 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
     const body = updatePrefs.parse(req.body);
     if (body.minAge !== undefined && body.maxAge !== undefined) {
       if (body.minAge > body.maxAge) {
-        return reply.code(400).send({ error: "min_age_above_max" });
+        return sendHttpError(reply, httpError(ErrorCodes.MIN_AGE_ABOVE_MAX));
       }
     }
     const prefs = await app.prisma.preferences.upsert({

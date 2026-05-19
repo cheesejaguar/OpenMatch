@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { writeAudit } from "../../lib/admin/audit.js";
 import { hashForAudit } from "../../lib/admin/hash.js";
+import { ErrorCodes } from "../../lib/error-codes.js";
+import { httpError, sendHttpError } from "../../lib/http-error.js";
 import {
   issueAdminSession,
   revokeAdminSession,
@@ -71,8 +73,11 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
           expiresAt: session.expiresAt.toISOString(),
         });
       } catch (err) {
+        // admin auth.service throws { statusCode, message: "<code>" } for
+        // every validation-shaped failure. Preserve the code verbatim.
         const e = err as { statusCode?: number; message?: string };
-        return reply.code(e.statusCode ?? 400).send({ error: e.message ?? "invalid" });
+        const status = e.statusCode ?? 400;
+        return reply.code(status).send({ error: e.message ?? ErrorCodes.INVALID_REQUEST });
       }
     },
   );
@@ -89,7 +94,7 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
         (id, sid) => app.signAdminAccessToken(id, sid),
         { userAgent: req.headers["user-agent"] ?? null, ipHash },
       );
-      if (!rotated) return reply.code(401).send({ error: "invalid_refresh" });
+      if (!rotated) return sendHttpError(reply, httpError(ErrorCodes.INVALID_REFRESH));
       return reply.send({
         accessToken: rotated.accessToken,
         refreshToken: rotated.refreshToken,
