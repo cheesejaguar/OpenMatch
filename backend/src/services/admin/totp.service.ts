@@ -117,13 +117,28 @@ export function hashRecoveryCode(code: string): string {
 }
 
 function generateRecoveryCode(): string {
-  // 10 chars from a no-ambiguous-glyph alphabet. ~ 50 bits of entropy
-  // per code; we issue 8 of them.
+  // 10 chars from a no-ambiguous-glyph alphabet. ~50 bits of entropy
+  // per code; we issue 8 of them. Uses rejection sampling so each
+  // alphabet position is exactly equiprobable — `byte % alphabet.length`
+  // alone is modulo-biased whenever 256 % len !== 0 (here 256/32 = 8
+  // so the bias is mathematically zero, but rejection sampling makes
+  // that explicit for static analysis tools).
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = randomBytes(10);
+  const len = alphabet.length;
+  const maxAcceptable = Math.floor(256 / len) * len; // 256 for len=32
+  const picks: number[] = [];
+  while (picks.length < 10) {
+    const batch = randomBytes(16);
+    for (const b of batch) {
+      if (b < maxAcceptable) {
+        picks.push(b % len);
+        if (picks.length === 10) break;
+      }
+    }
+  }
   let out = "";
   for (let i = 0; i < 10; i += 1) {
-    out += alphabet[bytes[i]! % alphabet.length];
+    out += alphabet[picks[i]!];
     if (i === 4) out += "-"; // human-readable midpoint
   }
   return out;
