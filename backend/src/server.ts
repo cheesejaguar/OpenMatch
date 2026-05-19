@@ -8,23 +8,33 @@ import adminAuthPlugin from "./plugins/admin-auth.js";
 import adminRbacPlugin from "./plugins/admin-rbac.js";
 import authPlugin from "./plugins/auth.js";
 import countryGatePlugin from "./plugins/country-gate.js";
+import flagsPlugin from "./plugins/flags.js";
+import metroGatePlugin from "./plugins/metro-gate.js";
 import prismaPlugin from "./plugins/prisma.js";
 import ratelimitPlugin from "./plugins/ratelimit.js";
 import redisPlugin from "./plugins/redis.js";
 import { adminAuditRoutes } from "./routes/admin/audit.js";
 import { adminAuthRoutes } from "./routes/admin/auth.js";
 import { adminConversationRoutes } from "./routes/admin/conversations.js";
+import { adminFeedbackRoutes } from "./routes/admin/feedback.js";
+import { adminFlagsRoutes } from "./routes/admin/flags.js";
+import { adminInvitesRoutes } from "./routes/admin/invites.js";
 import { adminMetricsRoutes } from "./routes/admin/metrics.js";
+import { adminMetrosRoutes } from "./routes/admin/metros.js";
 import { adminPhotoRoutes } from "./routes/admin/photos.js";
 import { adminReportRoutes } from "./routes/admin/reports.js";
 import { adminRoleRoutes } from "./routes/admin/roles.js";
 import { adminUserRoutes } from "./routes/admin/users.js";
+import { analyticsRoutes } from "./routes/analytics.js";
 import { authRoutes } from "./routes/auth.js";
 import { chatRoutes } from "./routes/chat.js";
 import { discoveryRoutes } from "./routes/discovery.js";
 import { dsaRoutes } from "./routes/dsa.js";
+import { feedbackRoutes } from "./routes/feedback.js";
+import { invitesRoutes } from "./routes/invites.js";
 import { likesRoutes } from "./routes/likes.js";
 import { matchesRoutes } from "./routes/matches.js";
+import { notificationsRoutes } from "./routes/notifications.js";
 import { preferencesRoutes } from "./routes/preferences.js";
 import { privacyRoutes } from "./routes/privacy.js";
 import { profileRoutes } from "./routes/profile.js";
@@ -86,10 +96,19 @@ export async function buildServer() {
   await app.register(adminRbacPlugin);
   await app.register(ratelimitPlugin);
   await app.register(countryGatePlugin);
+  // metro-gate depends on `inferCountry` from country-gate and `prisma`.
+  // flags depends on `prisma`. Both must load before any route that
+  // calls `app.flags.evaluate(...)` or `app.checkMetro(...)`.
+  await app.register(flagsPlugin);
+  await app.register(metroGatePlugin);
 
   app.get("/health", async () => ({ ok: true }));
 
   await app.register(authRoutes, { prefix: "/api/v1/auth" });
+  await app.register(invitesRoutes, { prefix: "/api/v1/invites" });
+  await app.register(notificationsRoutes, { prefix: "/api/v1/notifications" });
+  await app.register(analyticsRoutes, { prefix: "/api/v1/analytics" });
+  await app.register(feedbackRoutes, { prefix: "/api/v1/feedback" });
   await app.register(profileRoutes, { prefix: "/api/v1/profile" });
   await app.register(preferencesRoutes, { prefix: "/api/v1/preferences" });
   await app.register(discoveryRoutes, { prefix: "/api/v1/discovery" });
@@ -111,6 +130,10 @@ export async function buildServer() {
   await app.register(adminAuditRoutes, { prefix: "/api/v1/admin/audit" });
   await app.register(adminMetricsRoutes, { prefix: "/api/v1/admin/metrics" });
   await app.register(adminRoleRoutes, { prefix: "/api/v1/admin" });
+  await app.register(adminInvitesRoutes, { prefix: "/api/v1/admin/invites" });
+  await app.register(adminFlagsRoutes, { prefix: "/api/v1/admin/flags" });
+  await app.register(adminMetrosRoutes, { prefix: "/api/v1/admin/metros" });
+  await app.register(adminFeedbackRoutes, { prefix: "/api/v1/admin/feedback" });
 
   app.setErrorHandler((err, _req, reply) => {
     const e = err as { statusCode?: number; message?: string };

@@ -151,6 +151,13 @@ enum AdminEventType {
   sensitive_access_granted
   export_performed
   access_denied
+  beta_invite_created
+  beta_invite_revoked
+  feature_flag_updated
+  feature_flag_created
+  metro_created
+  metro_updated
+  feedback_resolved
 }
 
 enum SensitiveEntityType {
@@ -370,6 +377,10 @@ model User {
   sanctionsScreenings SanctionsScreening[]
   scammerNotices      ScammerNotification[]    @relation("ScammerNoticeRecipient")
   noticeReportsAbout  NoticeAndActionReport[]  @relation("NoticeAndActionTarget")
+  betaRedemption      BetaInviteRedemption?
+  notificationDevices NotificationDevice[]
+  analyticsEvents     AnalyticsEvent[]
+  betaFeedback        BetaFeedback[]
 
   @@index([status])
 }
@@ -658,6 +669,7 @@ model AdminUser {
   accessGrants      SensitiveAccessGrant[]
   assignedReports   Report[]               @relation("ReportAssignee")
   appealsDecided    Appeal[]               @relation("AppealDecider")
+  betaInvites       BetaInviteCode[]
 
   @@index([status])
 }
@@ -1158,4 +1170,111 @@ model SanctionsScreening {
 
   @@index([userId, screenedAt])
   @@index([result, screenedAt])
+}
+
+// -------- Beta launch: invite codes, feature flags, geo-fence --------
+
+model BetaInviteCode {
+  id                   String                 @id @default(cuid())
+  code                 String                 @unique
+  cohortLabel          String
+  maxUses              Int                    @default(1)
+  usedCount            Int                    @default(0)
+  createdByAdminUserId String
+  createdByAdmin       AdminUser              @relation(fields: [createdByAdminUserId], references: [id])
+  expiresAt            DateTime?
+  revokedAt            DateTime?
+  notes                String?
+  createdAt            DateTime               @default(now())
+  redemptions          BetaInviteRedemption[]
+
+  @@index([cohortLabel])
+  @@index([revokedAt])
+}
+
+model BetaInviteRedemption {
+  id           String         @id @default(cuid())
+  inviteCodeId String
+  inviteCode   BetaInviteCode @relation(fields: [inviteCodeId], references: [id])
+  userId       String         @unique
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redeemedAt   DateTime       @default(now())
+
+  @@index([inviteCodeId])
+}
+
+model FeatureFlag {
+  id                   String   @id @default(cuid())
+  key                  String   @unique
+  enabled              Boolean  @default(false)
+  description          String
+  variants             Json?
+  updatedAt            DateTime @updatedAt
+  updatedByAdminUserId String?
+  createdAt            DateTime @default(now())
+
+  @@index([key])
+}
+
+model MetroBoundary {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  centerLat   Float
+  centerLng   Float
+  radiusKm    Float
+  countryCode String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active])
+}
+
+model NotificationDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform   String
+  token      String
+  appVersion String?
+  osVersion  String?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, token])
+  @@index([userId])
+}
+
+model AnalyticsEvent {
+  id         String    @id @default(cuid())
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId  String?
+  eventName  String
+  properties Json?
+  clientTs   DateTime?
+  serverTs   DateTime  @default(now())
+  appVersion String?
+  osVersion  String?
+
+  @@index([eventName, serverTs])
+  @@index([userId, serverTs])
+}
+
+model BetaFeedback {
+  id                    String    @id @default(cuid())
+  userId                String?
+  user                  User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  category              String
+  body                  String
+  appVersion            String?
+  osVersion             String?
+  deviceModel           String?
+  resolvedAt            DateTime?
+  resolvedByAdminUserId String?
+  createdAt             DateTime  @default(now())
+
+  @@index([resolvedAt])
+  @@index([userId])
 }

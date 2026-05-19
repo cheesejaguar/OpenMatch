@@ -351,16 +351,15 @@
   </p>
 
   <div class="overall">
-    <div class="gauge" style="--pct: 31; position: relative;">
-      <span class="pct">31%</span>
+    <div class="gauge" style="--pct: 34; position: relative;">
+      <span class="pct">34%</span>
     </div>
     <div>
-      <p class="verdict">🔴 Not ready for public beta</p>
+      <p class="verdict">🟠 Not ready for public beta — Round 1A backend infra merged</p>
       <p class="meta">
-        <b>Last refreshed</b> 2026-05-18, after PR #28 merged.<br>
-        <b>Target metro</b> SF Bay Area · 50 mi radius · 100 invite-coded users at launch.<br>
-        <b>Blocking</b> 3 P0 items · 7 P1 items still open. Round 1 implementation in flight on
-        <code>chore/launch-report-card</code> and follow-on branches.<br>
+        <b>Last refreshed</b> 2026-05-18, after Round 1A backend infra merged.<br>
+        <b>Target metro</b> SF Bay Area · 80 km radius · 100 invite-coded users at launch.<br>
+        <b>Blocking</b> 6 P0 items remain (iOS + admin halves of BETA/OPS, plus push/Sentry/admin health). 7 P1 items still open.<br>
         <b>Go criteria</b> all P0 ✅ · ≥ 80 % of P1 ✅ · backend hot-path coverage ≥ 70 %.
       </p>
     </div>
@@ -371,12 +370,12 @@
 
 <section>
   <h2>Categories</h2>
-  <p class="section-sub">9 categories · 61 tracked items · 18 ✅ today · target is every category ≥ 80 %.</p>
+  <p class="section-sub">9 categories · 61 tracked items · 21 ✅ today · target is every category ≥ 80 %.</p>
   <div class="cats">
     <div class="cat">
       <h4><span class="num">1</span>Operational readiness</h4>
-      <div class="cat-pct">12% <span class="total">/ 8 items</span></div>
-      <div class="bar"><span class="lo" style="width: 12%"></span></div>
+      <div class="cat-pct">25% <span class="total">/ 8 items</span></div>
+      <div class="bar"><span class="lo" style="width: 25%"></span></div>
       <div class="cat-status">🔴 Critical</div>
     </div>
     <div class="cat">
@@ -387,9 +386,9 @@
     </div>
     <div class="cat">
       <h4><span class="num">3</span>Beta cohort management</h4>
-      <div class="cat-pct">0% <span class="total">/ 5 items</span></div>
-      <div class="bar"><span class="lo" style="width: 0%"></span></div>
-      <div class="cat-status">🔴 Critical</div>
+      <div class="cat-pct">40% <span class="total">/ 5 items</span></div>
+      <div class="bar"><span class="med" style="width: 40%"></span></div>
+      <div class="cat-status">🟡 Partial</div>
     </div>
     <div class="cat">
       <h4><span class="num">4</span>iOS user experience</h4>
@@ -450,20 +449,27 @@
   <h2>Severity-ordered findings</h2>
   <p class="section-sub">Every P0 must close. ≥ 80 % of P1 must close. P2/P3 acceptable into beta with a written follow-up plan.</p>
 
-  <h3>🔴 P0 — Blockers (3 open)</h3>
+  <h3>🔴 P0 — Blockers (6 open)</h3>
   <table>
     <thead><tr><th>ID</th><th>Item</th><th>Target / DoD</th><th>Cat</th><th>Status</th></tr></thead>
     <tbody>
       <tr><td><span class="id">OPS-1</span></td><td>Push notifications (APNs)</td><td class="target">Backend worker fans match/message → APNs · iOS APNs cert + entitlement</td><td>Ops</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">OPS-2</span></td><td>Feature flags / kill switches</td><td class="target">FeatureFlag table + evaluator + admin UI · 30 s cache</td><td>Ops</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">BETA-1</span></td><td>Invite-code system</td><td class="target">BetaInviteCode schema · /auth/start validates · admin CRUD</td><td>Beta</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">BETA-2</span></td><td>City / metro geo-fence</td><td class="target">MetroBoundary · enforced in country-gate + discovery · admin editable</td><td>Beta</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">IOS-1</span></td><td>APNs capability + token registration</td><td class="target">aps-environment entitlement · UIApplicationDelegate registers token</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
+      <tr><td><span class="id">IOS-1</span></td><td>APNs capability + token registration</td><td class="target">aps-environment entitlement · UIApplicationDelegate registers token · backend endpoint shipped Round 1A</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">IOS-2</span></td><td>Crash reporting</td><td class="target">Sentry SDK in OpenMatchApp.init · DSN via Info.plist · release tagging</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">IOS-3</span></td><td>In-app analytics</td><td class="target">POSTs AnalyticsEvent to backend · debounced batching</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
+      <tr><td><span class="id">IOS-3</span></td><td>In-app analytics</td><td class="target">POSTs AnalyticsEvent to backend (endpoint shipped Round 1A) · debounced batching</td><td>iOS</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">ADMIN-1</span></td><td>Health panel</td><td class="target">Backend/Postgres/Redis/Ably tiles · p95 latency · 5xx rate</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">ADMIN-4</span></td><td>Invite-code admin UI</td><td class="target">Generate · list · revoke · funnel</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">ADMIN-5</span></td><td>Feature-flag admin UI</td><td class="target">Flip flags · cohort overrides · history</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
+      <tr><td><span class="id">ADMIN-4</span></td><td>Invite-code admin UI</td><td class="target">Generate · list · revoke · funnel (backend shipped Round 1A)</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
+      <tr><td><span class="id">ADMIN-5</span></td><td>Feature-flag admin UI</td><td class="target">Flip flags · cohort overrides · history (backend shipped Round 1A)</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>✅ Recently closed (Round 1A — backend)</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Item</th><th>Notes</th><th>Cat</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><span class="id">OPS-2</span></td><td>Feature flags / kill switches</td><td class="target">FeatureFlag table · evaluator with 30 s cache · /api/v1/admin/flags CRUD · invite_required + signups_paused + match_pipeline_paused seeded</td><td>Ops</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">BETA-1</span></td><td>Invite-code system</td><td class="target">BetaInviteCode + BetaInviteRedemption · POST /invites/validate · admin /admin/invites CRUD · /auth/start redeems in tx</td><td>Beta</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">BETA-2</span></td><td>City / metro geo-fence</td><td class="target">MetroBoundary table · metro-gate plugin on auth + profile · discovery filter to in-metro candidates · admin /admin/metros CRUD</td><td>Beta</td><td><span class="pill done">Done</span></td></tr>
     </tbody>
   </table>
   <p class="section-sub" style="margin-top:8px">Note: the audit identified 3 truly-launch-blocking items at the architecture level (OPS-1, OPS-2, BETA gating); the P0 list above expands those into the concrete artifacts that must ship together (iOS half of push, admin half of flags, etc.).</p>

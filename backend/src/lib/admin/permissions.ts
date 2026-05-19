@@ -31,6 +31,12 @@ export const PERMISSIONS = {
   APPEAL_DECIDE: "appeal.decide",
 
   COMPLIANCE_EXPORT: "compliance.export",
+
+  BETA_INVITE_MANAGE: "beta.invite.manage",
+  FEATURE_FLAG_MANAGE: "feature_flag.manage",
+  METRO_MANAGE: "metro.manage",
+  FEEDBACK_READ: "feedback.read",
+  FEEDBACK_RESOLVE: "feedback.resolve",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

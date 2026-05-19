@@ -4,9 +4,9 @@
 > as PRs land. This file is the canonical scorecard — the HTML viewer at
 > `docs/launch/index.html` is a rendering of these tables for offline review.
 
-**Last refreshed:** 2026-05-18 (after PR #28 merged)
-**Overall readiness:** 🔴 **31 / 100** (pre-implementation baseline)
-**Verdict:** **NOT READY** for public beta. 3 BLOCKERs and 7 HIGHs must close.
+**Last refreshed:** 2026-05-18 (after Round 1A backend infra merged)
+**Overall readiness:** 🟠 **34 / 100** (Round 1A backend half landed; iOS half + admin UI still open)
+**Verdict:** **NOT READY** for public beta. 6 BLOCKERs remain; 7 HIGHs must close.
 
 ---
 
@@ -42,16 +42,16 @@
 
 | # | Category | Items | Done | Score | Status |
 |---|---|---|---|---|---|
-| 1 | Operational readiness | 8 | 1 | 12 % | 🔴 |
+| 1 | Operational readiness | 8 | 2 | 25 % | 🔴 |
 | 2 | Safety & trust | 7 | 3 | 43 % | 🟡 |
-| 3 | Beta cohort management | 5 | 0 | 0 % | 🔴 |
+| 3 | Beta cohort management | 5 | 2 | 40 % | 🟡 |
 | 4 | iOS user experience | 10 | 4 | 40 % | 🟡 |
 | 5 | Admin dashboard | 9 | 2 | 22 % | 🔴 |
 | 6 | Testing & CI | 6 | 2 | 33 % | 🔴 |
 | 7 | Compliance & privacy | 6 | 4 | 67 % | 🟢 |
 | 8 | Performance & capacity | 4 | 1 | 25 % | 🔴 |
 | 9 | Post-launch monitoring | 6 | 1 | 17 % | 🔴 |
-| **Total** | | **61** | **18** | **31 %** | 🔴 |
+| **Total** | | **61** | **21** | **34 %** | 🟠 |
 
 ---
 
@@ -60,7 +60,7 @@
 | ID | Item | Goal | Target / DoD | Severity | Status | Notes |
 |---|---|---|---|---|---|---|
 | OPS-1 | Push notifications (APNs / web push) | Notify users of matches, messages, likes when app is backgrounded | iOS APNs cert in App Store Connect · backend worker that fans match/message events to APNs · device-token registration endpoint · respects `NotificationPreferencesDTO` | **P0** | ❌ | `backend/src/routes/privacy.ts:70` models prefs but no delivery |
-| OPS-2 | Feature flags / kill switches | Toggle features, disable signups, lower rate limits without redeploy | `FeatureFlag` table · `app.flags.evaluate(key, ctx)` · admin UI to flip flags · runtime cache w/ 30-s TTL | **P0** | ❌ | grep finds zero matches; need infra from scratch |
+| OPS-2 | Feature flags / kill switches | Toggle features, disable signups, lower rate limits without redeploy | `FeatureFlag` table · `app.flags.evaluate(key, ctx)` · admin UI to flip flags · runtime cache w/ 30-s TTL | **P0** | ✅ | shipped Round 1A (backend half — admin UI is ADMIN-5 in Round 2B) |
 | OPS-3 | Crash + error reporting | All backend errors land in Sentry / equivalent within 60 s | Sentry SDK installed in `backend/src/server.ts` · DSN in env · sample-rate config · release tagging · unhandled-rejection capture | **P1** | ❌ | Pino logs locally; no exporter |
 | OPS-4 | Structured request logging | Every request gets a request-id; logs are queryable by user-id / endpoint / status | Fastify request-id plugin · log shipper to Axiom / Datadog / Vercel Logs | **P1** | ⚠️ | Pino is wired; no shipper |
 | OPS-5 | /health & /ready endpoints | Vercel and uptime monitor can probe service health | `/health` returns 200 if process up · `/ready` checks Postgres + Ably + Redis · admin dashboard surfaces both | **P1** | ⚠️ | `/health` returns `{ok:true}` only; no readiness probe |
@@ -88,8 +88,8 @@
 
 | ID | Item | Goal | Target / DoD | Severity | Status | Notes |
 |---|---|---|---|---|---|---|
-| BETA-1 | Invite code system | New users must redeem a valid invite to sign up | `BetaInviteCode` table (code, createdBy, usedAt, usedByUserId, expiresAt, cohortLabel) · `/auth/start` accepts + validates code · admin CRUD + bulk-generate | **P0** | ❌ | no schema or endpoint exists |
-| BETA-2 | City / metro geo-fence | Signups + matches limited to target metro within radius | `MetroBoundary` config (center + radius_km) · enforced in `country-gate` plugin · discovery query filters to in-metro profiles · admin can edit boundaries | **P0** | ❌ | only country gate today |
+| BETA-1 | Invite code system | New users must redeem a valid invite to sign up | `BetaInviteCode` table (code, createdBy, usedAt, usedByUserId, expiresAt, cohortLabel) · `/auth/start` accepts + validates code · admin CRUD + bulk-generate | **P0** | ✅ | shipped Round 1A (schema + redemption tx + admin CRUD) |
+| BETA-2 | City / metro geo-fence | Signups + matches limited to target metro within radius | `MetroBoundary` config (center + radius_km) · enforced in `country-gate` plugin · discovery query filters to in-metro profiles · admin can edit boundaries | **P0** | ✅ | shipped Round 1A (metro-gate plugin + discovery filter + admin metros routes) |
 | BETA-3 | Waitlist | Out-of-cohort interest is captured for later expansion | public waitlist endpoint (rate-limited) · admin dashboard view · email capture only (no profile) | **P1** | ❌ | not implemented |
 | BETA-4 | Cohort labels | Each invite is tagged with a cohort (e.g. SF-week1, SF-week2) for analytics segmentation | cohort string on invite + propagates to user record · funnel filterable by cohort | **P2** | ❌ | depends on BETA-1 |
 | BETA-5 | In-app invite collection | iOS WelcomeView surfaces a code entry field when invite gating is on | toggled by `invite_required` flag (OPS-2) · pre-fills from universal link param if present | **P1** | ❌ | depends on BETA-1 + OPS-2 |
@@ -264,4 +264,5 @@ This section tracks every PR that moved a score in the table above.
 | Date | PR | Items closed | Score change |
 |---|---|---|---|
 | 2026-05-18 | (baseline) | — | 0 → 31 |
+| 2026-05-18 | PR (Round 1A) | BETA-1 BETA-2 OPS-2 (backend) + per-endpoint rate limits + 3 stub endpoints (/analytics/event, /notifications/device-token, /feedback) | 31 → 34 |
 | | | | |

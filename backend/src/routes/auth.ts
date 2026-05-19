@@ -61,16 +61,26 @@ async function enforceCountryGate(
   return false;
 }
 
+const declaredLocationSchema = z
+  .object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+  })
+  .optional();
+
 const startSchema = z.object({
   method: z.enum(["email", "apple", "dev"]),
   email: z.string().email().optional(),
   appleIdentityToken: z.string().optional(),
   devUserId: z.string().optional(),
+  inviteCode: z.string().min(1).max(64).optional(),
+  declaredLocation: declaredLocationSchema,
 });
 
 const verifySchema = z.object({
   challengeId: z.string(),
   token: z.string(),
+  inviteCode: z.string().min(1).max(64).optional(),
 });
 
 const refreshSchema = z.object({ refreshToken: z.string() });
@@ -89,13 +99,53 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const body = startSchema.parse(req.body);
     if (!(await enforceCountryGate(app, req, reply))) return;
 
+    // Operational kill switch: signups paused. New AND returning users
+    // get a 503 so iOS surfaces a banner. (Returning users could be
+    // exempted, but keeping the rule simple makes the operator's mental
+    // model easier.)
+    if (await app.flags.evaluate("signups_paused")) {
+      return reply.code(503).send({ error: "signups_paused" });
+    }
+
+    // Metro gate: only enforced on the write paths. If iOS sent
+    // declaredLocation, ensure it falls inside an active metro for the
+    // inferred country.
+    if (body.declaredLocation) {
+      const metro = await app.checkMetro(req, { location: body.declaredLocation });
+      if (!metro.allow) {
+        return reply.code(451).send({
+          error: "outside_metro",
+          message:
+            "OpenMatch is opening one metro at a time. Join the waitlist to be notified when we expand.",
+          nearestKm: metro.nearestKm,
+        });
+      }
+    }
+
+    const inviteRequired = await app.flags.evaluate("invite_required");
+
     if (body.method === "email") {
       if (!body.email) return reply.code(400).send({ error: "email_required" });
+      // Email magic-link flow: validation of the invite happens at
+      // /verify time (when the User is actually created). We do an
+      // early-reject here purely as a UX courtesy so testers don't get
+      // an email for a doomed flow.
+      if (inviteRequired && body.inviteCode) {
+        const normalized = body.inviteCode.trim().toUpperCase();
+        const row = await app.prisma.betaInviteCode.findUnique({ where: { code: normalized } });
+        if (!row || row.revokedAt || (row.expiresAt && row.expiresAt < new Date())) {
+          return reply.code(400).send({ error: "invite_invalid" });
+        }
+        if (row.usedCount >= row.maxUses) {
+          return reply.code(409).send({ error: "invite_exhausted" });
+        }
+      }
       const result = await startEmailLogin(app.prisma, { email: body.email });
       return reply.send({
         challengeId: result.challengeId,
         message: "Check your email for the sign-in link.",
         devToken: result.devToken,
+        inviteRequired,
       });
     }
 
@@ -105,16 +155,24 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       }
       try {
         const identity = await verifyAppleIdentityToken(body.appleIdentityToken);
-        const { user, isNewUser } = await upsertAppleUser(app.prisma, identity);
+        const { user, isNewUser } = await upsertAppleUser(app.prisma, identity, {
+          inviteRequired,
+          inviteCode: body.inviteCode ?? null,
+        });
         const session = await issueSession(app.prisma, user.id, (p) => app.jwt.sign(p));
         return reply.send({ ...session, userId: user.id, isNewUser });
       } catch (err) {
-        const statusCode = (err as { statusCode?: number }).statusCode;
-        if (statusCode === 501) {
+        const e = err as { statusCode?: number; message?: string };
+        if (e.statusCode === 501) {
           return reply.code(501).send({
             error: "apple_not_configured",
             message:
               "Configure APPLE_TEAM_ID, APPLE_CLIENT_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY to enable Sign in with Apple.",
+          });
+        }
+        if (e.statusCode === 400 || e.statusCode === 409) {
+          return reply.code(e.statusCode).send({
+            error: e.message ?? "invite_invalid",
           });
         }
         return reply.code(401).send({
@@ -135,6 +193,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         where: { id: body.devUserId },
       });
       if (!user) return reply.code(404).send({ error: "user_not_found" });
+      // Dev login resolves to an existing user (returning sign-in), so
+      // the new-user invite gate normally wouldn't apply. We still
+      // honour an explicit `DEV_LOGIN_BYPASSES_INVITE=false` for tests
+      // that want to exercise the gated path end-to-end.
+      if (inviteRequired && !env.DEV_LOGIN_BYPASSES_INVITE && !body.inviteCode) {
+        return reply.code(400).send({ error: "invite_code_required" });
+      }
       const session = await issueSession(
         app.prisma,
         user.id,
@@ -150,36 +215,54 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
     if (!(await enforceCountryGate(app, req, reply))) return;
     const body = verifySchema.parse(req.body);
-    const result = await verifyEmailLogin(app.prisma, body);
-    const session = await issueSession(
-      app.prisma,
-      result.userId,
-      (p) => app.jwt.sign(p),
-      requestContext(req),
-    );
-    return reply.send({
-      ...session,
-      userId: result.userId,
-      isNewUser: result.isNewUser,
-    });
+    const inviteRequired = await app.flags.evaluate("invite_required");
+    try {
+      const result = await verifyEmailLogin(app.prisma, body, { inviteRequired });
+      const session = await issueSession(
+        app.prisma,
+        result.userId,
+        (p) => app.jwt.sign(p),
+        requestContext(req),
+      );
+      return reply.send({
+        ...session,
+        userId: result.userId,
+        isNewUser: result.isNewUser,
+      });
+    } catch (err) {
+      const e = err as { statusCode?: number; message?: string };
+      if (e.statusCode === 400 || e.statusCode === 409) {
+        return reply.code(e.statusCode).send({ error: e.message ?? "invalid_request" });
+      }
+      throw err;
+    }
   });
 
   // Also accept GET so the magic-link in email works in a browser.
   app.get("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
     if (!(await enforceCountryGate(app, req, reply))) return;
     const params = verifySchema.parse(req.query);
-    const result = await verifyEmailLogin(app.prisma, params);
-    const session = await issueSession(
-      app.prisma,
-      result.userId,
-      (p) => app.jwt.sign(p),
-      requestContext(req),
-    );
-    return reply.send({
-      ...session,
-      userId: result.userId,
-      isNewUser: result.isNewUser,
-    });
+    const inviteRequired = await app.flags.evaluate("invite_required");
+    try {
+      const result = await verifyEmailLogin(app.prisma, params, { inviteRequired });
+      const session = await issueSession(
+        app.prisma,
+        result.userId,
+        (p) => app.jwt.sign(p),
+        requestContext(req),
+      );
+      return reply.send({
+        ...session,
+        userId: result.userId,
+        isNewUser: result.isNewUser,
+      });
+    } catch (err) {
+      const e = err as { statusCode?: number; message?: string };
+      if (e.statusCode === 400 || e.statusCode === 409) {
+        return reply.code(e.statusCode).send({ error: e.message ?? "invalid_request" });
+      }
+      throw err;
+    }
   });
 
   app.post("/refresh", { config: { rateLimit: AUTH_LIMITS.refresh } }, async (req, reply) => {

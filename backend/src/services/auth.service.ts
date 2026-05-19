@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { env } from "../env.js";
 import { hashIdentity, hashIp } from "../lib/hash.js";
+import { normalizeInviteCode } from "../lib/invite-codes.js";
 
 const TOKEN_BYTES = 32;
 const MAGIC_LINK_TTL_MS = env.MAGIC_LINK_TTL_SECONDS * 1000;
@@ -83,14 +84,52 @@ export async function startEmailLogin(
   };
 }
 
+export interface RedeemInviteResult {
+  inviteCodeId: string;
+  cohortLabel: string;
+}
+
+// Atomically validate an invite code and reserve a use of it. Throws
+// with statusCode 400 / 409 if the code is missing, revoked, expired,
+// or exhausted. The caller MUST run this inside the same transaction
+// that creates the User and writes the BetaInviteRedemption row.
+export async function reserveInviteCode(
+  tx: Prisma.TransactionClient,
+  rawCode: string,
+): Promise<{ id: string; cohortLabel: string }> {
+  const code = normalizeInviteCode(rawCode);
+  const row = await tx.betaInviteCode.findUnique({ where: { code } });
+  if (!row) throw Object.assign(new Error("invite_invalid"), { statusCode: 400 });
+  if (row.revokedAt) throw Object.assign(new Error("invite_revoked"), { statusCode: 400 });
+  if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
+    throw Object.assign(new Error("invite_expired"), { statusCode: 400 });
+  }
+  if (row.usedCount >= row.maxUses) {
+    throw Object.assign(new Error("invite_exhausted"), { statusCode: 409 });
+  }
+  // Optimistic concurrency: only increment when the row hasn't moved
+  // since we read it. The unique constraint on
+  // BetaInviteRedemption.userId is the second backstop.
+  const updated = await tx.betaInviteCode.updateMany({
+    where: { id: row.id, usedCount: row.usedCount },
+    data: { usedCount: { increment: 1 } },
+  });
+  if (updated.count === 0) {
+    throw Object.assign(new Error("invite_race"), { statusCode: 409 });
+  }
+  return { id: row.id, cohortLabel: row.cohortLabel };
+}
+
 export interface VerifyEmailLoginInput {
   challengeId: string;
   token: string;
+  inviteCode?: string | null;
 }
 
 export async function verifyEmailLogin(
   prisma: PrismaClient,
   input: VerifyEmailLoginInput,
+  options: { inviteRequired?: boolean } = {},
 ): Promise<{ userId: string; isNewUser: boolean }> {
   const challenge = await prisma.authChallenge.findUnique({
     where: { id: input.challengeId },
@@ -119,16 +158,36 @@ export async function verifyEmailLogin(
   if (existing) {
     return { userId: existing.id, isNewUser: false };
   }
-  const user = await prisma.user.create({
-    data: {
-      emailHash,
-      authProvider: "email",
-      // DOB and age verification happen during onboarding; we placeholder
-      // here and require the onboarding flow to fill it in.
-      dateOfBirth: new Date("2000-01-01"),
-      isAgeVerified: false,
-    },
+
+  // New user. If invite gating is on, atomically reserve a code use and
+  // record a redemption row inside the same transaction as the User
+  // insert, so a partial signup cannot mint a usable account.
+  if (options.inviteRequired) {
+    if (!input.inviteCode) {
+      throw Object.assign(new Error("invite_code_required"), { statusCode: 400 });
+    }
+  }
+
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        emailHash,
+        authProvider: "email",
+        // DOB and age verification happen during onboarding; we placeholder
+        // here and require the onboarding flow to fill it in.
+        dateOfBirth: new Date("2000-01-01"),
+        isAgeVerified: false,
+      },
+    });
+    if (options.inviteRequired && input.inviteCode) {
+      const reserved = await reserveInviteCode(tx, input.inviteCode);
+      await tx.betaInviteRedemption.create({
+        data: { inviteCodeId: reserved.id, userId: created.id },
+      });
+    }
+    return created;
   });
+
   return { userId: user.id, isNewUser: true };
 }
 
@@ -141,19 +200,33 @@ export interface AppleIdentity {
 export async function upsertAppleUser(
   prisma: PrismaClient,
   identity: AppleIdentity,
+  options: { inviteRequired?: boolean; inviteCode?: string | null } = {},
 ): Promise<{ user: { id: string }; isNewUser: boolean }> {
   const existing = await prisma.user.findUnique({ where: { authSubject: identity.sub } });
   if (existing) return { user: existing, isNewUser: false };
 
+  if (options.inviteRequired && !options.inviteCode) {
+    throw Object.assign(new Error("invite_code_required"), { statusCode: 400 });
+  }
+
   const emailHash = identity.email ? hashIdentity(identity.email) : null;
-  const user = await prisma.user.create({
-    data: {
-      authProvider: "apple",
-      authSubject: identity.sub,
-      emailHash,
-      dateOfBirth: new Date("2000-01-01"),
-      isAgeVerified: false,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        authProvider: "apple",
+        authSubject: identity.sub,
+        emailHash,
+        dateOfBirth: new Date("2000-01-01"),
+        isAgeVerified: false,
+      },
+    });
+    if (options.inviteRequired && options.inviteCode) {
+      const reserved = await reserveInviteCode(tx, options.inviteCode);
+      await tx.betaInviteRedemption.create({
+        data: { inviteCodeId: reserved.id, userId: created.id },
+      });
+    }
+    return created;
   });
   return { user, isNewUser: true };
 }

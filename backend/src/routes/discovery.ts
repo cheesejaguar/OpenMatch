@@ -8,80 +8,84 @@ import { buildDeck } from "../services/discovery.service.js";
 export const discoveryRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  app.get<{ Querystring: { limit?: string } }>("/deck", async (req, reply) => {
-    const limit = Math.min(Math.max(Number.parseInt(req.query.limit ?? "10", 10) || 10, 1), 50);
-    const deckSessionId = randomUUID();
-    try {
-      const deck = await buildDeck({
-        prisma: app.prisma,
-        viewerUserId: req.userId!,
-        limit,
-        deckSessionId,
-      });
+  app.get<{ Querystring: { limit?: string } }>(
+    "/deck",
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const limit = Math.min(Math.max(Number.parseInt(req.query.limit ?? "10", 10) || 10, 1), 50);
+      const deckSessionId = randomUUID();
+      try {
+        const deck = await buildDeck({
+          prisma: app.prisma,
+          viewerUserId: req.userId!,
+          limit,
+          deckSessionId,
+        });
 
-      // Hydrate display fields for each card (photos, distance text, bio).
-      const profiles = await app.prisma.profile.findMany({
-        where: { id: { in: deck.cards.map((c) => c.profileId) } },
-        include: { photos: { orderBy: { sortOrder: "asc" } } },
-      });
+        // Hydrate display fields for each card (photos, distance text, bio).
+        const profiles = await app.prisma.profile.findMany({
+          where: { id: { in: deck.cards.map((c) => c.profileId) } },
+          include: { photos: { orderBy: { sortOrder: "asc" } } },
+        });
 
-      // Pull viewer location once for distance display.
-      const vLoc = await app.prisma.$queryRawUnsafe<Array<{ lat: number; lng: number }>>(
-        `SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM "Profile" WHERE "userId" = $1`,
-        req.userId!,
-      );
-      const cLoc = await app.prisma.$queryRawUnsafe<
-        Array<{ profile_id: string; lat: number; lng: number }>
-      >(
-        `SELECT "id" AS profile_id, ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM "Profile" WHERE "id" = ANY($1::text[])`,
-        deck.cards.map((c) => c.profileId),
-      );
-      const candLoc = new Map(cLoc.map((r) => [r.profile_id, r]));
+        // Pull viewer location once for distance display.
+        const vLoc = await app.prisma.$queryRawUnsafe<Array<{ lat: number; lng: number }>>(
+          `SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM "Profile" WHERE "userId" = $1`,
+          req.userId!,
+        );
+        const cLoc = await app.prisma.$queryRawUnsafe<
+          Array<{ profile_id: string; lat: number; lng: number }>
+        >(
+          `SELECT "id" AS profile_id, ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM "Profile" WHERE "id" = ANY($1::text[])`,
+          deck.cards.map((c) => c.profileId),
+        );
+        const candLoc = new Map(cLoc.map((r) => [r.profile_id, r]));
 
-      const viewerLatLng = vLoc[0];
+        const viewerLatLng = vLoc[0];
 
-      return reply.send({
-        deckSessionId,
-        algorithmVersion: deck.algorithmVersion,
-        rankingConfigVersion: deck.rankingConfigVersion,
-        cards: deck.cards.map((card) => {
-          const profile = profiles.find((p) => p.id === card.profileId);
-          const candLatLng = candLoc.get(card.profileId);
-          const distanceKm =
-            viewerLatLng && candLatLng
-              ? haversineKm(
-                  { lat: viewerLatLng.lat, lng: viewerLatLng.lng },
-                  { lat: candLatLng.lat, lng: candLatLng.lng },
-                )
-              : 0;
-          return {
-            profileId: card.profileId,
-            // The owning user id is exposed so clients can call block/report
-            // without an extra round-trip. It's already known to anyone who
-            // matches or likes this profile; no additional disclosure here.
-            userId: profile?.userId ?? "",
-            displayName: profile?.displayName ?? "",
-            bio: profile?.bio ?? "",
-            gender: profile?.gender,
-            pronouns: profile?.pronouns ?? null,
-            relationshipGoal: profile?.relationshipGoal ?? null,
-            city: profile?.city ?? null,
-            distanceText: formatDistance(distanceKm).text,
-            photos: profile?.photos ?? [],
-            interests: profile?.interests ?? [],
-            prompts: profile?.prompts ?? null,
-            explanation: card.explanation,
-          };
-        }),
-      });
-    } catch (err) {
-      const e = err as { statusCode?: number; message?: string };
-      if (e.statusCode === 400) {
-        return reply.code(400).send({ error: e.message });
+        return reply.send({
+          deckSessionId,
+          algorithmVersion: deck.algorithmVersion,
+          rankingConfigVersion: deck.rankingConfigVersion,
+          cards: deck.cards.map((card) => {
+            const profile = profiles.find((p) => p.id === card.profileId);
+            const candLatLng = candLoc.get(card.profileId);
+            const distanceKm =
+              viewerLatLng && candLatLng
+                ? haversineKm(
+                    { lat: viewerLatLng.lat, lng: viewerLatLng.lng },
+                    { lat: candLatLng.lat, lng: candLatLng.lng },
+                  )
+                : 0;
+            return {
+              profileId: card.profileId,
+              // The owning user id is exposed so clients can call block/report
+              // without an extra round-trip. It's already known to anyone who
+              // matches or likes this profile; no additional disclosure here.
+              userId: profile?.userId ?? "",
+              displayName: profile?.displayName ?? "",
+              bio: profile?.bio ?? "",
+              gender: profile?.gender,
+              pronouns: profile?.pronouns ?? null,
+              relationshipGoal: profile?.relationshipGoal ?? null,
+              city: profile?.city ?? null,
+              distanceText: formatDistance(distanceKm).text,
+              photos: profile?.photos ?? [],
+              interests: profile?.interests ?? [],
+              prompts: profile?.prompts ?? null,
+              explanation: card.explanation,
+            };
+          }),
+        });
+      } catch (err) {
+        const e = err as { statusCode?: number; message?: string };
+        if (e.statusCode === 400) {
+          return reply.code(400).send({ error: e.message });
+        }
+        throw err;
       }
-      throw err;
-    }
-  });
+    },
+  );
 
   app.get<{ Params: { profileId: string } }>("/explanation/:profileId", async (req, reply) => {
     // Recompute the explanation server-side for a specific candidate;
