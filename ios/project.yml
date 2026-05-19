@@ -47,16 +47,21 @@ targets:
         # Custom fonts shipped in Resources/Fonts/. Postscript names are
         # verified in OMFont.debugDumpAvailableFamilies().
         UIAppFonts:
+          - "Fonts/Fraunces9pt-Light.ttf"
           - "Fonts/Fraunces9pt-Regular.ttf"
           - "Fonts/Fraunces9pt-Italic.ttf"
           - "Fonts/Fraunces9pt-SemiBold.ttf"
           - "Fonts/Fraunces9pt-SemiBoldItalic.ttf"
           - "Fonts/Fraunces9pt-Bold.ttf"
           - "Fonts/Fraunces9pt-BoldItalic.ttf"
+          - "Fonts/Fraunces9pt-Black.ttf"
+          - "Fonts/Fraunces9pt-BlackItalic.ttf"
+          - "Fonts/Geist-Light.ttf"
           - "Fonts/Geist-Regular.ttf"
           - "Fonts/Geist-Medium.ttf"
           - "Fonts/Geist-SemiBold.ttf"
           - "Fonts/Geist-Bold.ttf"
+          - "Fonts/Geist-Black.ttf"
         NSLocationWhenInUseUsageDescription: "OpenMatch uses your location to show profiles nearby. Your exact location is never shared with other users."
         NSCameraUsageDescription: "OpenMatch uses the camera so you can add profile photos."
         NSPhotoLibraryUsageDescription: "OpenMatch uses your photo library so you can add profile photos."
