@@ -153,23 +153,59 @@ export interface OverviewMetricsDTO {
 
 export type HealthStatus = "ok" | "degraded" | "down" | "unknown";
 
-export interface HealthSnapshotDTO {
-  backend: { status: HealthStatus; latencyMs: number | null };
-  postgres: { status: HealthStatus; latencyMs: number | null };
-  ably: { status: HealthStatus; latencyMs: number | null };
-  redis: { status: HealthStatus; latencyMs: number | null };
-  queues: {
-    openReports: number;
-    pendingPhotos: number;
-    unacknowledgedDsa: number;
-  };
-  generatedAt: string;
+// R2A backend shape — see backend/src/routes/admin/metrics.ts.
+// We adapt to a friendlier `{ backend/postgres/ably/redis: { status, latencyMs }, queues }`
+// shape inside the page itself so the rest of the UI doesn't need to
+// know about the readiness wrapper.
+export interface ReadyCheckDTO {
+  ok: boolean;
+  configured: boolean;
+  latencyMs?: number;
+  error?: string;
 }
 
+export interface HealthSnapshotDTO {
+  ready: {
+    ok: boolean;
+    checkedAt: string;
+    checks: {
+      postgres: ReadyCheckDTO;
+      ably: ReadyCheckDTO;
+      redis: ReadyCheckDTO;
+    };
+  };
+  postgres: {
+    maxConnections: number | null;
+    activeConnections: number | null;
+    idleConnections: number | null;
+    poolUsage: number | null;
+  };
+  errorRate5m: number | null;
+  queueDepths: {
+    reportsOpen: number;
+    photosPending: number;
+    dsaNoticesUnack: number;
+  };
+}
+
+// R2A timeseries uses the compact `{ t, v }` wire format. The UI
+// adapts at the page level — see timeseriesToPoints() below.
 export interface TimeSeriesDTO {
   metric: string;
   granularity: "minute" | "hour" | "day";
-  points: Array<{ ts: string; value: number }>;
+  from?: string;
+  to?: string;
+  cohort?: string | null;
+  points: Array<{ t: string; v: number }>;
+  note?: string;
+}
+
+/** Adapt R2A `{ t, v }` points to the chart's `{ ts, value }` shape. */
+export function timeseriesToPoints(
+  dto: { points?: Array<{ t: string; v: number }> } | null | undefined,
+): Array<{ ts: string; value: number }> {
+  if (!dto?.points) return [];
+  return dto.points.map((p) => ({ ts: p.t, value: p.v }));
 }
 
 export interface FunnelStepDTO {
@@ -186,30 +222,36 @@ export interface FunnelDTO {
   steps: FunnelStepDTO[];
 }
 
+// R2A retention shape: each cohort is one signup-day, with d1/d7/d30
+// retention fractions. We keep this exact shape; the page projects it
+// into multi-series points for the chart.
 export interface RetentionCohortDTO {
-  cohortDate: string;
+  signupDate: string;
   cohortSize: number;
-  /** Day index → retention fraction (0..1). */
-  points: Array<{ dayIndex: number; retention: number }>;
+  d1: number | null;
+  d7: number | null;
+  d30: number | null;
 }
 
 export interface RetentionDTO {
   from: string;
   to: string;
+  cohort?: string | null;
   cohorts: RetentionCohortDTO[];
 }
 
+// R2A geography bucket. Note `lng` (not `lon`) to mirror the backend.
 export interface GeographyBucketDTO {
   label: string;
-  /** Approximate centroid for map rendering. Lat/lon in WGS84. */
   lat: number;
-  lon: number;
+  lng: number;
   userCount: number;
   matchCount: number;
 }
 
 export interface GeographyDTO {
-  metro: string;
+  metro: { slug: string; name: string } | null;
+  bucketDegrees?: number;
   buckets: GeographyBucketDTO[];
 }
 

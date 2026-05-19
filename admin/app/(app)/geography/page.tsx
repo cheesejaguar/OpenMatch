@@ -22,22 +22,22 @@ function ScatterPlot({ buckets }: { buckets: GeographyBucketDTO[] }) {
     return <div className="muted">No buckets to plot.</div>;
   }
   const lats = buckets.map((b) => b.lat);
-  const lons = buckets.map((b) => b.lon);
+  const lngs = buckets.map((b) => b.lng);
   const counts = buckets.map((b) => b.userCount);
   const latMin = Math.min(...lats);
   const latMax = Math.max(...lats);
-  const lonMin = Math.min(...lons);
-  const lonMax = Math.max(...lons);
+  const lngMin = Math.min(...lngs);
+  const lngMax = Math.max(...lngs);
   const latRange = latMax - latMin || 0.01;
-  const lonRange = lonMax - lonMin || 0.01;
+  const lngRange = lngMax - lngMin || 0.01;
   const maxCount = Math.max(...counts, 1);
 
   const width = 720;
   const height = 360;
   const pad = 24;
 
-  function x(lon: number): number {
-    return pad + ((lon - lonMin) / lonRange) * (width - pad * 2);
+  function x(lng: number): number {
+    return pad + ((lng - lngMin) / lngRange) * (width - pad * 2);
   }
   function y(lat: number): number {
     // Invert Y — higher lat is north (top).
@@ -69,7 +69,7 @@ function ScatterPlot({ buckets }: { buckets: GeographyBucketDTO[] }) {
       {buckets.map((b) => (
         <g key={b.label}>
           <circle
-            cx={x(b.lon)}
+            cx={x(b.lng)}
             cy={y(b.lat)}
             r={r(b.userCount)}
             fill="var(--accent)"
@@ -78,7 +78,7 @@ function ScatterPlot({ buckets }: { buckets: GeographyBucketDTO[] }) {
             strokeWidth={1.5}
           />
           <text
-            x={x(b.lon)}
+            x={x(b.lng)}
             y={y(b.lat) - r(b.userCount) - 4}
             textAnchor="middle"
             fontSize={11}
@@ -130,14 +130,18 @@ export default async function GeographyPage({ searchParams }: Params) {
     {
       key: "lat",
       label: "Centroid",
-      formatter: (_v, row) => `${row.lat.toFixed(3)}, ${row.lon.toFixed(3)}`,
+      formatter: (_v, row) => `${row.lat.toFixed(3)}, ${row.lng.toFixed(3)}`,
     },
   ];
+
+  // metro field can be null (no active metro). Render a friendly label
+  // either way.
+  const metroLabel = res.data.metro ? `${res.data.metro.name} (${res.data.metro.slug})` : metro;
 
   return (
     <div>
       <div className="page-header">
-        <h2>Geographic insights — {res.data.metro}</h2>
+        <h2>Geographic insights — {metroLabel}</h2>
       </div>
       <form action="/geography" method="get" style={{ marginBottom: 16 }}>
         <FilterBar

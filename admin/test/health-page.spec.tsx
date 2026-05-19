@@ -28,12 +28,23 @@ describe("Health page", () => {
         return {
           status: 200,
           data: {
-            backend: { status: "ok", latencyMs: 42 },
-            postgres: { status: "ok", latencyMs: 8 },
-            ably: { status: "ok", latencyMs: 30 },
-            redis: { status: "down", latencyMs: null },
-            queues: { openReports: 3, pendingPhotos: 7, unacknowledgedDsa: 1 },
-            generatedAt: "2026-05-18T12:00:00.000Z",
+            ready: {
+              ok: false,
+              checkedAt: "2026-05-18T12:00:00.000Z",
+              checks: {
+                postgres: { ok: true, configured: true, latencyMs: 8 },
+                ably: { ok: true, configured: true, latencyMs: 30 },
+                redis: { ok: false, configured: true, latencyMs: 0, error: "timeout" },
+              },
+            },
+            postgres: {
+              maxConnections: 100,
+              activeConnections: 5,
+              idleConnections: 15,
+              poolUsage: 0.05,
+            },
+            errorRate5m: 0.01,
+            queueDepths: { reportsOpen: 3, photosPending: 7, dsaNoticesUnack: 1 },
           },
         };
       }
@@ -43,8 +54,8 @@ describe("Health page", () => {
           metric: "requests",
           granularity: "hour",
           points: Array.from({ length: 5 }, (_, i) => ({
-            ts: `2026-05-18T${String(i).padStart(2, "0")}:00:00.000Z`,
-            value: 100 + i * 10,
+            t: `2026-05-18T${String(i).padStart(2, "0")}:00:00.000Z`,
+            v: 100 + i * 10,
           })),
         },
       };
