@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { withSpan } from "../lib/spans.js";
 import { tryDispatchPush } from "./push.service.js";
 
 export async function listConversations(prisma: PrismaClient, userId: string) {
@@ -48,6 +49,17 @@ export async function listMessages(prisma: PrismaClient, conversationId: string,
 }
 
 export async function postMessage(
+  prisma: PrismaClient,
+  conversationId: string,
+  senderUserId: string,
+  body: string,
+) {
+  return withSpan("chat.postMessage", "chat.postMessage", () =>
+    postMessageInner(prisma, conversationId, senderUserId, body),
+  );
+}
+
+async function postMessageInner(
   prisma: PrismaClient,
   conversationId: string,
   senderUserId: string,

@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { requestContext } from "../lib/request-context.js";
 
 // Account-deletion purge worker (COMP-3).
 //
@@ -29,6 +30,10 @@ export interface DeletionPurgeReport {
 const PLACEHOLDER_DISPLAY_NAME = "[deleted]";
 
 export async function runDeletionPurgeOnce(prisma: PrismaClient): Promise<DeletionPurgeReport> {
+  return requestContext.workerRun("deletion", () => runDeletionPurgeInner(prisma));
+}
+
+async function runDeletionPurgeInner(prisma: PrismaClient): Promise<DeletionPurgeReport> {
   const startedAt = Date.now();
   const now = new Date();
 

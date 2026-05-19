@@ -100,18 +100,22 @@ export const adminMetricsRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const fiveMinAgo = new Date(Date.now() - 5 * 60_000);
-    const [errorCount, totalCount, reportsOpen, photosPending, dsaUnack] = await Promise.all([
-      app.prisma.analyticsEvent.count({
-        where: {
-          serverTs: { gte: fiveMinAgo },
-          eventName: { startsWith: "error." },
-        },
-      }),
-      app.prisma.analyticsEvent.count({ where: { serverTs: { gte: fiveMinAgo } } }),
-      app.prisma.report.count({ where: { status: { in: ["open", "reviewing"] } } }),
-      app.prisma.profilePhoto.count({ where: { moderationStatus: "under_review" } }),
-      app.prisma.noticeAndActionReport.count({ where: { acknowledgedAt: null } }),
-    ]);
+    const [errorCount, totalCount, reportsOpen, photosPending, dsaUnack, latestSynthetic] =
+      await Promise.all([
+        app.prisma.analyticsEvent.count({
+          where: {
+            serverTs: { gte: fiveMinAgo },
+            eventName: { startsWith: "error." },
+          },
+        }),
+        app.prisma.analyticsEvent.count({ where: { serverTs: { gte: fiveMinAgo } } }),
+        app.prisma.report.count({ where: { status: { in: ["open", "reviewing"] } } }),
+        app.prisma.profilePhoto.count({ where: { moderationStatus: "under_review" } }),
+        app.prisma.noticeAndActionReport.count({ where: { acknowledgedAt: null } }),
+        // Round D — surface the most recent synthetic check alongside the
+        // other health tiles. The admin UI renders pass/fail + age.
+        app.prisma.syntheticCheckRun.findFirst({ orderBy: { ranAt: "desc" } }),
+      ]);
     const errorRate5m = totalCount > 0 ? errorCount / totalCount : null;
 
     return reply.send({
@@ -131,6 +135,35 @@ export const adminMetricsRoutes: FastifyPluginAsync = async (app) => {
         photosPending,
         dsaNoticesUnack: dsaUnack,
       },
+      synthetic: latestSynthetic
+        ? {
+            ranAt: latestSynthetic.ranAt.toISOString(),
+            passed: latestSynthetic.passed,
+            durationMs: latestSynthetic.durationMs,
+            steps: latestSynthetic.steps,
+          }
+        : null,
+    });
+  });
+
+  // Round D — last 50 synthetic check runs. Mounted under the metrics
+  // router so it inherits the admin-auth + 2FA + permissions
+  // preHandlers; the public URL is /api/v1/admin/metrics/synthetic. A
+  // sibling alias /api/v1/admin/synthetic is exposed via the dedicated
+  // router below.
+  app.get("/synthetic", async (_req, reply) => {
+    const rows = await app.prisma.syntheticCheckRun.findMany({
+      orderBy: { ranAt: "desc" },
+      take: 50,
+    });
+    return reply.send({
+      runs: rows.map((r) => ({
+        id: r.id,
+        ranAt: r.ranAt.toISOString(),
+        durationMs: r.durationMs,
+        passed: r.passed,
+        steps: r.steps,
+      })),
     });
   });
 
@@ -183,6 +216,31 @@ export const adminMetricsRoutes: FastifyPluginAsync = async (app) => {
       points: rows.map((r) => ({
         t: new Date(r.bucket).toISOString(),
         v: Number(r.count),
+      })),
+    });
+  });
+};
+
+// Round D — sibling admin router mounted at /api/v1/admin so the
+// canonical URL spelled in the spec (/api/v1/admin/synthetic) resolves
+// without requiring a second admin-auth wire-up at the call site.
+export const adminSyntheticRoutes: FastifyPluginAsync = async (app) => {
+  app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
+  app.addHook("preHandler", app.requirePermission(PERMISSIONS.METRICS_READ));
+
+  app.get("/synthetic", async (_req, reply) => {
+    const rows = await app.prisma.syntheticCheckRun.findMany({
+      orderBy: { ranAt: "desc" },
+      take: 50,
+    });
+    return reply.send({
+      runs: rows.map((r) => ({
+        id: r.id,
+        ranAt: r.ranAt.toISOString(),
+        durationMs: r.durationMs,
+        passed: r.passed,
+        steps: r.steps,
       })),
     });
   });

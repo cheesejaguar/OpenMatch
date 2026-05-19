@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { env } from "../env.js";
+import { requestContext } from "../lib/request-context.js";
 
 // MON-2 — On-call alerter.
 //
@@ -133,6 +134,10 @@ async function postToSlack(text: string): Promise<boolean> {
 }
 
 export async function runAlertCheckOnce(prisma: PrismaClient): Promise<AlertReport> {
+  return requestContext.workerRun("alerter", () => runAlertCheckInner(prisma));
+}
+
+async function runAlertCheckInner(prisma: PrismaClient): Promise<AlertReport> {
   const startedAt = Date.now();
   const scannedAt = new Date();
   const candidates = await detectAlerts(prisma);

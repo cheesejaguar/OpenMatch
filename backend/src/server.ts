@@ -4,7 +4,9 @@ import sensible from "@fastify/sensible";
 import swagger from "@fastify/swagger";
 import * as Sentry from "@sentry/node";
 import Fastify from "fastify";
+import pino from "pino";
 import { env } from "./env.js";
+import { requestContext } from "./lib/request-context.js";
 import { initSentry, sentryFastifyErrorHook, sentryUserHook } from "./lib/sentry.js";
 import adminAuthPlugin from "./plugins/admin-auth.js";
 import adminRbacPlugin from "./plugins/admin-rbac.js";
@@ -24,7 +26,7 @@ import { adminFeedbackRoutes } from "./routes/admin/feedback.js";
 import { adminFlagsRoutes } from "./routes/admin/flags.js";
 import { adminGeographyRoutes } from "./routes/admin/geography.js";
 import { adminInvitesRoutes } from "./routes/admin/invites.js";
-import { adminMetricsRoutes } from "./routes/admin/metrics.js";
+import { adminMetricsRoutes, adminSyntheticRoutes } from "./routes/admin/metrics.js";
 import { adminMetrosRoutes } from "./routes/admin/metros.js";
 import { adminPhotoRoutes } from "./routes/admin/photos.js";
 import { adminReportRoutes } from "./routes/admin/reports.js";
@@ -39,6 +41,7 @@ import { discoveryRoutes } from "./routes/discovery.js";
 import { dsaRoutes } from "./routes/dsa.js";
 import { feedbackRoutes } from "./routes/feedback.js";
 import { healthRoutes } from "./routes/health.js";
+import { internalSyntheticRoutes } from "./routes/internal/synthetic.js";
 import { internalRoutes } from "./routes/internal.js";
 import { invitesRoutes } from "./routes/invites.js";
 import { likesRoutes } from "./routes/likes.js";
@@ -57,6 +60,51 @@ import { waitlistRoutes } from "./routes/waitlist.js";
 // throw). When SENTRY_DSN is absent this is a no-op.
 initSentry();
 
+// Round D — Pino mixin + redaction shared between the Fastify app logger
+// and any standalone log line emitted from a worker entry point. The
+// mixin reads from AsyncLocalStorage so every log line carries the
+// active request id (or `worker.<label>.<uuid>` when emitted from a
+// scheduled task). Redactions cover all the known PII fields we never
+// want sprayed into log aggregation.
+const REDACT_PATHS = [
+  "req.headers.authorization",
+  "req.headers.cookie",
+  "req.body.password",
+  "req.body.email",
+  "req.body.inviteCode",
+  "req.body.refreshToken",
+  "req.body.token",
+  "*.email",
+  "*.emailHash",
+  "*.refreshToken",
+  "*.accessToken",
+  "*.bio",
+  "*.displayName",
+];
+
+function buildLogger() {
+  return pino({
+    level: env.LOG_LEVEL,
+    redact: {
+      paths: REDACT_PATHS,
+      censor: "[REDACTED]",
+    },
+    mixin() {
+      const ctx = requestContext.get();
+      if (!ctx) return {};
+      return {
+        requestId: ctx.requestId,
+        ...(ctx.userId ? { userId: ctx.userId } : {}),
+        ...(ctx.adminUserId ? { adminUserId: ctx.adminUserId } : {}),
+      };
+    },
+    transport:
+      env.NODE_ENV === "development"
+        ? { target: "pino-pretty", options: { colorize: true } }
+        : undefined,
+  });
+}
+
 export async function buildServer() {
   const app = Fastify({
     // We sit behind Vercel's edge in production, which always sets
@@ -65,13 +113,22 @@ export async function buildServer() {
     // The country-gate and IP-hash logic rely on this; without it,
     // every request would appear to come from the load-balancer.
     trustProxy: env.NODE_ENV !== "test",
-    logger:
-      env.NODE_ENV === "development"
-        ? {
-            level: env.LOG_LEVEL,
-            transport: { target: "pino-pretty", options: { colorize: true } },
-          }
-        : { level: env.LOG_LEVEL },
+    loggerInstance: buildLogger(),
+  });
+
+  // Round D — wrap every request in an AsyncLocalStorage frame so the
+  // Pino mixin / Sentry beforeSend can tag log lines + events with the
+  // request id (and downstream the auth + admin-auth plugins call
+  // `requestContext.set` to attach userId / adminUserId).
+  app.addHook("onRequest", (req, _reply, done) => {
+    requestContext.run({ requestId: req.id }, done);
+  });
+
+  app.addHook("preHandler", (req, _reply, done) => {
+    const u = req as typeof req & { userId?: string; adminUserId?: string };
+    if (u.userId) requestContext.set({ userId: u.userId });
+    if (u.adminUserId) requestContext.set({ adminUserId: u.adminUserId });
+    done();
   });
 
   await app.register(sensible);
@@ -138,6 +195,7 @@ export async function buildServer() {
   await app.register(healthRoutes);
 
   await app.register(internalRoutes, { prefix: "/api/v1/internal" });
+  await app.register(internalSyntheticRoutes, { prefix: "/api/v1/internal" });
   await app.register(authRoutes, { prefix: "/api/v1/auth" });
   await app.register(invitesRoutes, { prefix: "/api/v1/invites" });
   await app.register(notificationsRoutes, { prefix: "/api/v1/notifications" });
@@ -165,6 +223,7 @@ export async function buildServer() {
   await app.register(adminPhotoRoutes, { prefix: "/api/v1/admin/photos" });
   await app.register(adminAuditRoutes, { prefix: "/api/v1/admin/audit" });
   await app.register(adminMetricsRoutes, { prefix: "/api/v1/admin/metrics" });
+  await app.register(adminSyntheticRoutes, { prefix: "/api/v1/admin" });
   await app.register(adminRoleRoutes, { prefix: "/api/v1/admin" });
   await app.register(adminInvitesRoutes, { prefix: "/api/v1/admin/invites" });
   await app.register(adminFlagsRoutes, { prefix: "/api/v1/admin/flags" });

@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { requestContext } from "../lib/request-context.js";
 
 // DSA Art. 16 SLA breach detector (SAFE-4).
 //
@@ -19,6 +20,10 @@ export interface DsaSlaReport {
 }
 
 export async function runDsaSlaCheckOnce(prisma: PrismaClient): Promise<DsaSlaReport> {
+  return requestContext.workerRun("dsa-sla", () => runDsaSlaCheckInner(prisma));
+}
+
+async function runDsaSlaCheckInner(prisma: PrismaClient): Promise<DsaSlaReport> {
   const startedAt = Date.now();
   const scannedAt = new Date();
 

@@ -49,6 +49,7 @@ const TABLES = [
   "PushDeliveryLog",
   "AlertFired",
   "WaitlistEntry",
+  "SyntheticCheckRun",
 ];
 
 export async function resetDb(): Promise<void> {

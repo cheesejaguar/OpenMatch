@@ -1367,3 +1367,17 @@ model WaitlistEntry {
   @@index([country])
   @@index([createdAt])
 }
+
+// Round D — synthetic check audit trail. Each cron-invoked run of the
+// synthetic probe writes a row so the admin "Health" panel can render
+// the last N results and ops can answer "when did the synthetic last
+// pass?" without scraping logs.
+model SyntheticCheckRun {
+  id         String   @id @default(cuid())
+  ranAt      DateTime @default(now())
+  durationMs Int
+  passed     Boolean
+  steps      Json // [{ name, passed, error? }]
+
+  @@index([ranAt])
+}

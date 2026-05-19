@@ -4,6 +4,7 @@ import nodemailer from "nodemailer";
 import { env } from "../env.js";
 import { hashIdentity, hashIp } from "../lib/hash.js";
 import { normalizeInviteCode } from "../lib/invite-codes.js";
+import { withSpan } from "../lib/spans.js";
 
 const TOKEN_BYTES = 32;
 const MAGIC_LINK_TTL_MS = env.MAGIC_LINK_TTL_SECONDS * 1000;
@@ -33,6 +34,15 @@ export interface StartEmailLoginInput {
 }
 
 export async function startEmailLogin(
+  prisma: PrismaClient,
+  input: StartEmailLoginInput,
+): Promise<{ challengeId: string; devToken?: string }> {
+  return withSpan("auth.startEmailLogin", "auth.startEmailLogin", () =>
+    startEmailLoginInner(prisma, input),
+  );
+}
+
+async function startEmailLoginInner(
   prisma: PrismaClient,
   input: StartEmailLoginInput,
 ): Promise<{ challengeId: string; devToken?: string }> {
@@ -131,6 +141,16 @@ export async function verifyEmailLogin(
   input: VerifyEmailLoginInput,
   options: { inviteRequired?: boolean } = {},
 ): Promise<{ userId: string; isNewUser: boolean }> {
+  return withSpan("auth.verifyEmailLogin", "auth.verifyEmailLogin", () =>
+    verifyEmailLoginInner(prisma, input, options),
+  );
+}
+
+async function verifyEmailLoginInner(
+  prisma: PrismaClient,
+  input: VerifyEmailLoginInput,
+  options: { inviteRequired?: boolean } = {},
+): Promise<{ userId: string; isNewUser: boolean }> {
   const challenge = await prisma.authChallenge.findUnique({
     where: { id: input.challengeId },
   });
@@ -202,6 +222,16 @@ export async function upsertAppleUser(
   identity: AppleIdentity,
   options: { inviteRequired?: boolean; inviteCode?: string | null } = {},
 ): Promise<{ user: { id: string }; isNewUser: boolean }> {
+  return withSpan("auth.upsertAppleUser", "auth.upsertAppleUser", () =>
+    upsertAppleUserInner(prisma, identity, options),
+  );
+}
+
+async function upsertAppleUserInner(
+  prisma: PrismaClient,
+  identity: AppleIdentity,
+  options: { inviteRequired?: boolean; inviteCode?: string | null } = {},
+): Promise<{ user: { id: string }; isNewUser: boolean }> {
   const existing = await prisma.user.findUnique({ where: { authSubject: identity.sub } });
   if (existing) return { user: existing, isNewUser: false };
 
@@ -258,6 +288,17 @@ export async function issueSession(
 }
 
 export async function rotateRefreshToken(
+  prisma: PrismaClient,
+  refreshToken: string,
+  signAccess: (payload: { sub: string; scope: "user" }) => string,
+  ctx: IssueSessionContext & { logReuse?: (userId: string) => void } = {},
+): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date } | null> {
+  return withSpan("auth.rotateRefreshToken", "auth.rotateRefreshToken", () =>
+    rotateRefreshTokenInner(prisma, refreshToken, signAccess, ctx),
+  );
+}
+
+async function rotateRefreshTokenInner(
   prisma: PrismaClient,
   refreshToken: string,
   signAccess: (payload: { sub: string; scope: "user" }) => string,
