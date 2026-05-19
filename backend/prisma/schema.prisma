@@ -390,6 +390,7 @@ model User {
   notificationDevices NotificationDevice[]
   analyticsEvents     AnalyticsEvent[]
   betaFeedback        BetaFeedback[]
+  pushDeliveryLogs    PushDeliveryLog[]
 
   @@index([status])
 }
@@ -1319,4 +1320,50 @@ model BetaFeedback {
 
   @@index([resolvedAt])
   @@index([userId])
+}
+
+// OPS-1: APNs delivery log. One row per push send attempt — successes
+// and failures both — so the retry worker can find recent failures and
+// the admin dashboard can answer "is push working right now?".
+model PushDeliveryLog {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId      String?
+  category      String // "match" | "message" | "like" | "safety"
+  success       Boolean
+  failureReason String?
+  sentAt        DateTime @default(now())
+
+  @@index([userId, sentAt])
+  @@index([category, sentAt])
+  @@index([success, sentAt])
+}
+
+// MON-2: on-call alert dedupe. Each alert kind plus its target id forms
+// `alertKey`. While `resolvedAt` is null, the same alert is treated as
+// already firing and won't re-page.
+model AlertFired {
+  id         String    @id @default(cuid())
+  alertKey   String
+  firedAt    DateTime  @default(now())
+  resolvedAt DateTime?
+  details    Json?
+
+  @@index([alertKey, firedAt])
+  @@index([alertKey, resolvedAt])
+}
+
+// BETA-3: out-of-cohort interest capture. Public endpoint, rate-limited,
+// stores only the SHA-256 hash of email (via `hashIdentity`) so the row
+// is GDPR-friendly and idempotent on repeated submissions.
+model WaitlistEntry {
+  id        String   @id @default(cuid())
+  emailHash String   @unique
+  country   String?
+  city      String?
+  createdAt DateTime @default(now())
+
+  @@index([country])
+  @@index([createdAt])
 }

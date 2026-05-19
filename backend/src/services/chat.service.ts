@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { tryDispatchPush } from "./push.service.js";
 
 export async function listConversations(prisma: PrismaClient, userId: string) {
   return prisma.conversation.findMany({
@@ -61,14 +62,37 @@ export async function postMessage(
   if (!(await authorizedForConversation(prisma, conversationId, senderUserId))) {
     throw Object.assign(new Error("not_authorized"), { statusCode: 403 });
   }
-  return prisma.$transaction(async (tx) => {
-    const message = await tx.message.create({
+  const message = await prisma.$transaction(async (tx) => {
+    const m = await tx.message.create({
       data: { conversationId, senderUserId, body },
     });
     await tx.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
-    return message;
+    return m;
   });
+
+  // OPS-1: fire message-push to the OTHER party. Best-effort.
+  setImmediate(async () => {
+    try {
+      const convo = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { match: { select: { userAId: true, userBId: true } } },
+      });
+      if (!convo) return;
+      const recipientId =
+        convo.match.userAId === senderUserId ? convo.match.userBId : convo.match.userAId;
+      tryDispatchPush(prisma, {
+        userId: recipientId,
+        category: "message",
+        alert: { title: "New message", body: "You have a new message on OpenMatch." },
+        threadId: `conversation:${conversationId}`,
+      });
+    } catch {
+      // never fail the request because of a push lookup error
+    }
+  });
+
+  return message;
 }

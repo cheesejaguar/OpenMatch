@@ -94,6 +94,30 @@ const schema = z.object({
     .string()
     .min(32)
     .default("dev-internal-worker-token-please-change-32-chars"),
+
+  // APNs delivery (OPS-1). When APNS_TEAM_ID is empty the push worker
+  // logs a warning at startup but is otherwise a no-op (dev / CI safe).
+  // When all four are present, real APNs is wired via @parse/node-apn.
+  APNS_TEAM_ID: z.string().optional(),
+  APNS_KEY_ID: z.string().optional(),
+  // Base64-encoded contents of the .p8 private key file from App Store
+  // Connect. We base64-encode in env so newlines round-trip cleanly.
+  APNS_PRIVATE_KEY: z.string().optional(),
+  // Bundle id of the iOS app, e.g. "app.openmatch.ios".
+  APNS_TOPIC: z.string().optional(),
+  APNS_PRODUCTION: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
+
+  // Sentry (OPS-3). When SENTRY_DSN is absent, Sentry is not initialised.
+  SENTRY_DSN: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  SENTRY_RELEASE: z.string().optional(),
+
+  // On-call alerter (MON-2). Posts a JSON `{ text }` payload to the
+  // configured Slack incoming webhook when an alert condition fires.
+  SLACK_WEBHOOK_URL: z.string().url().optional(),
 });
 
 export const env = schema.parse(process.env);
