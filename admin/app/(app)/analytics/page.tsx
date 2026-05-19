@@ -30,7 +30,10 @@ const TABS = [
   { key: "engagement", label: "Engagement" },
 ] as const;
 
-const RETENTION_COLORS = ["#2F4F3E", "#C2654B", "#D4A340", "#9DAE8E", "#4E7A65", "#B5443A"];
+// Aurora Dawn palette — 6 distinct hues for chart segments. Hex literals
+// (not CSS vars) because Recharts consumes raw color strings, not computed
+// styles. Light-mode values; dark-mode would need a theme observer.
+const RETENTION_COLORS = ["#5b2b6e", "#e63d7c", "#ffb347", "#a6b4ff", "#b8a8c9", "#d43a3a"];
 
 function isoDaysAgo(days: number): string {
   const d = new Date();

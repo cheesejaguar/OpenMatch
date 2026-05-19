@@ -42,14 +42,14 @@ struct ProfileCardView: View {
                 edgeGlow
 
                 HStack {
-                    CornerBadge(text: "LIKE", color: OMColor.terracotta)
+                    CornerBadge(text: "LIKE", color: OMColor.magenta)
                         .scaleEffect(1 + max(0, intent) * 0.18)
                         .opacity(max(0, intent))
                         .rotationEffect(.degrees(-12))
                         .padding(.top, 30)
                         .padding(.leading, 24)
                     Spacer()
-                    CornerBadge(text: "PASS", color: OMColor.sage)
+                    CornerBadge(text: "PASS", color: OMColor.periwinkle)
                         .scaleEffect(1 + max(0, -intent) * 0.18)
                         .opacity(max(0, -intent))
                         .rotationEffect(.degrees(12))
@@ -71,7 +71,7 @@ struct ProfileCardView: View {
 
     private var edgeGlow: some View {
         let strength = min(abs(intent), 1.0) * 0.55
-        let tint: Color = intent >= 0 ? OMColor.terracotta : OMColor.sage
+        let tint: Color = intent >= 0 ? OMColor.magenta : OMColor.periwinkle
         return ZStack {
             if intent > 0 {
                 RadialGradient(
@@ -143,7 +143,7 @@ struct ProfileCardView: View {
                 Image(systemName: "arrow.uturn.backward")
                     .font(.title3.weight(.semibold))
             }
-            .buttonStyle(OMCircleActionStyle(color: OMColor.honey, size: 52))
+            .buttonStyle(OMCircleActionStyle(color: OMColor.marigold, size: 52))
             .disabled(!canUndo)
             .opacity(canUndo ? 1 : 0.4)
             .accessibilityLabel("Undo last decision")
@@ -152,14 +152,14 @@ struct ProfileCardView: View {
                 Image(systemName: "xmark")
                     .font(.title.weight(.semibold))
             }
-            .buttonStyle(OMCircleActionStyle(color: OMColor.sage, size: 62))
+            .buttonStyle(OMCircleActionStyle(color: OMColor.periwinkle, size: 62))
             .accessibilityLabel("Reject profile")
 
             Button(action: { Haptics.threshold(); onLike() }) {
                 Image(systemName: "heart.fill")
                     .font(.title.weight(.semibold))
             }
-            .buttonStyle(OMCircleActionStyle(color: OMColor.terracotta, size: 62))
+            .buttonStyle(OMCircleActionStyle(color: OMColor.magenta, size: 62))
             .accessibilityLabel("Like profile")
         }
     }
@@ -176,10 +176,10 @@ private struct CornerBadge: View {
             .padding(.vertical, 6)
             .padding(.horizontal, 14)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                OMShape.input(OMRadius.xs)
                     .stroke(color, lineWidth: 4)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        OMShape.input(OMRadius.xs)
                             .fill(OMColor.surfaceElevated.opacity(0.55))
                     )
             )

@@ -74,7 +74,7 @@ struct ProfileHomeView: View {
                             NavigationLink {
                                 SafetyCenterView()
                             } label: {
-                                OMRow("Safety center", systemImage: "shield.lefthalf.filled", iconTint: OMColor.safetyRed, chevron: true)
+                                OMRow("Safety center", systemImage: "shield.lefthalf.filled", iconTint: OMColor.cinnabar, chevron: true)
                             }
                             .buttonStyle(.plain)
                             OMSectionDivider()
@@ -105,7 +105,7 @@ struct ProfileHomeView: View {
                         } label: {
                             Text("Sign out")
                                 .font(OMFont.body(16, weight: .semibold))
-                                .foregroundStyle(OMColor.safetyRed)
+                                .foregroundStyle(OMColor.cinnabar)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
                         }
@@ -113,7 +113,7 @@ struct ProfileHomeView: View {
                             OMShape.card(OMRadius.lg).fill(OMColor.surfaceElevated)
                         )
                         .overlay(
-                            OMShape.card(OMRadius.lg).stroke(OMColor.safetyRed.opacity(0.30), lineWidth: 1)
+                            OMShape.card(OMRadius.lg).stroke(OMColor.cinnabar.opacity(0.30), lineWidth: 1)
                         )
                     }
                     .padding(.horizontal, OMSpacing.lg)
@@ -284,7 +284,7 @@ struct EditProfileView: View {
             }
         }
         .overlay {
-            if vm.isLoading { ProgressView().controlSize(.large).tint(OMColor.moss) }
+            if vm.isLoading { ProgressView().controlSize(.large).tint(OMColor.plum) }
         }
         .alert("Saved", isPresented: $vm.saved) {
             Button("OK", role: .cancel) {}
@@ -334,7 +334,7 @@ struct EditProfileView: View {
             HStack(spacing: OMSpacing.md) {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(OMColor.terracotta)
+                    .foregroundStyle(OMColor.magenta)
                 Text(isUploading ? "Uploading…" : "Add a photo")
                     .font(OMFont.body(16, weight: .medium))
                     .foregroundStyle(OMColor.ink)
@@ -358,7 +358,7 @@ private struct PhotoTile: View {
                 case .success(let image):
                     image.resizable().scaledToFill()
                 case .empty:
-                    ProgressView().tint(OMColor.moss)
+                    ProgressView().tint(OMColor.plum)
                 case .failure:
                     BotanicPlaceholder(.large)
                 @unknown default:
@@ -372,7 +372,7 @@ private struct PhotoTile: View {
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "xmark.circle.fill")
                     .symbolRenderingMode(.palette)
-                    .foregroundStyle(OMColor.surface, OMColor.ink.opacity(0.55))
+                    .foregroundStyle(OMColor.paper, OMColor.ink.opacity(0.55))
                     .font(.title3)
             }
             .padding(4)
@@ -417,7 +417,7 @@ struct ProfilePreviewView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "location.fill")
                                         .imageScale(.small)
-                                        .foregroundStyle(OMColor.moss)
+                                        .foregroundStyle(OMColor.plum)
                                     Text(city)
                                         .font(OMFont.callout)
                                         .foregroundStyle(OMColor.inkMuted)
@@ -433,13 +433,13 @@ struct ProfilePreviewView: View {
                                 Text("Interests")
                                     .font(OMFont.display(14, weight: .semibold, italic: true))
                                     .tracking(1.2)
-                                    .foregroundStyle(OMColor.moss)
+                                    .foregroundStyle(OMColor.plum)
                                     .padding(.top, OMSpacing.sm)
                                 FlowChips(items: profile.interests)
                             }
                         }
                     } else if error == nil {
-                        ProgressView().tint(OMColor.moss).frame(maxWidth: .infinity)
+                        ProgressView().tint(OMColor.plum).frame(maxWidth: .infinity)
                     }
                 }
                 .padding(OMSpacing.lg)
@@ -472,14 +472,14 @@ private struct FlowChips: View {
             ForEach(items, id: \.self) { interest in
                 Text(interest)
                     .font(OMFont.caption.weight(.semibold))
-                    .foregroundStyle(OMColor.moss)
+                    .foregroundStyle(OMColor.plum)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(
                         OMShape.chip().fill(OMColor.surfaceSunken)
                     )
                     .overlay(
-                        OMShape.chip().stroke(OMColor.moss.opacity(0.20), lineWidth: 1)
+                        OMShape.chip().stroke(OMColor.plum.opacity(0.20), lineWidth: 1)
                     )
             }
         }

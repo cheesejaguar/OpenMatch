@@ -20,7 +20,7 @@ struct OMSection<Content: View>: View {
                 Text(title.uppercased())
                     .font(OMFont.display(12, weight: .semibold, italic: true))
                     .tracking(1.4)
-                    .foregroundStyle(OMColor.moss)
+                    .foregroundStyle(OMColor.plum)
                     .padding(.leading, OMSpacing.sm)
             }
             VStack(spacing: 0) {

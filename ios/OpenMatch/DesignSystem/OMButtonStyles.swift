@@ -7,7 +7,7 @@ struct OMPrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(OMColor.onAccent)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(OMColor.terracotta, in: OMShape.button())
+            .background(OMColor.magenta, in: OMShape.button())
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .opacity(configuration.isPressed ? 0.92 : 1.0)
             .animation(.spring(response: 0.22, dampingFraction: 0.85), value: configuration.isPressed)
@@ -18,12 +18,12 @@ struct OMSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(OMFont.body(17, weight: .semibold))
-            .foregroundStyle(OMColor.moss)
+            .foregroundStyle(OMColor.plum)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(
                 OMShape.button()
-                    .stroke(OMColor.moss, lineWidth: 1.5)
+                    .stroke(OMColor.plum, lineWidth: 1.5)
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .opacity(configuration.isPressed ? 0.85 : 1.0)
@@ -35,7 +35,7 @@ struct OMGhostButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(OMFont.body(17, weight: .medium))
-            .foregroundStyle(OMColor.moss)
+            .foregroundStyle(OMColor.plum)
             .padding(.vertical, 10)
             .padding(.horizontal, 14)
             .opacity(configuration.isPressed ? 0.6 : 1.0)
@@ -50,7 +50,7 @@ struct OMDestructiveButtonStyle: ButtonStyle {
             .foregroundStyle(OMColor.onAccent)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(OMColor.safetyRed, in: OMShape.button())
+            .background(OMColor.cinnabar, in: OMShape.button())
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .opacity(configuration.isPressed ? 0.92 : 1.0)
             .animation(.spring(response: 0.22, dampingFraction: 0.85), value: configuration.isPressed)

@@ -212,7 +212,7 @@ struct ConversationView: View {
                         Image(systemName: "paperplane.fill")
                             .font(.system(size: 16, weight: .semibold))
                             .padding(10)
-                            .background(OMColor.terracotta, in: Circle())
+                            .background(OMColor.magenta, in: Circle())
                             .foregroundStyle(OMColor.onAccent)
                     }
                     .disabled(vm.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -315,7 +315,7 @@ private struct MessageBubble: View {
                     case .failed:
                         Image(systemName: "arrow.clockwise.circle.fill")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(OMColor.terracotta)
+                            .foregroundStyle(OMColor.magenta)
                     }
                 }
             }
@@ -323,11 +323,11 @@ private struct MessageBubble: View {
             .padding(.vertical, 10)
             .background(
                 bubbleBackground,
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                in: OMShape.card(OMRadius.md)
             )
             .foregroundStyle(isMine ? OMColor.onAccent : OMColor.ink)
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                OMShape.card(OMRadius.md)
                     .stroke(isMine ? Color.clear : OMColor.cardStroke, lineWidth: 1)
             )
             .frame(maxWidth: 280, alignment: isMine ? .trailing : .leading)
@@ -338,8 +338,8 @@ private struct MessageBubble: View {
     private var bubbleBackground: Color {
         if !isMine { return OMColor.surfaceElevated }
         switch state {
-        case .sent, .sending: return OMColor.moss
-        case .failed: return OMColor.terracotta.opacity(0.85)
+        case .sent, .sending: return OMColor.plum
+        case .failed: return OMColor.magenta.opacity(0.85)
         }
     }
 }

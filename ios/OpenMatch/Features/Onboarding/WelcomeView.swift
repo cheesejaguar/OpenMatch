@@ -29,7 +29,7 @@ struct WelcomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                OMColor.surface.ignoresSafeArea()
+                OMColor.paper.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 22) {
                         Spacer(minLength: 30)
@@ -39,7 +39,7 @@ struct WelcomeView: View {
                         Text("OpenMatch")
                             .font(OMFont.display(48, weight: .bold, italic: true))
                             .tracking(-1)
-                            .foregroundStyle(OMColor.moss)
+                            .foregroundStyle(OMColor.plum)
                             .opacity(reveal(at: 1))
                             .offset(y: reveal(at: 1) > 0 ? 0 : 6)
                         VStack(spacing: 4) {
@@ -115,7 +115,7 @@ struct WelcomeView: View {
                             Link("Source", destination: URL(string: "https://github.com/cheesejaguar/openmatch")!)
                         }
                         .font(OMFont.caption)
-                        .foregroundStyle(OMColor.moss)
+                        .foregroundStyle(OMColor.plum)
                         .padding(.top, 12)
                         .opacity(reveal(at: 4))
 
@@ -125,7 +125,7 @@ struct WelcomeView: View {
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(OMColor.surface, for: .navigationBar)
+            .toolbarBackground(OMColor.paper, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .onAppear { startReveal() }
             .onOpenURL { url in
@@ -155,12 +155,12 @@ struct WelcomeView: View {
             // Two facing leaves form an abstract heart.
             Image(systemName: "leaf.fill")
                 .font(.system(size: 38, weight: .bold))
-                .foregroundStyle(OMColor.terracotta)
+                .foregroundStyle(OMColor.magenta)
                 .rotationEffect(.degrees(-30))
                 .offset(x: -8, y: 0)
             Image(systemName: "leaf.fill")
                 .font(.system(size: 38, weight: .bold))
-                .foregroundStyle(OMColor.moss)
+                .foregroundStyle(OMColor.plum)
                 .rotationEffect(.degrees(150))
                 .offset(x: 8, y: 0)
         }

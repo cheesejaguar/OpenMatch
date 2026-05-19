@@ -45,7 +45,7 @@ struct ProfileDetailSheet: View {
                         .font(.callout.weight(.semibold))
                     }
                     .padding(14)
-                    .background(OMColor.surfaceMuted, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(OMColor.surfaceMuted, in: OMShape.card(OMRadius.md))
 
                     SafetyActions(profileId: card.profileId, userId: card.userId) {
                         dismiss()

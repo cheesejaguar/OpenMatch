@@ -13,13 +13,13 @@ struct SafetyCenterView: View {
                     }
 
                     OMSection("Dating safety") {
-                        SafetyTip("Meet in public places for the first time.", systemImage: "person.2.fill", tint: OMColor.moss)
+                        SafetyTip("Meet in public places for the first time.", systemImage: "person.2.fill", tint: OMColor.plum)
                         OMSectionDivider()
-                        SafetyTip("Tell a friend where you're going.", systemImage: "bubble.left.fill", tint: OMColor.moss)
+                        SafetyTip("Tell a friend where you're going.", systemImage: "bubble.left.fill", tint: OMColor.plum)
                         OMSectionDivider()
-                        SafetyTip("Trust your instincts. Unmatch or block without explanation.", systemImage: "hand.raised.fill", tint: OMColor.moss)
+                        SafetyTip("Trust your instincts. Unmatch or block without explanation.", systemImage: "hand.raised.fill", tint: OMColor.plum)
                         OMSectionDivider()
-                        SafetyTip("OpenMatch will NEVER ask for money or gift cards.", systemImage: "exclamationmark.shield.fill", tint: OMColor.safetyRed)
+                        SafetyTip("OpenMatch will NEVER ask for money or gift cards.", systemImage: "exclamationmark.shield.fill", tint: OMColor.cinnabar)
                     }
 
                     OMSection("Crisis resources") {
@@ -110,7 +110,7 @@ struct BlockedUsersView: View {
             ScrollView {
                 if vm.isLoading && vm.blocked.isEmpty {
                     ProgressView()
-                        .tint(OMColor.moss)
+                        .tint(OMColor.plum)
                         .padding(.top, 60)
                 } else if vm.blocked.isEmpty {
                     VStack(spacing: OMSpacing.md) {
@@ -302,7 +302,7 @@ struct ReportFlowView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
-                        .foregroundStyle(OMColor.moss)
+                        .foregroundStyle(OMColor.plum)
                 }
             }
             .alert("Couldn't submit", isPresented: .init(

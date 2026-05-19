@@ -116,6 +116,14 @@ h4 {
   letter-spacing: -0.01em;
 }
 
+/* Aurora Dawn: section headers wear the plum hero color. Body text still
+   uses --fg, but a section H2/H3 is a structural beat and should signal
+   that with palette weight. Modal h3s override below for tighter context. */
+h2,
+h3 {
+  color: var(--om-plum);
+}
+
 a {
   color: var(--accent);
   text-decoration: none;
@@ -260,6 +268,8 @@ label {
   font-style: italic;
   font-weight: 600;
   letter-spacing: -0.02em;
+  /* Aurora Dawn: section headers wear the plum hero color. */
+  color: var(--om-plum);
 }
 
 .card {
@@ -388,6 +398,10 @@ table th {
   font-weight: 600;
   margin-top: 4px;
   letter-spacing: -0.02em;
+  /* Aurora Dawn: KPI numerals lean on magenta for dopamine emphasis. The
+     plum hero is reserved for headers + sidebar marks so the eye lands on
+     the number first when scanning a dashboard. */
+  color: var(--om-magenta);
 }
 
 .photo-grid {

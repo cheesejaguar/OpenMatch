@@ -60,7 +60,7 @@ struct FeedbackView: View {
                     if didSubmit {
                         Text("Thanks — we got it.")
                             .font(OMFont.callout.weight(.semibold))
-                            .foregroundStyle(OMColor.moss)
+                            .foregroundStyle(OMColor.plum)
                             .frame(maxWidth: .infinity)
                     }
 
@@ -79,7 +79,7 @@ struct FeedbackView: View {
                     if let error {
                         Text(error)
                             .font(OMFont.caption)
-                            .foregroundStyle(OMColor.safetyRed)
+                            .foregroundStyle(OMColor.cinnabar)
                             .multilineTextAlignment(.center)
                     }
 

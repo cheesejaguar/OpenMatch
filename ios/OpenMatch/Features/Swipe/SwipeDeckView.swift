@@ -88,7 +88,7 @@ struct SwipeDeckView: View {
         VStack(spacing: 16) {
             Image(systemName: "leaf.fill")
                 .font(.system(size: 56))
-                .foregroundStyle(OMColor.moss.opacity(0.7))
+                .foregroundStyle(OMColor.plum.opacity(0.7))
             Text("Nobody matches your filters right now.")
                 .font(OMFont.subhead)
                 .multilineTextAlignment(.center)

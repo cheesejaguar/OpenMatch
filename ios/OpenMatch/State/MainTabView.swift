@@ -57,7 +57,7 @@ struct MainTabView: View {
                 }
                 .tag(Tab.profile)
         }
-        .tint(OMColor.moss)
+        .tint(OMColor.plum)
         .safeAreaInset(edge: .top, spacing: 0) {
             if !gate.isComplete && selection != .swipe {
                 ProfileIncompleteBanner(onTapComplete: { selection = .profile })
@@ -74,7 +74,7 @@ private struct ProfileIncompleteBanner: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.circle.fill")
-                .foregroundStyle(OMColor.honey)
+                .foregroundStyle(OMColor.marigold)
             VStack(alignment: .leading, spacing: 0) {
                 Text("Finish your profile to start swiping")
                     .font(OMFont.body(14, weight: .semibold))
@@ -89,7 +89,7 @@ private struct ProfileIncompleteBanner: View {
                 .foregroundStyle(OMColor.onAccent)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(OMColor.moss, in: Capsule())
+                .background(OMColor.plum, in: Capsule())
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -120,10 +120,10 @@ private struct ProfileIncompleteFullScreen: View {
                 VStack(spacing: 20) {
                     Image(systemName: "leaf.fill")
                         .font(.system(size: 56))
-                        .foregroundStyle(OMColor.moss.opacity(0.7))
+                        .foregroundStyle(OMColor.plum.opacity(0.7))
                     Text("One more step before you can swipe")
                         .font(OMFont.display(24, weight: .semibold, italic: true))
-                        .foregroundStyle(OMColor.moss)
+                        .foregroundStyle(OMColor.plum)
                         .multilineTextAlignment(.center)
                     Text("OpenMatch requires every profile to have at least 2 photos and a display name before it can be shown — to you, or to anyone you might match with.")
                         .font(OMFont.callout)
@@ -146,7 +146,7 @@ private struct ProfileIncompleteFullScreen: View {
                     .buttonStyle(OMPrimaryButtonStyle())
                     Button("Go to Profile tab", action: onTapComplete)
                         .font(OMFont.callout.weight(.semibold))
-                        .foregroundStyle(OMColor.moss)
+                        .foregroundStyle(OMColor.plum)
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity)
@@ -161,7 +161,7 @@ private struct CheckRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(done ? OMColor.moss : OMColor.inkMuted)
+                .foregroundStyle(done ? OMColor.plum : OMColor.inkMuted)
             Text(label)
                 .font(OMFont.body(14, weight: .medium))
                 .foregroundStyle(OMColor.ink)
