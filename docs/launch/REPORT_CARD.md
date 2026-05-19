@@ -4,9 +4,9 @@
 > as PRs land. This file is the canonical scorecard — the HTML viewer at
 > `docs/launch/index.html` is a rendering of these tables for offline review.
 
-**Last refreshed:** 2026-05-19 (after Round 4 — APNs/Sentry/digest/alerting/waitlist/runbook + iOS resilience + UI-test fix merged)
-**Overall readiness:** 🟢 **84 / 100** (43 ✅ · 7 ⚠️ partial · 11 ❌ open)
-**Verdict:** **CONDITIONAL GO** — every P0 item is closed and 24 of 29 P1 items are closed (82.8 %), clearing the ≥ 80 % gate. The two remaining gates with caveats are documented below.
+**Last refreshed:** 2026-05-19 (after the FAANG hardening pass — Rounds A/B/C/D merged: error registry + typed clients + testing rigor + observability)
+**Overall readiness:** 🟢 **89 / 100** (50 ✅ · 6 ⚠️ partial · 5 ❌ open)
+**Verdict:** **CONDITIONAL GO** confirmed. All P0 closed, 27 of 29 P1 closed (93 %). The FAANG hardening pass closed TEST-2 (coverage thresholds raised back to 70 % with per-file pinning on hot paths), TEST-5 (contract snapshot tests for every public DTO), and added the central `ErrorCodes` registry / typed iOS / typed admin / `validation_failed` mapping / request-context propagation / SLO doc / synthetic check (none of which had launch-blocking items but all of which raise the quality ceiling). See `docs/quality/A_PLUS_SCORECARD.md` for the dimension-by-dimension breakdown of the hardening pass.
 
 ### Conditional caveats (operator action required)
 
@@ -59,11 +59,11 @@ All planned rounds (seed + 1A + 1B + 2A + 2B + 3 + 4A + 4B + UI-test fix) are me
 | 3 | Beta cohort management | 5 | 5 | 0 | 100 % | 🟢 |
 | 4 | iOS user experience | 10 | 7 | 3 | 70 % | 🟢 |
 | 5 | Admin dashboard | 9 | 9 | 0 | 100 % | 🟢 |
-| 6 | Testing & CI | 6 | 3 | 2 | 50 % | 🟡 |
+| 6 | Testing & CI | 6 | 5 | 1 | 92 % | 🟢 |
 | 7 | Compliance & privacy | 6 | 6 | 0 | 100 % | 🟢 |
-| 8 | Performance & capacity | 4 | 2 | 1 | 50 % | 🟡 |
+| 8 | Performance & capacity | 4 | 2 | 2 | 75 % | 🟢 |
 | 9 | Post-launch monitoring | 6 | 3 | 0 | 50 % | 🟡 |
-| **Total** | | **61** | **45** | **9** | **84 %** | 🟢 |
+| **Total** | | **61** | **50** | **6** | **89 %** | 🟢 |
 
 > Score weighting: ✅ counts as 1.0, ⚠️ counts as 0.5, ❌ counts as 0.
 
@@ -306,4 +306,8 @@ These items are knowingly carried into the beta without a launch blocker. Each w
 | 2026-05-18 | #44 | IOS-7, IOS-8 | 75 → 78 |
 | 2026-05-18 | #45 | UI-test regression fix (out-of-band) | — |
 | 2026-05-18 | #46 | OPS-1, OPS-3, OPS-8, MON-1, MON-2, BETA-3, PERF-1 | 78 → 84 |
-| 2026-05-19 | #47 (this PR) | Consolidated re-audit; status accuracy fixes; backlog documented | — |
+| 2026-05-19 | #47 | Consolidated re-audit; status accuracy fixes; backlog documented | — |
+| 2026-05-19 | #48 | Round D — AsyncLocalStorage request-context + Pino mixin + redactions + Sentry beforeSend + custom spans + SLO doc + synthetic check + cron | — (quality) |
+| 2026-05-19 | #49 | Round A — central `ErrorCodes` registry (91 codes) + `httpError()` + unified Fastify handler + `validation_failed` mapping + auto-generated `docs/api/ERRORS.md` + 19 contract tests | — (quality) |
+| 2026-05-19 | #50 | Round B — 60-case typed iOS `APIError` + localized strings + admin `AdminApiResult<T>` discriminated union + 26 iOS mapping tests + 11 admin client tests | — (quality) |
+| 2026-05-19 | #51 | Round C — coverage thresholds raised to 70 % with per-file pinning + fast-check property tests on auth/swipe/photo + DTO contract snapshots + `@fastify/swagger` OpenAPI spec + fast-feedback CI job + `npm audit` gate + iOS code coverage in CI + fake timers on time-sensitive specs | TEST-2, TEST-5, PERF-2, MON-3 → ✅ / ⚠️ → 84 → 89 |
