@@ -1,54 +1,92 @@
-/* Botanic palette — synced with iOS DesignSystem/OMColor.swift.
-   Light mode is the default; staff who prefer dark can flip via OS
-   `prefers-color-scheme`. Most admin work happens in well-lit offices
-   so we ship light-first here, unlike the consumer app. */
+/* Aurora Dawn palette — synced with iOS DesignSystem/OMColor.swift.
+   Plum + magenta + marigold + periwinkle on paper / ink. Light mode is the
+   default; staff who prefer dark can flip via OS `prefers-color-scheme`.
+   Most admin work happens in well-lit offices so we ship light-first here,
+   unlike the consumer app. Legacy variable names (--accent, --warning, etc.)
+   are mapped to the new tokens for back-compat during the Phase F sweep. */
 :root {
-  --bg: #f4efe6; /* Bone */
-  --bg-elevated: #fbf7ef;
-  --bg-hover: #ece4d4;
-  --bg-sunken: #ece4d4;
-  --fg: #2a1f1a; /* Espresso ink on bone */
-  --fg-muted: #6b5d52;
-  --border: rgba(42, 31, 26, 0.1);
-  --border-strong: rgba(42, 31, 26, 0.18);
+  /* Aurora Dawn brand tokens */
+  --om-plum: #5b2b6e;
+  --om-magenta: #e63d7c;
+  --om-marigold: #ffb347;
+  --om-periwinkle: #a6b4ff;
+  --om-cinnabar: #d43a3a;
+  --om-mauve: #b8a8c9;
 
-  --accent: #2f4f3e; /* Moss */
-  --accent-strong: #c2654b; /* Terracotta — primary CTAs */
-  --danger: #b5443a; /* Safety red */
-  --warning: #d4a340; /* Honey */
-  --success: #2f4f3e; /* Moss reads as "ok / live" */
+  /* Surfaces */
+  --om-paper: #faf6f2;
+  --om-paper-elevated: #ffffff;
+  --om-paper-sunken: #f1ece5;
 
-  --radius: 8px;
-  --radius-lg: 14px;
+  /* Text */
+  --om-ink: #1a0e2a;
+  --om-ink-muted: #5e4c75;
+  --om-ink-subtle: #7c6a95;
+
+  /* Structure */
+  --om-divider: rgba(26, 14, 42, 0.1);
+  --om-divider-strong: rgba(26, 14, 42, 0.18);
+
+  /* Legacy aliases (Botanic-era names → Aurora Dawn) */
+  --bg: var(--om-paper);
+  --bg-elevated: var(--om-paper-elevated);
+  --bg-hover: var(--om-paper-sunken);
+  --bg-sunken: var(--om-paper-sunken);
+  --fg: var(--om-ink);
+  --fg-muted: var(--om-ink-muted);
+  --border: var(--om-divider);
+  --border-strong: var(--om-divider-strong);
+
+  --accent: var(--om-plum);
+  --accent-strong: var(--om-magenta); /* primary CTAs */
+  --danger: var(--om-cinnabar);
+  --warning: var(--om-marigold);
+  --success: var(--om-plum); /* reads as "ok / live" */
+
+  /* Radius tokens — mirror ios/OpenMatch/DesignSystem/OMRadius.swift.
+     button → md, card → lg, chip → pill, input → sm. */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  /* Legacy radius aliases */
+  --radius: var(--radius-sm);
+  --radius-lg-legacy: var(--radius-md);
+
   /* next/font/local sets --font-geist and --font-fraunces on <html>. */
   --font-display: var(--font-fraunces), "Fraunces 9pt", "Fraunces", ui-serif, Georgia, serif;
   --font:
     var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  --shadow-card: 0 1px 0 rgba(42, 31, 26, 0.06), 0 6px 14px -8px rgba(42, 31, 26, 0.2);
-  --shadow-press: 0 0 0 1px rgba(42, 31, 26, 0.1);
+  --shadow-card: 0 1px 0 rgba(26, 14, 42, 0.06), 0 6px 14px -8px rgba(26, 14, 42, 0.2);
+  --shadow-press: 0 0 0 1px rgba(26, 14, 42, 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #2a1f1a; /* Espresso */
-    --bg-elevated: #352822;
-    --bg-hover: #3f3128;
-    --bg-sunken: #1f1612;
-    --fg: #f4efe6; /* Bone on espresso */
-    --fg-muted: #b8ac9f;
-    --border: rgba(244, 239, 230, 0.1);
-    --border-strong: rgba(244, 239, 230, 0.18);
+    /* Aurora Dawn brand tokens — dark */
+    --om-plum: #8e4da8;
+    --om-magenta: #ff5a95;
+    --om-marigold: #ffc76a;
+    --om-periwinkle: #7c8ee6;
+    --om-cinnabar: #e66363;
+    --om-mauve: #8a7aa0;
 
-    --accent: #4e7a65; /* Moss (lifted for dark) */
-    --accent-strong: #d88163; /* Terracotta (lifted) */
-    --danger: #d26356;
-    --warning: #e6bc5b;
-    --success: #4e7a65;
+    --om-paper: #1a0e2a;
+    --om-paper-elevated: #2b1942;
+    --om-paper-sunken: #13081e;
+
+    --om-ink: #faf6f2;
+    --om-ink-muted: #c0b3d6;
+    --om-ink-subtle: #9f90b8;
+
+    --om-divider: rgba(250, 246, 242, 0.1);
+    --om-divider-strong: rgba(250, 246, 242, 0.18);
 
     --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 20px -10px rgba(0, 0, 0, 0.5);
-    --shadow-press: 0 0 0 1px rgba(244, 239, 230, 0.12);
+    --shadow-press: 0 0 0 1px rgba(250, 246, 242, 0.12);
   }
 }
 
@@ -114,7 +152,7 @@ button:active:not(:disabled) {
 button.primary {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
-  color: #f4efe6;
+  color: var(--om-paper);
 }
 button.primary:hover:not(:disabled) {
   background: var(--accent-strong);
@@ -123,7 +161,7 @@ button.primary:hover:not(:disabled) {
 button.danger {
   background: var(--danger);
   border-color: var(--danger);
-  color: #f4efe6;
+  color: var(--om-paper);
 }
 button:disabled {
   opacity: 0.5;
@@ -148,7 +186,7 @@ textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(47, 79, 62, 0.12);
+  box-shadow: 0 0 0 3px rgba(91, 43, 110, 0.18);
 }
 
 label {
@@ -284,7 +322,7 @@ table th {
 }
 
 .sensitive-banner {
-  background: rgba(212, 163, 64, 0.12);
+  background: rgba(255, 179, 71, 0.14);
   border: 1px solid var(--warning);
   border-radius: var(--radius);
   padding: 10px 14px;
@@ -297,7 +335,7 @@ table th {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(42, 31, 26, 0.55);
+  background: rgba(26, 14, 42, 0.6);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
@@ -548,7 +586,7 @@ table th {
   transform: translate(16px, -50%);
 }
 .switch input:focus-visible + .slider {
-  box-shadow: 0 0 0 3px rgba(47, 79, 62, 0.18);
+  box-shadow: 0 0 0 3px rgba(91, 43, 110, 0.22);
 }
 
 /* SLA badge variants (Within / Approaching / Breached). */
@@ -563,5 +601,5 @@ table th {
 .badge.sla-breached {
   border-color: var(--danger);
   color: var(--danger);
-  background: rgba(181, 68, 58, 0.08);
+  background: rgba(212, 58, 58, 0.1);
 }
