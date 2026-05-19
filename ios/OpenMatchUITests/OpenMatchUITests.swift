@@ -14,12 +14,15 @@ final class OpenMatchUITests: XCTestCase {
         // Either is a valid post-launch state — wait for EITHER, not both.
         let welcome = app.staticTexts["OpenMatch"]
         let swipeTab = app.tabBars.buttons["Swipe"]
-        let deadline = Date(timeIntervalSinceNow: 30)
+        // 60-second deadline (was 30) — `-enableCodeCoverage YES` (added in
+        // Round C) instruments every function and slows simulator launch
+        // significantly. 60 s keeps the test reliable under coverage.
+        let deadline = Date(timeIntervalSinceNow: 60)
         while Date() < deadline {
             if welcome.exists || swipeTab.exists { return }
             Thread.sleep(forTimeInterval: 0.5)
         }
-        XCTFail("Neither the Welcome screen nor the Swipe tab appeared within 30 seconds")
+        XCTFail("Neither the Welcome screen nor the Swipe tab appeared within 60 seconds")
     }
 
     // Smoke test for the DEBUG-only OPENMATCH_AUTO_LOGIN launch arg.
@@ -40,11 +43,14 @@ final class OpenMatchUITests: XCTestCase {
         let welcome = app.staticTexts["OpenMatch"].firstMatch
         let swipeTab = app.tabBars.buttons["Swipe"]
         let continueButton = app.buttons["Continue"].firstMatch
-        let deadline = Date(timeIntervalSinceNow: 30)
+        // 60-second deadline (was 30) — `-enableCodeCoverage YES` (added in
+        // Round C) instruments every function and slows simulator launch
+        // significantly. 60 s keeps the test reliable under coverage.
+        let deadline = Date(timeIntervalSinceNow: 60)
         while Date() < deadline {
             if welcome.exists || swipeTab.exists || continueButton.exists { return }
             Thread.sleep(forTimeInterval: 0.5)
         }
-        XCTFail("Auto-login app didn't reach Welcome / Swipe / Onboarding within 30 seconds")
+        XCTFail("Auto-login app didn't reach Welcome / Swipe / Onboarding within 60 seconds")
     }
 }
