@@ -13,22 +13,25 @@ interface Params {
 export default async function PhotosPage({ searchParams }: Params) {
   const sp = await searchParams;
   const queue = sp.queue ?? "pending";
-  const { data, status } = await adminFetch<{
+  const res = await adminFetch<{
     photos: PhotoDTO[];
     nextCursor: string | null;
   }>("/api/v1/admin/photos", {
     query: { queue, cursor: sp.cursor, limit: 50 },
   });
+  const data = res.ok ? res.data : null;
+  const status = res.status;
 
   // Oldest panel only shows for the "pending" queue — that's where
   // SLA pressure is real. Other queues are historical.
   const oldestRes =
-    status === 200 && queue === "pending"
+    res.ok && queue === "pending"
       ? await adminFetch<{ photos: PhotoDTO[] }>("/api/v1/admin/photos", {
           query: { queue: "pending", limit: 5 },
         })
       : null;
-  const oldest = (oldestRes?.data?.photos ?? [])
+  const oldestPhotos = oldestRes && oldestRes.ok ? oldestRes.data.photos : [];
+  const oldest = oldestPhotos
     .slice()
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
     .slice(0, 5);
@@ -90,13 +93,15 @@ export default async function PhotosPage({ searchParams }: Params) {
           </Link>
         ))}
       </div>
-      {status !== 200 ? (
-        <div className="error">Failed to load ({status}).</div>
-      ) : data.photos.length === 0 ? (
+      {!res.ok ? (
+        <div className="error">
+          Failed to load ({status} {res.error.code}).
+        </div>
+      ) : data!.photos.length === 0 ? (
         <div className="card muted">No photos in this queue.</div>
       ) : (
         <div className="photo-grid">
-          {data.photos.map((p) => {
+          {data!.photos.map((p) => {
             const isOpen = p.moderationStatus === "pending" || p.moderationStatus === "flagged";
             const st = isOpen ? slaState(p.createdAt, undefined, now) : null;
             return (

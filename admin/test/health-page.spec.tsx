@@ -26,6 +26,7 @@ describe("Health page", () => {
     adminFetch.mockImplementation(async (path: string) => {
       if (path.includes("/health/snapshot")) {
         return {
+          ok: true,
           status: 200,
           data: {
             ready: {
@@ -49,6 +50,7 @@ describe("Health page", () => {
         };
       }
       return {
+        ok: true,
         status: 200,
         data: {
           metric: "requests",
@@ -82,9 +84,9 @@ describe("Health page", () => {
     };
     adminFetch.mockImplementation(async (path: string) => {
       if (path.includes("/health/snapshot")) {
-        return { status: 404, data: {} };
+        return { ok: false, status: 404, error: { code: "not_found" } };
       }
-      return { status: 404, data: {} };
+      return { ok: false, status: 404, error: { code: "not_found" } };
     });
 
     const HealthPage = (await import("../app/(app)/health/page")).default;

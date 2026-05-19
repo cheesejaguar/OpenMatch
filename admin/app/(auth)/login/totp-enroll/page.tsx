@@ -24,8 +24,10 @@ async function startEnroll(formData: FormData): Promise<void> {
     method: "POST",
     body: {},
   });
-  if (res.status !== 200) {
-    redirect(`/login/totp-enroll?error=enroll_failed&next=${encodeURIComponent(next)}`);
+  if (!res.ok) {
+    redirect(
+      `/login/totp-enroll?error=${encodeURIComponent(res.error.code)}&next=${encodeURIComponent(next)}`,
+    );
   }
   const params = new URLSearchParams();
   params.set("uri", res.data.otpauthUri);
@@ -45,8 +47,10 @@ async function submitCode(formData: FormData): Promise<void> {
     method: "POST",
     body: { code },
   });
-  if (res.status !== 200) {
-    redirect(`/login/totp-enroll?error=invalid_code&next=${encodeURIComponent(next)}`);
+  if (!res.ok) {
+    redirect(
+      `/login/totp-enroll?error=${encodeURIComponent(res.error.code)}&next=${encodeURIComponent(next)}`,
+    );
   }
   redirect(next);
 }

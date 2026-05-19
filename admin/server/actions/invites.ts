@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { adminFetch } from "../../lib/api/admin-client";
+import { type AdminApiError, adminFetch } from "../../lib/api/admin-client";
 import type { InviteCreatedDTO } from "../../lib/api/types";
 
 export interface CreateInviteInput {
@@ -15,7 +15,10 @@ export interface CreateInviteInput {
 export interface CreateInviteResult {
   ok: boolean;
   status: number;
+  /** Backend error code (e.g. validation_failed, conflict) or a client-side code. */
   error?: string;
+  /** Full typed error payload when the backend rejected the request. */
+  apiError?: AdminApiError;
   items?: InviteCreatedDTO["items"];
 }
 
@@ -39,8 +42,8 @@ export async function createInviteBatch(input: CreateInviteInput): Promise<Creat
     method: "POST",
     body,
   });
-  if (res.status < 200 || res.status >= 300) {
-    return { ok: false, status: res.status, error: "server_rejected" };
+  if (!res.ok) {
+    return { ok: false, status: res.status, error: res.error.code, apiError: res.error };
   }
   revalidatePath("/invites");
   return { ok: true, status: res.status, items: res.data.items };
@@ -50,6 +53,7 @@ export interface RevokeInviteResult {
   ok: boolean;
   status: number;
   error?: string;
+  apiError?: AdminApiError;
 }
 
 export async function revokeInvite(id: string): Promise<RevokeInviteResult> {
@@ -57,8 +61,8 @@ export async function revokeInvite(id: string): Promise<RevokeInviteResult> {
     return { ok: false, status: 400, error: "invalid_id" };
   }
   const res = await adminFetch(`/api/v1/admin/invites/${id}/revoke`, { method: "POST" });
-  if (res.status < 200 || res.status >= 300) {
-    return { ok: false, status: res.status, error: "server_rejected" };
+  if (!res.ok) {
+    return { ok: false, status: res.status, error: res.error.code, apiError: res.error };
   }
   revalidatePath("/invites");
   return { ok: true, status: res.status };

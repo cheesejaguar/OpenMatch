@@ -12,9 +12,10 @@ interface Params {
 export default async function FeedbackPage({ searchParams }: Params) {
   const sp = await searchParams;
   const status = sp.status && ["open", "resolved", "all"].includes(sp.status) ? sp.status : "open";
-  const { data, status: httpStatus } = await adminFetch<FeedbackListDTO>("/api/v1/admin/feedback", {
+  const res = await adminFetch<FeedbackListDTO>("/api/v1/admin/feedback", {
     query: { status, cursor: sp.cursor, limit: 50 },
   });
+  const data = res.ok ? res.data : null;
 
   return (
     <div>
@@ -34,9 +35,11 @@ export default async function FeedbackPage({ searchParams }: Params) {
         ))}
       </div>
 
-      {httpStatus !== 200 ? (
-        <div className="error">Failed to load ({httpStatus}).</div>
-      ) : data.items.length === 0 ? (
+      {!res.ok ? (
+        <div className="error">
+          Failed to load ({res.status} {res.error.code}).
+        </div>
+      ) : data!.items.length === 0 ? (
         <div className="card muted">No feedback in this view.</div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
@@ -51,7 +54,7 @@ export default async function FeedbackPage({ searchParams }: Params) {
               </tr>
             </thead>
             <tbody>
-              {data.items.map((f) => (
+              {data!.items.map((f) => (
                 <tr key={f.id}>
                   <td>
                     <Badge>{f.category}</Badge>

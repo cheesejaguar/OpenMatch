@@ -57,7 +57,7 @@ export default async function AnalyticsPage({ searchParams }: Params) {
     query: { limit: 200 },
   });
   const cohortSet = new Set<string>();
-  if (invitesRes.status === 200) {
+  if (invitesRes.ok) {
     for (const inv of invitesRes.data.items) cohortSet.add(inv.cohortLabel);
   }
   const cohorts = Array.from(cohortSet).sort();
@@ -137,8 +137,12 @@ async function FunnelTab({ from, to, cohort }: { from: string; to: string; cohor
       />
     );
   }
-  if (res.status !== 200) {
-    return <div className="error">Failed to load funnel ({res.status}).</div>;
+  if (!res.ok) {
+    return (
+      <div className="error">
+        Failed to load funnel ({res.status} {res.error.code}).
+      </div>
+    );
   }
   const steps = res.data.steps;
   const max = steps.length > 0 ? Math.max(...steps.map((s) => s.count)) : 1;
@@ -225,8 +229,12 @@ async function RetentionTab({ from, to, cohort }: { from: string; to: string; co
       />
     );
   }
-  if (res.status !== 200) {
-    return <div className="error">Failed to load retention ({res.status}).</div>;
+  if (!res.ok) {
+    return (
+      <div className="error">
+        Failed to load retention ({res.status} {res.error.code}).
+      </div>
+    );
   }
   const cohorts = res.data.cohorts;
   if (cohorts.length === 0) {
@@ -300,8 +308,10 @@ async function EngagementTab({ from, to, cohort }: { from: string; to: string; c
       {charts.map(({ title, res, color }) => (
         <div key={title} className="card">
           <h3 style={{ marginTop: 0, marginBottom: 12 }}>{title}</h3>
-          {res.status !== 200 ? (
-            <div className="error">Failed to load ({res.status}).</div>
+          {!res.ok ? (
+            <div className="error">
+              Failed to load ({res.status} {res.error.code}).
+            </div>
           ) : (
             <TimeSeriesChart
               data={timeseriesToPoints(res.data)}

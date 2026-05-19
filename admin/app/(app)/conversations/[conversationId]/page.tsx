@@ -35,10 +35,10 @@ export default async function ConversationPage({ params, searchParams }: Params)
   const { conversationId } = await params;
   const sp = await searchParams;
 
-  const { data: convo, status: convoStatus } = await adminFetch<ConversationResponse>(
+  const convoRes = await adminFetch<ConversationResponse>(
     `/api/v1/admin/conversations/${conversationId}`,
   );
-  if (convoStatus === 404) {
+  if (!convoRes.ok && convoRes.status === 404) {
     return (
       <div>
         <div className="page-header">
@@ -47,23 +47,28 @@ export default async function ConversationPage({ params, searchParams }: Params)
       </div>
     );
   }
-  if (convoStatus !== 200) {
+  if (!convoRes.ok) {
     return (
       <div>
         <div className="page-header">
           <h2>Conversation</h2>
         </div>
-        <div className="error">Failed to load ({convoStatus}).</div>
+        <div className="error">
+          Failed to load ({convoRes.status} {convoRes.error.code}).
+        </div>
       </div>
     );
   }
+  const convo = convoRes.data;
 
   // Try to fetch messages. If we don't have a grant yet, backend will
   // return 412 access_reason_required; we then render the reason modal.
-  const { data: msgs, status: msgStatus } = await adminFetch<MessagesResponse>(
+  const msgsRes = await adminFetch<MessagesResponse>(
     `/api/v1/admin/conversations/${conversationId}/messages`,
     { query: { accessGrantId: sp.accessGrantId, limit: 200 } },
   );
+  const msgs = msgsRes.ok ? msgsRes.data : null;
+  const msgStatus = msgsRes.status;
 
   if (msgStatus === 412) {
     return (
@@ -104,12 +109,14 @@ export default async function ConversationPage({ params, searchParams }: Params)
         </div>
       </div>
       <div className="card" style={{ marginTop: 16 }}>
-        {msgStatus !== 200 ? (
-          <div className="error">Failed to load messages ({msgStatus}).</div>
-        ) : msgs.messages.length === 0 ? (
+        {!msgsRes.ok ? (
+          <div className="error">
+            Failed to load messages ({msgStatus} {msgsRes.error.code}).
+          </div>
+        ) : msgs!.messages.length === 0 ? (
           <div className="muted">No messages.</div>
         ) : (
-          msgs.messages.map((m) => (
+          msgs!.messages.map((m) => (
             <div
               key={m.id}
               className={`message ${m.moderationStatus === "restricted" ? "reported" : ""}`}

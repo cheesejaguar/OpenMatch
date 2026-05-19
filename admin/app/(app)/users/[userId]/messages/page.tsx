@@ -21,9 +21,10 @@ interface Params {
 
 export default async function UserMessagesPage({ params }: Params) {
   const { userId } = await params;
-  const { data, status } = await adminFetch<ConversationsResponse>(
+  const res = await adminFetch<ConversationsResponse>(
     `/api/v1/admin/users/${userId}/conversations`,
   );
+  const data = res.ok ? res.data : null;
 
   return (
     <div>
@@ -32,9 +33,11 @@ export default async function UserMessagesPage({ params }: Params) {
         <h2>Conversations for {userId}</h2>
         <Link href={`/users/${userId}`}>← Back to user</Link>
       </div>
-      {status !== 200 ? (
-        <div className="error">Failed to load ({status}).</div>
-      ) : data.conversations.length === 0 ? (
+      {!res.ok ? (
+        <div className="error">
+          Failed to load ({res.status} {res.error.code}).
+        </div>
+      ) : data!.conversations.length === 0 ? (
         <div className="card muted">No conversations.</div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
@@ -49,7 +52,7 @@ export default async function UserMessagesPage({ params }: Params) {
               </tr>
             </thead>
             <tbody>
-              {data.conversations.map((c) => (
+              {data!.conversations.map((c) => (
                 <tr key={c.conversationId}>
                   <td>
                     <Link href={`/conversations/${c.conversationId}`}>{c.conversationId}</Link>

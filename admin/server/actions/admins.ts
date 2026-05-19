@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { adminFetch } from "../../lib/api/admin-client";
+import { type AdminApiError, adminFetch } from "../../lib/api/admin-client";
 
-export async function createAdminAction(formData: FormData) {
+type ActionResult = { ok: true } | { ok: false; status: number; error: AdminApiError };
+
+export async function createAdminAction(formData: FormData): Promise<ActionResult> {
   const body = {
     email: String(formData.get("email") ?? "").toLowerCase(),
     displayName: String(formData.get("displayName") ?? ""),
@@ -13,18 +15,21 @@ export async function createAdminAction(formData: FormData) {
       .filter(Boolean),
   };
   const res = await adminFetch("/api/v1/admin/admin-users", { method: "POST", body });
-  if (res.status >= 400) return { ok: false as const, status: res.status, data: res.data };
+  if (!res.ok) return { ok: false, status: res.status, error: res.error };
   revalidatePath("/settings/admins");
-  return { ok: true as const };
+  return { ok: true };
 }
 
-export async function setAdminRolesAction(adminUserId: string, formData: FormData) {
+export async function setAdminRolesAction(
+  adminUserId: string,
+  formData: FormData,
+): Promise<ActionResult> {
   const roleNames = formData.getAll("roleNames").map(String);
   const res = await adminFetch(`/api/v1/admin/admin-users/${adminUserId}/roles`, {
     method: "PUT",
     body: { roleNames },
   });
-  if (res.status >= 400) return { ok: false as const, status: res.status, data: res.data };
+  if (!res.ok) return { ok: false, status: res.status, error: res.error };
   revalidatePath("/settings/admins");
-  return { ok: true as const };
+  return { ok: true };
 }

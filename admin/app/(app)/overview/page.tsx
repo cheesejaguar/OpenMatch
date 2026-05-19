@@ -4,17 +4,20 @@ import type { OverviewMetricsDTO } from "../../../lib/api/types";
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
-  const { data, status } = await adminFetch<OverviewMetricsDTO>("/api/v1/admin/metrics/overview");
-  if (status !== 200) {
+  const res = await adminFetch<OverviewMetricsDTO>("/api/v1/admin/metrics/overview");
+  if (!res.ok) {
     return (
       <div>
         <div className="page-header">
           <h2>Overview</h2>
         </div>
-        <div className="error">Unable to load metrics ({status}).</div>
+        <div className="error">
+          Unable to load metrics ({res.status} {res.error.code}).
+        </div>
       </div>
     );
   }
+  const data = res.data;
   const tiles: Array<{ label: string; value: string | number }> = [
     { label: "Open reports", value: data.openReports },
     {

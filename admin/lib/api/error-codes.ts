@@ -1,0 +1,132 @@
+// Generated from backend/src/lib/error-codes.ts.
+// Run `node scripts/sync-error-codes.mjs` (added in Round C) to regenerate.
+//
+// Round B — this file is hand-copied from the backend registry; Round C
+// will add the sync script that keeps the two in lockstep. When you add
+// a code in the backend, add it here too and update the typed admin
+// client switch in admin-client.ts.
+
+export const ErrorCodes = {
+  // ---- Validation / generic -----------------------------------------
+  VALIDATION_FAILED: "validation_failed",
+  INVALID_PAYLOAD: "invalid_payload",
+  INVALID_REQUEST: "invalid_request",
+  NOT_FOUND: "not_found",
+  UNAUTHORIZED: "unauthorized",
+  FORBIDDEN: "forbidden",
+  RATE_LIMITED: "rate_limited",
+  INTERNAL_ERROR: "internal_error",
+  CONFLICT: "conflict",
+  ALREADY_EXISTS: "already_exists",
+
+  // ---- Auth ---------------------------------------------------------
+  EMAIL_REQUIRED: "email_required",
+  EMAIL_INVALID: "email_invalid",
+  UNKNOWN_METHOD: "unknown_method",
+  INVALID_CHALLENGE: "invalid_challenge",
+  CHALLENGE_NOT_FOUND: "challenge_not_found",
+  CHALLENGE_EXPIRED: "challenge_expired",
+  CHALLENGE_USED: "challenge_used",
+  TOKEN_MISMATCH: "token_mismatch",
+  INVALID_TOKEN: "invalid_token",
+  REFRESH_TOKEN_INVALID: "refresh_token_invalid",
+  REFRESH_TOKEN_REUSED: "refresh_token_reused",
+  INVALID_REFRESH: "invalid_refresh",
+  INVALID_REFRESH_TOKEN: "invalid_refresh_token",
+  DEV_LOGIN_DISABLED: "dev_login_disabled",
+  DEV_USER_ID_REQUIRED: "dev_user_id_required",
+  APPLE_NOT_CONFIGURED: "apple_not_configured",
+  APPLE_IDENTITY_TOKEN_REQUIRED: "apple_identity_token_required",
+  APPLE_VERIFICATION_FAILED: "apple_verification_failed",
+  APPLE_INVALID_SUB: "apple_invalid_sub",
+
+  // ---- Admin auth / 2FA --------------------------------------------
+  ADMIN_NOT_FOUND: "admin_not_found",
+  ADMIN_DISABLED: "admin_disabled",
+  TWO_FACTOR_REQUIRED: "two_factor_required",
+  TOTP_INVALID: "totp_invalid",
+  INVALID_TOTP_CODE: "invalid_totp_code",
+  RECOVERY_CODE_INVALID: "recovery_code_invalid",
+  INVALID_RECOVERY_CODE: "invalid_recovery_code",
+  TOTP_NOT_ENROLLED: "totp_not_enrolled",
+  SESSION_MISSING_SID: "session_missing_sid",
+
+  // ---- Beta gates ---------------------------------------------------
+  INVITE_REQUIRED: "invite_required",
+  INVITE_CODE_REQUIRED: "invite_code_required",
+  INVITE_INVALID: "invite_invalid",
+  INVITE_EXHAUSTED: "invite_exhausted",
+  INVITE_EXPIRED: "invite_expired",
+  INVITE_REVOKED: "invite_revoked",
+  INVITE_RACE: "invite_race",
+  SIGNUPS_PAUSED: "signups_paused",
+  OUTSIDE_METRO: "outside_metro",
+  COUNTRY_NOT_SUPPORTED: "country_not_supported",
+
+  // ---- Profile / photos ---------------------------------------------
+  UNDERAGE: "underage",
+  INVALID_DOB: "invalid_dob",
+  PROFILE_NOT_FOUND: "profile_not_found",
+  MAX_PHOTOS_REACHED: "max_photos_reached",
+  NO_FILE: "no_file",
+  UNSUPPORTED_MEDIA_TYPE: "unsupported_media_type",
+  PAYLOAD_TOO_LARGE: "payload_too_large",
+  PHOTO_NOT_FOUND: "photo_not_found",
+  PHOTO_NOT_OWNED: "photo_not_owned",
+  DUPLICATE_PHOTOS: "duplicate_photos",
+  MIN_AGE_ABOVE_MAX: "min_age_above_max",
+  UPLOAD_FAILED: "upload_failed",
+
+  // ---- Discovery / swipe / match / chat -----------------------------
+  VIEWER_NOT_INITIALIZED: "viewer_not_initialized",
+  VIEWER_HAS_NO_LOCATION: "viewer_has_no_location",
+  MISSING_LOCATION: "missing_location",
+  TARGET_NOT_FOUND: "target_not_found",
+  UNDO_NOT_AVAILABLE: "undo_not_available",
+  MATCH_NOT_FOUND: "match_not_found",
+  CONVERSATION_NOT_FOUND: "conversation_not_found",
+  NOT_PARTICIPANT: "not_participant",
+  USER_BLOCKED: "user_blocked",
+  ALREADY_BLOCKED: "already_blocked",
+  EMPTY_MESSAGE: "empty_message",
+  MESSAGE_TOO_LONG: "message_too_long",
+  CANNOT_BLOCK_SELF: "cannot_block_self",
+  CANNOT_REPORT_SELF: "cannot_report_self",
+
+  // ---- Realtime -----------------------------------------------------
+  REALTIME_UNCONFIGURED: "realtime_unconfigured",
+
+  // ---- Safety / DSA / privacy ---------------------------------------
+  REPORT_NOT_FOUND: "report_not_found",
+  DSA_NOTICE_NOT_FOUND: "dsa_notice_not_found",
+  POLICY_DOCUMENT_MISSING: "policy_document_missing",
+  NO_ACTIVE_BAN: "no_active_ban",
+  NO_SCHEDULED_DELETION: "no_scheduled_deletion",
+  GRACE_PERIOD_EXPIRED: "grace_period_expired",
+  GRACE_PERIOD_NOT_YET_EXPIRED: "grace_period_not_yet_expired",
+  NOT_AUTHORIZED: "not_authorized",
+  ACCESS_REASON_REQUIRED: "access_reason_required",
+
+  // ---- Admin --------------------------------------------------------
+  ADMIN_FORBIDDEN: "admin_forbidden",
+  ADMIN_RBAC_DENIED: "admin_rbac_denied",
+  ADMIN_USER_NOT_FOUND: "admin_user_not_found",
+  ADMIN_ACTION_INVALID: "admin_action_invalid",
+  WOULD_LOCK_OUT_SYSTEM_ADMIN: "would_lock_out_system_admin",
+
+  // ---- Worker / internal -------------------------------------------
+  INTERNAL_TOKEN_INVALID: "internal_token_invalid",
+
+  // ---- Misc ---------------------------------------------------------
+  USER_NOT_FOUND: "user_not_found",
+} as const;
+
+export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
+
+// Set of every known ErrorCode literal, used by the admin client to
+// safely narrow an arbitrary string into an ErrorCode union.
+export const KNOWN_ERROR_CODES = new Set<string>(Object.values(ErrorCodes));
+
+export function isKnownErrorCode(value: string): value is ErrorCode {
+  return KNOWN_ERROR_CODES.has(value);
+}

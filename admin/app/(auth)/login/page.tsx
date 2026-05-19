@@ -12,12 +12,16 @@ async function startLogin(formData: FormData) {
     "/api/v1/admin/auth/start",
     { email },
   );
+  const { redirect } = await import("next/navigation");
+  if (!res.ok) {
+    redirect(`/login?error=${encodeURIComponent(res.error.code)}`);
+    return;
+  }
   const params = new URLSearchParams();
   params.set("challengeId", res.data.challengeId);
   if (res.data.devToken) params.set("devToken", res.data.devToken);
   // Redirect back to /login so the user sees confirmation; if running in
   // dev with a devToken we autopopulate the next step.
-  const { redirect } = await import("next/navigation");
   redirect(`/login?${params.toString()}`);
 }
 

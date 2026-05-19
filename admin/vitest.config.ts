@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
@@ -16,5 +17,12 @@ export default defineConfig({
     environment: "happy-dom",
     globals: true,
     setupFiles: ["./test/setup.ts"],
+    // `server-only` is a Next.js-provided marker module that has no
+    // implementation outside the Next.js bundler. Tests that import
+    // server-only modules (e.g. admin-client) need a stub so the import
+    // doesn't fail under vitest.
+    alias: {
+      "server-only": resolve(__dirname, "test/stubs/server-only.ts"),
+    },
   },
 });

@@ -67,7 +67,7 @@ export default async function HealthPage() {
   const requestsMissing = requests.status === 404;
 
   // Derive the per-service tile data from R2A's response shape.
-  const data = snapshot.status === 200 ? snapshot.data : null;
+  const data = snapshot.ok ? snapshot.data : null;
   const checks = data?.ready?.checks;
   // Backend is "ok" as long as we got a 200 — the API itself answered.
   const backendStatus: HealthStatus = data ? "ok" : "unknown";
@@ -109,8 +109,11 @@ export default async function HealthPage() {
           description="The /admin/health/snapshot route is shipping in a sibling PR (Round 2A). Once that lands, this page will populate automatically with backend, Postgres, Ably and Redis status."
           tone="warning"
         />
-      ) : snapshot.status !== 200 || !data ? (
-        <div className="error">Failed to load health snapshot ({snapshot.status}).</div>
+      ) : !snapshot.ok || !data ? (
+        <div className="error">
+          Failed to load health snapshot ({snapshot.status}
+          {!snapshot.ok ? ` ${snapshot.error.code}` : ""}).
+        </div>
       ) : (
         <>
           <div className="grid cols-3" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
@@ -174,8 +177,10 @@ export default async function HealthPage() {
             description="Round 2A ships /admin/metrics/timeseries. Once merged this chart will render request volume."
             tone="warning"
           />
-        ) : requests.status !== 200 ? (
-          <div className="error">Failed to load timeseries ({requests.status}).</div>
+        ) : !requests.ok ? (
+          <div className="error">
+            Failed to load timeseries ({requests.status} {requests.error.code}).
+          </div>
         ) : (
           <TimeSeriesChart
             data={timeseriesToPoints(requests.data)}
