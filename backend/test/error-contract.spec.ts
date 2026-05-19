@@ -9,7 +9,9 @@ import { createUser, resetDb, testPrisma } from "./helpers/db.js";
 // least one HTTP path so a regression — wrong code, wrong status, or
 // wrong body shape — fails a test before it ships. This spec drives the
 // most commonly-emitted codes via the public API and asserts the exact
-// `error` string in the response body.
+// `error` string in the response body. New codes added to the registry
+// SHOULD also get a contract case here when the path that emits them
+// has a clean trigger.
 //
 // Codes that are inherently hard to trigger via injected requests in CI
 // (e.g. APPLE_NOT_CONFIGURED depends on env, REFRESH_TOKEN_REUSED needs
