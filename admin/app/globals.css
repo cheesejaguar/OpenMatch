@@ -415,3 +415,153 @@ table th {
   color: var(--fg-muted);
   margin-bottom: 4px;
 }
+
+/* Skeleton — Botanic shimmer with prefers-reduced-motion fallback. */
+.om-skeleton {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--bg-sunken) 0%,
+    var(--bg-hover) 50%,
+    var(--bg-sunken) 100%
+  );
+  background-size: 200% 100%;
+  animation: om-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes om-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .om-skeleton {
+    animation: none;
+    background: var(--bg-sunken);
+  }
+}
+
+/* Sidebar section headings (Botanic, Fraunces italic). */
+.sidebar .section {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 600;
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 18px 10px 6px;
+}
+.sidebar nav a.active {
+  background: var(--bg-hover);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Status tile — used by /health to show service status with latency. */
+.status-tile {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: var(--shadow-card);
+}
+.status-tile .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+.status-tile .latency {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Tabs — used by /analytics. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+.tabs a {
+  padding: 8px 14px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+.tabs a.active {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  background: var(--bg-elevated);
+}
+
+/* Switch (toggle) — accessible binary control. */
+.switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  display: inline-block;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch .slider {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-sunken);
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  transition: background 0.15s ease;
+}
+.switch .slider::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-card);
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+.switch input:checked + .slider {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.switch input:checked + .slider::before {
+  transform: translate(16px, -50%);
+}
+.switch input:focus-visible + .slider {
+  box-shadow: 0 0 0 3px rgba(47, 79, 62, 0.18);
+}
+
+/* SLA badge variants (Within / Approaching / Breached). */
+.badge.sla-within {
+  border-color: var(--success);
+  color: var(--success);
+}
+.badge.sla-approaching {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.badge.sla-breached {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(181, 68, 58, 0.08);
+}

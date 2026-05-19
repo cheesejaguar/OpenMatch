@@ -145,3 +145,135 @@ export interface OverviewMetricsDTO {
   escalatedReports: number;
   adminActionsToday: number;
 }
+
+// ------------------------------------------------------------------
+// Round 2A backend DTOs. These endpoints are shipped by a sibling PR;
+// the admin UI tolerates 404s gracefully (see EmptyState fallbacks).
+// ------------------------------------------------------------------
+
+export type HealthStatus = "ok" | "degraded" | "down" | "unknown";
+
+export interface HealthSnapshotDTO {
+  backend: { status: HealthStatus; latencyMs: number | null };
+  postgres: { status: HealthStatus; latencyMs: number | null };
+  ably: { status: HealthStatus; latencyMs: number | null };
+  redis: { status: HealthStatus; latencyMs: number | null };
+  queues: {
+    openReports: number;
+    pendingPhotos: number;
+    unacknowledgedDsa: number;
+  };
+  generatedAt: string;
+}
+
+export interface TimeSeriesDTO {
+  metric: string;
+  granularity: "minute" | "hour" | "day";
+  points: Array<{ ts: string; value: number }>;
+}
+
+export interface FunnelStepDTO {
+  name: string;
+  count: number;
+  /** Conversion from the immediately prior step (0..1). */
+  conversionFromPrior: number | null;
+}
+
+export interface FunnelDTO {
+  from: string;
+  to: string;
+  cohort: string | null;
+  steps: FunnelStepDTO[];
+}
+
+export interface RetentionCohortDTO {
+  cohortDate: string;
+  cohortSize: number;
+  /** Day index → retention fraction (0..1). */
+  points: Array<{ dayIndex: number; retention: number }>;
+}
+
+export interface RetentionDTO {
+  from: string;
+  to: string;
+  cohorts: RetentionCohortDTO[];
+}
+
+export interface GeographyBucketDTO {
+  label: string;
+  /** Approximate centroid for map rendering. Lat/lon in WGS84. */
+  lat: number;
+  lon: number;
+  userCount: number;
+  matchCount: number;
+}
+
+export interface GeographyDTO {
+  metro: string;
+  buckets: GeographyBucketDTO[];
+}
+
+// ------------------------------------------------------------------
+// Round 1A endpoints — already live on main.
+// ------------------------------------------------------------------
+
+export interface InviteCodeDTO {
+  id: string;
+  code: string;
+  cohortLabel: string;
+  maxUses: number;
+  usedCount: number;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  createdByAdminUserId: string | null;
+}
+
+export interface InviteListDTO {
+  items: InviteCodeDTO[];
+  nextCursor: string | null;
+}
+
+export interface InviteCreatedDTO {
+  items: Array<{
+    id: string;
+    code: string;
+    cohortLabel: string;
+    maxUses: number;
+    expiresAt: string | null;
+  }>;
+}
+
+export interface FeatureFlagDTO {
+  id: string;
+  key: string;
+  enabled: boolean;
+  description: string;
+  variants: unknown;
+  updatedAt: string;
+  updatedByAdminUserId: string | null;
+  createdAt: string;
+}
+
+export interface FeatureFlagListDTO {
+  items: FeatureFlagDTO[];
+}
+
+export interface BetaFeedbackDTO {
+  id: string;
+  userId: string;
+  category: string;
+  body: string;
+  appVersion: string | null;
+  osVersion: string | null;
+  deviceModel: string | null;
+  resolvedAt: string | null;
+  resolvedByAdminUserId: string | null;
+  createdAt: string;
+}
+
+export interface FeedbackListDTO {
+  items: BetaFeedbackDTO[];
+  nextCursor: string | null;
+}

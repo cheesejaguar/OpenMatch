@@ -351,15 +351,15 @@
   </p>
 
   <div class="overall">
-    <div class="gauge" style="--pct: 52; position: relative;">
-      <span class="pct">52%</span>
+    <div class="gauge" style="--pct: 61; position: relative;">
+      <span class="pct">61%</span>
     </div>
     <div>
-      <p class="verdict">🟠 Not ready for public beta — Round 2A backend ops merged</p>
+      <p class="verdict borderline">🟡 Borderline — Round 2A backend ops + Round 2B admin UI both merged</p>
       <p class="meta">
-        <b>Last refreshed</b> 2026-05-18, after Round 2A backend ops (deletion purge, DSA SLA, /ready, admin analytics/health/geography backends) merged.<br>
+        <b>Last refreshed</b> 2026-05-18, after Round 2A backend (health/snapshot, analytics funnel + retention + timeseries, geography, DSA SLA, deletion purge) and Round 2B admin UI (health · analytics · geography · invites UI · flags UI · queue SLA · UI primitives · admin tests).<br>
         <b>Target metro</b> SF Bay Area · 80 km radius · 100 invite-coded users at launch.<br>
-        <b>Blocking</b> remaining P0 items are OPS-1 push delivery, ADMIN-1/4/5 admin UI (Round 2B). Backend cohort gate, deletion purge, DSA SLA, /ready probe, and admin analytics/health/geography backends are closed.<br>
+        <b>Blocking</b> 1 P0 item remains (OPS-1 push delivery) plus IOS-2 crash reporting partial. Admin dashboard is feature-complete for beta.<br>
 
         <b>Go criteria</b> all P0 ✅ · ≥ 80 % of P1 ✅ · backend hot-path coverage ≥ 70 %.
       </p>
@@ -371,7 +371,7 @@
 
 <section>
   <h2>Categories</h2>
-  <p class="section-sub">9 categories · 61 tracked items · 31 ✅ today · target is every category ≥ 80 %.</p>
+  <p class="section-sub">9 categories · 61 tracked items · 37 ✅ today · target is every category ≥ 80 %.</p>
   <div class="cats">
     <div class="cat">
       <h4><span class="num">1</span>Operational readiness</h4>
@@ -399,15 +399,15 @@
     </div>
     <div class="cat">
       <h4><span class="num">5</span>Admin dashboard</h4>
-      <div class="cat-pct">22% <span class="total">/ 9 items</span></div>
-      <div class="bar"><span class="lo" style="width: 22%"></span></div>
-      <div class="cat-status">🔴 Critical</div>
+      <div class="cat-pct">78% <span class="total">/ 9 items</span></div>
+      <div class="bar"><span class="med" style="width: 78%"></span></div>
+      <div class="cat-status">🟡 Partial</div>
     </div>
     <div class="cat">
       <h4><span class="num">6</span>Testing &amp; CI</h4>
-      <div class="cat-pct">33% <span class="total">/ 6 items</span></div>
-      <div class="bar"><span class="lo" style="width: 33%"></span></div>
-      <div class="cat-status">🔴 Critical</div>
+      <div class="cat-pct">50% <span class="total">/ 6 items</span></div>
+      <div class="bar"><span class="med" style="width: 50%"></span></div>
+      <div class="cat-status">🟡 Partial</div>
     </div>
     <div class="cat">
       <h4><span class="num">7</span>Compliance &amp; privacy</h4>
@@ -450,7 +450,7 @@
   <h2>Severity-ordered findings</h2>
   <p class="section-sub">Every P0 must close. ≥ 80 % of P1 must close. P2/P3 acceptable into beta with a written follow-up plan.</p>
 
-  <h3>🔴 P0 — Blockers (3 open · 1 partial)</h3>
+  <h3>🔴 P0 — Blockers (1 open · 1 partial)</h3>
   <table>
     <thead><tr><th>ID</th><th>Item</th><th>Target / DoD</th><th>Cat</th><th>Status</th></tr></thead>
     <tbody>
@@ -458,13 +458,25 @@
       <tr><td><span class="id">IOS-1</span></td><td>APNs capability + token registration</td><td class="target">aps-environment entitlement · UIApplicationDelegate registers token · backend endpoint shipped Round 1A</td><td>iOS</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">IOS-2</span></td><td>Crash reporting</td><td class="target">Sentry SDK in OpenMatchApp.init · DSN via Info.plist · release tagging</td><td>iOS</td><td><span class="pill partial">Partial</span></td></tr>
       <tr><td><span class="id">IOS-3</span></td><td>In-app analytics</td><td class="target">POSTs AnalyticsEvent to backend (endpoint shipped Round 1A) · debounced batching</td><td>iOS</td><td><span class="pill done">Done</span></td></tr>
-      <tr><td><span class="id">ADMIN-1</span></td><td>Health panel</td><td class="target">Backend/Postgres/Redis/Ably tiles · p95 latency · 5xx rate (backend shipped Round 2A · UI Round 2B)</td><td>Admin</td><td><span class="pill partial">Partial</span></td></tr>
-      <tr><td><span class="id">ADMIN-4</span></td><td>Invite-code admin UI</td><td class="target">Generate · list · revoke · funnel (backend shipped Round 1A)</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">ADMIN-5</span></td><td>Feature-flag admin UI</td><td class="target">Flip flags · cohort overrides · history (backend shipped Round 1A)</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
     </tbody>
   </table>
 
-  <h3>✅ Recently closed (Round 1A — backend)</h3>
+  <h3>✅ Recently closed (Round 2B — admin dashboard expansion)</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Item</th><th>Notes</th><th>Cat</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><span class="id">ADMIN-1</span></td><td>Health panel</td><td class="target">/admin/health route · 4 status tiles · queue-depth tiles · requests/hr chart · graceful 404 fallback for R2A endpoints</td><td>Admin</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">ADMIN-2</span></td><td>Funnel + retention analytics</td><td class="target">/admin/analytics route · Funnel · Retention · Engagement tabs · cohort dropdown · multi-series TimeSeriesChart</td><td>Admin</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">ADMIN-3</span></td><td>Geographic insights</td><td class="target">/admin/geography route · DataTable + Botanic scatter plot (map is post-beta)</td><td>Admin</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">ADMIN-4</span></td><td>Invite-code admin UI</td><td class="target">/admin/invites route · generate-batch modal · copy-to-clipboard · revoke buttons</td><td>Admin</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">ADMIN-5</span></td><td>Feature-flag admin UI</td><td class="target">/admin/flags route · toggle switches with optimistic state · new-flag modal with JSON variants</td><td>Admin</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">ADMIN-6</span></td><td>Queue SLA dashboard</td><td class="target">SLA badges (Within/Approaching/Breached) on /reports + /photos · oldest-5 panel · 4h convention until DSA SLA endpoint lands</td><td>Admin</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">ADMIN-7</span></td><td>Reusable UI primitives</td><td class="target">MetricCard · DataTable · FilterBar · TimeSeriesChart · Sparkline · Badge · Skeleton · EmptyState — Botanic-styled, zero chart libs</td><td>Admin</td><td><span class="pill done">Done</span></td></tr>
+      <tr><td><span class="id">TEST-3</span></td><td>Admin integration tests</td><td class="target">vitest + happy-dom · 4 spec files · MetricCard unit · Invites/Flags/Health page integration · CI gate added</td><td>Test</td><td><span class="pill done">Done</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>✅ Earlier closed (Round 1A — backend)</h3>
   <table>
     <thead><tr><th>ID</th><th>Item</th><th>Notes</th><th>Cat</th><th>Status</th></tr></thead>
     <tbody>
@@ -484,20 +496,15 @@
       <tr><td><span class="id">SAFE-4</span></td><td>DSA Art. 16 SLA tracking</td><td class="target">slaAckDueAt + slaDecisionDueAt per notice · hourly cron marks breaches · admin acknowledge/decide endpoints with audit</td><td>Safety</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">COMP-3</span></td><td>Account deletion grace + purge worker</td><td class="target">Worker anonymises User/Profile + hard-deletes sessions/swipes/likes/devices/analytics/feedback; retains matches + messages as tombstones; 15-min Vercel cron</td><td>Comp</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">COMP-4</span></td><td>DSA notice routing</td><td class="target">Route shipped Round 1; SLA tracking shipped Round 2A — now fully complete on the backend</td><td>Comp</td><td><span class="pill done">Done</span></td></tr>
-      <tr><td><span class="id">ADMIN-1</span></td><td>Health panel (backend)</td><td class="target">/api/v1/admin/health/snapshot returns ready + pg pool usage + 5-min error rate + queue depths. UI is Round 2B.</td><td>Admin</td><td><span class="pill partial">Backend ⚠️</span></td></tr>
-      <tr><td><span class="id">ADMIN-2</span></td><td>Funnel + retention (backend)</td><td class="target">/api/v1/admin/analytics/{funnel,retention,timeseries} cohort-segmentable by BetaInviteCode.cohortLabel. UI is Round 2B.</td><td>Admin</td><td><span class="pill partial">Backend ⚠️</span></td></tr>
-      <tr><td><span class="id">ADMIN-3</span></td><td>Geographic insights (backend)</td><td class="target">/api/v1/admin/geography?metro=&lt;slug&gt; — 0.05° bin density + match counts. UI is Round 2B.</td><td>Admin</td><td><span class="pill partial">Backend ⚠️</span></td></tr>
     </tbody>
   </table>
 
-  <h3>🟠 P1 — High (10 open · 4 partial · target ≥ 80 % done)</h3>
+  <h3>🟠 P1 — High (5 open · 2 partial · target ≥ 80 % done)</h3>
   <table>
     <thead><tr><th>ID</th><th>Item</th><th>Target / DoD</th><th>Cat</th><th>Status</th></tr></thead>
     <tbody>
       <tr><td><span class="id">OPS-3</span></td><td>Crash + error reporting (backend)</td><td class="target">Sentry SDK · release tagging · unhandled-rejection capture</td><td>Ops</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">OPS-4</span></td><td>Structured request logging</td><td class="target">Request-id + log shipper to Axiom/Datadog</td><td>Ops</td><td><span class="pill partial">Partial</span></td></tr>
-      <tr><td><span class="id">OPS-5</span></td><td>/health &amp; /ready endpoints</td><td class="target">/ready checks Postgres + Ably + Redis</td><td>Ops</td><td><span class="pill done">Done</span></td></tr>
-      <tr><td><span class="id">OPS-6</span></td><td>Metrics timeseries endpoint</td><td class="target">Windowed counts driven from request-log table</td><td>Ops</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">SAFE-1</span></td><td>Automated CSAM scanning</td><td class="target">PhotoDNA/Safer integration · auto-flag · NCMEC report stub</td><td>Safety</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">SAFE-4</span></td><td>DSA Art. 16 SLA tracking</td><td class="target">Notice.dueAt · 75% alert · weekly widget</td><td>Safety</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">BETA-3</span></td><td>Waitlist endpoint</td><td class="target">Public rate-limited email capture</td><td>Beta</td><td><span class="pill missing">Missing</span></td></tr>
@@ -506,15 +513,9 @@
       <tr><td><span class="id">IOS-5</span></td><td>Onboarding · photos step</td><td class="target">≥ 2 photos required before swipe deck</td><td>iOS</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">IOS-6</span></td><td>Profile-completeness gate</td><td class="target">iOS polls completeness · redirects when below</td><td>iOS</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">IOS-9</span></td><td>Permissions UX polish</td><td class="target">Each permission asked just-in-time with clear rationale</td><td>iOS</td><td><span class="pill partial">Partial</span></td></tr>
-      <tr><td><span class="id">ADMIN-2</span></td><td>Funnel + retention analytics</td><td class="target">DAU/WAU · funnel · D1/D7/D30 cohorts (backend shipped Round 2A · UI Round 2B)</td><td>Admin</td><td><span class="pill partial">Partial</span></td></tr>
-      <tr><td><span class="id">ADMIN-3</span></td><td>Geographic insights</td><td class="target">Cohort distribution within metro · neighborhood breakdown (backend shipped Round 2A · UI Round 2B)</td><td>Admin</td><td><span class="pill partial">Partial</span></td></tr>
-      <tr><td><span class="id">ADMIN-6</span></td><td>Queue SLA dashboard</td><td class="target">SLA columns on /reports + /photos · oldest-N panel</td><td>Admin</td><td><span class="pill partial">Partial</span></td></tr>
       <tr><td><span class="id">ADMIN-9</span></td><td>Admin 2FA</td><td class="target">TOTP enrolment · verify-totp route · recovery codes</td><td>Admin</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">TEST-1</span></td><td>Coverage tooling</td><td class="target">@vitest/coverage-v8 · CI summary · lcov artifact</td><td>Test</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">TEST-2</span></td><td>Backend hot-path coverage ≥ 70 %</td><td class="target">Threshold enforced via coverage.thresholds</td><td>Test</td><td><span class="pill partial">Partial</span></td></tr>
-      <tr><td><span class="id">TEST-3</span></td><td>Admin integration tests</td><td class="target">Ban / unban / report-resolve flows e2e</td><td>Test</td><td><span class="pill missing">Missing</span></td></tr>
-      <tr><td><span class="id">COMP-3</span></td><td>Account deletion grace + purge worker</td><td class="target">24 h cancel window · scheduled purge after</td><td>Comp</td><td><span class="pill done">Done</span></td></tr>
-      <tr><td><span class="id">COMP-4</span></td><td>DSA notice routing</td><td class="target">Route exists; SLA tracking shipped Round 2A</td><td>Comp</td><td><span class="pill done">Done</span></td></tr>
       <tr><td><span class="id">PERF-1</span></td><td>Postgres pool tuning</td><td class="target">Explicit connection_limit · Neon pooler · admin visibility</td><td>Perf</td><td><span class="pill partial">Partial</span></td></tr>
       <tr><td><span class="id">PERF-2</span></td><td>Function-time budget</td><td class="target">p95 &lt; 500 ms per endpoint · CI alert</td><td>Perf</td><td><span class="pill missing">Missing</span></td></tr>
       <tr><td><span class="id">MON-1</span></td><td>Daily success digest</td><td class="target">08:00 PT scheduled job · DAU/signups/matches/reports/errors</td><td>Mon</td><td><span class="pill missing">Missing</span></td></tr>
