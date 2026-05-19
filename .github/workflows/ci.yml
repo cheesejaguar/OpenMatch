@@ -13,6 +13,36 @@ permissions:
   contents: read
 
 jobs:
+  fast-feedback:
+    name: Fast feedback (lint + typecheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install deps (cached)
+        run: npm ci --foreground-scripts --prefer-offline --no-audit
+
+      - name: Generate Prisma client (for typecheck)
+        run: npx prisma generate
+        working-directory: backend
+
+      - name: Build matching package (typecheck dependency)
+        run: npm run build -w @openmatch/matching
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
   lint-and-build:
     name: Lint, typecheck, build (Node)
     runs-on: ubuntu-latest
@@ -62,6 +92,36 @@ jobs:
         run: |
           node scripts/generate-error-docs.mjs
           git diff --exit-code docs/api/ERRORS.md
+
+      # Round C — admin/lib/api/error-codes.ts is a generated mirror of
+      # the backend registry. Regenerate it and fail if the working tree
+      # changed; engineers who add a backend code must also commit the
+      # regenerated admin file so the two stay byte-stable.
+      - name: Verify admin error codes synced with backend
+        run: |
+          node scripts/sync-error-codes.mjs
+          git diff --exit-code admin/lib/api/error-codes.ts
+
+      # Round C — npm audit gate. Fails the build on any critical
+      # vulnerability in production dependencies; dev-only deps are
+      # excluded because they don't ship to users. We start at
+      # `critical` rather than `high` because the current production
+      # tree (Vercel + Prisma + ws) carries known-tracked high-severity
+      # advisories that are pending upstream fixes; tightening to high
+      # is a follow-up once those are unblocked.
+      - name: Audit for critical-severity vulns
+        run: |
+          set +e
+          npm audit --audit-level=critical --omit=dev > /tmp/audit.txt 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "## npm audit failed" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/audit.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit $rc
+          fi
 
       - name: Generate Prisma client
         run: npx prisma generate

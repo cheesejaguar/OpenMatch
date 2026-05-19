@@ -1,13 +1,8 @@
-// Generated from backend/src/lib/error-codes.ts.
-// Run `node scripts/sync-error-codes.mjs` (added in Round C) to regenerate.
-//
-// Round B — this file is hand-copied from the backend registry; Round C
-// will add the sync script that keeps the two in lockstep. When you add
-// a code in the backend, add it here too and update the typed admin
-// client switch in admin-client.ts.
+// AUTO-GENERATED FILE — do not edit by hand.
+// Regenerate via `node scripts/sync-error-codes.mjs` after changing
+// backend/src/lib/error-codes.ts. CI fails if this file is out of sync.
 
 export const ErrorCodes = {
-  // ---- Validation / generic -----------------------------------------
   VALIDATION_FAILED: "validation_failed",
   INVALID_PAYLOAD: "invalid_payload",
   INVALID_REQUEST: "invalid_request",
@@ -18,8 +13,6 @@ export const ErrorCodes = {
   INTERNAL_ERROR: "internal_error",
   CONFLICT: "conflict",
   ALREADY_EXISTS: "already_exists",
-
-  // ---- Auth ---------------------------------------------------------
   EMAIL_REQUIRED: "email_required",
   EMAIL_INVALID: "email_invalid",
   UNKNOWN_METHOD: "unknown_method",
@@ -39,8 +32,6 @@ export const ErrorCodes = {
   APPLE_IDENTITY_TOKEN_REQUIRED: "apple_identity_token_required",
   APPLE_VERIFICATION_FAILED: "apple_verification_failed",
   APPLE_INVALID_SUB: "apple_invalid_sub",
-
-  // ---- Admin auth / 2FA --------------------------------------------
   ADMIN_NOT_FOUND: "admin_not_found",
   ADMIN_DISABLED: "admin_disabled",
   TWO_FACTOR_REQUIRED: "two_factor_required",
@@ -50,8 +41,6 @@ export const ErrorCodes = {
   INVALID_RECOVERY_CODE: "invalid_recovery_code",
   TOTP_NOT_ENROLLED: "totp_not_enrolled",
   SESSION_MISSING_SID: "session_missing_sid",
-
-  // ---- Beta gates ---------------------------------------------------
   INVITE_REQUIRED: "invite_required",
   INVITE_CODE_REQUIRED: "invite_code_required",
   INVITE_INVALID: "invite_invalid",
@@ -62,8 +51,6 @@ export const ErrorCodes = {
   SIGNUPS_PAUSED: "signups_paused",
   OUTSIDE_METRO: "outside_metro",
   COUNTRY_NOT_SUPPORTED: "country_not_supported",
-
-  // ---- Profile / photos ---------------------------------------------
   UNDERAGE: "underage",
   INVALID_DOB: "invalid_dob",
   PROFILE_NOT_FOUND: "profile_not_found",
@@ -76,8 +63,6 @@ export const ErrorCodes = {
   DUPLICATE_PHOTOS: "duplicate_photos",
   MIN_AGE_ABOVE_MAX: "min_age_above_max",
   UPLOAD_FAILED: "upload_failed",
-
-  // ---- Discovery / swipe / match / chat -----------------------------
   VIEWER_NOT_INITIALIZED: "viewer_not_initialized",
   VIEWER_HAS_NO_LOCATION: "viewer_has_no_location",
   MISSING_LOCATION: "missing_location",
@@ -92,11 +77,7 @@ export const ErrorCodes = {
   MESSAGE_TOO_LONG: "message_too_long",
   CANNOT_BLOCK_SELF: "cannot_block_self",
   CANNOT_REPORT_SELF: "cannot_report_self",
-
-  // ---- Realtime -----------------------------------------------------
   REALTIME_UNCONFIGURED: "realtime_unconfigured",
-
-  // ---- Safety / DSA / privacy ---------------------------------------
   REPORT_NOT_FOUND: "report_not_found",
   DSA_NOTICE_NOT_FOUND: "dsa_notice_not_found",
   POLICY_DOCUMENT_MISSING: "policy_document_missing",
@@ -106,27 +87,22 @@ export const ErrorCodes = {
   GRACE_PERIOD_NOT_YET_EXPIRED: "grace_period_not_yet_expired",
   NOT_AUTHORIZED: "not_authorized",
   ACCESS_REASON_REQUIRED: "access_reason_required",
-
-  // ---- Admin --------------------------------------------------------
   ADMIN_FORBIDDEN: "admin_forbidden",
   ADMIN_RBAC_DENIED: "admin_rbac_denied",
   ADMIN_USER_NOT_FOUND: "admin_user_not_found",
   ADMIN_ACTION_INVALID: "admin_action_invalid",
   WOULD_LOCK_OUT_SYSTEM_ADMIN: "would_lock_out_system_admin",
-
-  // ---- Worker / internal -------------------------------------------
   INTERNAL_TOKEN_INVALID: "internal_token_invalid",
-
-  // ---- Misc ---------------------------------------------------------
   USER_NOT_FOUND: "user_not_found",
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
 
-// Set of every known ErrorCode literal, used by the admin client to
-// safely narrow an arbitrary string into an ErrorCode union.
-export const KNOWN_ERROR_CODES = new Set<string>(Object.values(ErrorCodes));
+// Set of every known code; used by the admin client to decide whether
+// to type-narrow a backend error string into an ErrorCode or fall back
+// to INTERNAL_ERROR. Kept in sync with ErrorCodes above.
+const KNOWN_CODES: ReadonlySet<string> = new Set(Object.values(ErrorCodes));
 
-export function isKnownErrorCode(value: string): value is ErrorCode {
-  return KNOWN_ERROR_CODES.has(value);
+export function isKnownErrorCode(value: unknown): value is ErrorCode {
+  return typeof value === "string" && KNOWN_CODES.has(value);
 }
