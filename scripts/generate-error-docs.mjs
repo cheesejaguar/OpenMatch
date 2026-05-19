@@ -101,8 +101,12 @@ function render(codes, meta) {
     lines.push("| --- | --- | --- |");
     rows.sort((a, b) => a.value.localeCompare(b.value));
     for (const r of rows) {
-      // Escape pipes in description to stay safe inside markdown tables.
-      const desc = r.description.replace(/\|/g, "\\|");
+      // Escape backslashes FIRST, then pipes, so descriptions are safe
+      // inside markdown tables and we don't double-escape an already-
+      // escaped pipe. The descriptions in error-codes.ts are author-
+      // written today (no user input), but we still defend the
+      // generator against future inputs containing backslashes.
+      const desc = r.description.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
       lines.push(`| \`${r.value}\` | ${r.status} | ${desc} |`);
     }
     lines.push("");
