@@ -25,6 +25,7 @@ const querySchema = z.object({
 
 export const adminGeographyRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
   app.addHook("preHandler", app.requirePermission(PERMISSIONS.METRICS_READ));
 
   app.get("/", async (req, reply) => {

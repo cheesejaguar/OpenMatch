@@ -33,6 +33,7 @@ const messagesQuerySchema = z.object({
 
 export const adminConversationRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
 
   // Create a sensitive access grant. The UI presents the modal (PRD §9.3)
   // then calls this to obtain a grantId before opening the conversation.

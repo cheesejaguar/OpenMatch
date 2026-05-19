@@ -162,6 +162,10 @@ enum AdminEventType {
   dsa_notice_acknowledged
   dsa_notice_decided
   dsa_sla_breach
+  admin_totp_enrolled
+  admin_totp_verified
+  admin_totp_disabled
+  admin_recovery_code_used
 }
 
 enum SensitiveEntityType {
@@ -662,6 +666,16 @@ model AdminUser {
   updatedAt               DateTime        @updatedAt
   lastLoginAt             DateTime?
 
+  // TOTP 2FA. `totpSecret` is the base32-encoded secret stored after
+  // enrolment. `recoveryCodes` holds SHA-256 hashes (hex) of one-time
+  // recovery codes; the plaintext is shown to the operator only once
+  // at enrolment. `twoFactorRequired` lets per-user policy override the
+  // global ADMIN_2FA_OPTIONAL env flag (default: required).
+  totpSecret              String?
+  totpEnrolledAt          DateTime?
+  recoveryCodes           String[]        @default([])
+  twoFactorRequired       Boolean         @default(true)
+
   roles             AdminUserRole[]        @relation("RoleHolder")
   rolesAssigned     AdminUserRole[]        @relation("RoleAssigner")
   sessions          AdminSession[]
@@ -714,6 +728,10 @@ model AdminSession {
   createdAt    DateTime  @default(now())
   expiresAt    DateTime
   revokedAt    DateTime?
+  // Timestamp at which this session was elevated by a successful TOTP /
+  // recovery-code verification. Admin routes require this to be set when
+  // the admin's `twoFactorRequired` flag is true.
+  twoFactorAt  DateTime?
 
   @@index([adminUserId])
   @@index([expiresAt])

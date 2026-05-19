@@ -118,8 +118,16 @@ jobs:
       - name: Lint admin
         run: npm run lint -w @openmatch/admin
 
-      - name: Test admin
-        run: npm test -w @openmatch/admin
+      - name: Test admin (with coverage)
+        run: npm test -w @openmatch/admin -- --coverage
+
+      - name: Upload admin coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-coverage
+          path: admin/coverage/
+          retention-days: 7
 
   test-matching:
     name: Test @openmatch/matching
@@ -156,7 +164,30 @@ jobs:
             fi
           fi
 
-      - run: npm test -w @openmatch/matching
+      - name: Test matching (with coverage)
+        run: npm test -w @openmatch/matching -- --coverage
+
+      - name: Upload matching coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matching-coverage
+          path: matching/coverage/
+          retention-days: 7
+
+      - name: Post matching coverage summary
+        if: always()
+        run: |
+          {
+            echo "## Matching coverage"
+            echo '```'
+            if [ -f matching/coverage/coverage-summary.json ]; then
+              node -e "const d=require('./matching/coverage/coverage-summary.json').total; console.log(JSON.stringify(d,null,2));"
+            else
+              echo "no summary file"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   test-backend:
     name: Test @openmatch/backend (Postgres + PostGIS)
@@ -245,13 +276,13 @@ jobs:
             exit $rc
           fi
 
-      - name: Run backend tests
+      - name: Run backend tests (with coverage)
         id: backend_tests
         env:
           ADMIN_JWT_SECRET: ci-only-admin-secret-not-a-real-secret
         run: |
           set +e
-          npm test -w @openmatch/backend 2>&1 | tee /tmp/vitest.log
+          npm test -w @openmatch/backend -- --coverage 2>&1 | tee /tmp/vitest.log
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
             echo "### Backend vitest failed (rc=$rc)" >> "$GITHUB_STEP_SUMMARY"
@@ -260,6 +291,28 @@ jobs:
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             exit $rc
           fi
+
+      - name: Upload backend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage/
+          retention-days: 7
+
+      - name: Post backend coverage summary
+        if: always()
+        run: |
+          {
+            echo "## Backend coverage"
+            echo '```'
+            if [ -f backend/coverage/coverage-summary.json ]; then
+              node -e "const d=require('./backend/coverage/coverage-summary.json').total; console.log(JSON.stringify(d,null,2));"
+            else
+              echo "no summary file"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Post test failure as PR comment
         if: failure() && steps.backend_tests.outcome == 'failure' && github.event_name == 'pull_request'
         env:

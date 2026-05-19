@@ -54,6 +54,7 @@ const assignSchema = z.object({ adminUserId: z.string().min(1) });
 
 export const adminReportRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
 
   app.get(
     "/",

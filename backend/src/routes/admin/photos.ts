@@ -32,6 +32,7 @@ const actionSchema = z.object({
 
 export const adminPhotoRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
 
   app.get(
     "/",

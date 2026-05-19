@@ -24,6 +24,7 @@ const patchSchema = createSchema.partial();
 
 export const adminMetrosRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticateAdmin);
+  app.addHook("preHandler", app.requireAdminTwoFactor);
   app.addHook("preHandler", app.requirePermission(PERMISSIONS.METRO_MANAGE));
 
   app.get("/", async (_req, reply) => {

@@ -47,5 +47,28 @@ export async function GET(req: NextRequest) {
     refreshToken: verify.data.refreshToken,
     accessExpiresAt: verify.data.expiresAt,
   });
+
+  // Round 3 (ADMIN-9): after a successful magic-link verify the session
+  // is NOT yet 2FA-elevated. We probe /totp/status and route to either
+  // the enrolment page (first-time admins) or the verify page (returning
+  // admins). The destination `next` is forwarded so post-2FA we land on
+  // the originally-requested page.
+  const statusRes = await adminFetchWithToken<{
+    enrolled: boolean;
+    twoFactorAt: string | null;
+    twoFactorRequired: boolean;
+  }>("/api/v1/admin/auth/totp/status", verify.data.accessToken);
+  if (statusRes.status === 200 && statusRes.data.twoFactorRequired) {
+    if (!statusRes.data.enrolled) {
+      return NextResponse.redirect(
+        new URL(`/login/totp-enroll?next=${encodeURIComponent(next)}`, url),
+      );
+    }
+    if (!statusRes.data.twoFactorAt) {
+      return NextResponse.redirect(
+        new URL(`/login/totp-verify?next=${encodeURIComponent(next)}`, url),
+      );
+    }
+  }
   return NextResponse.redirect(new URL(next, url));
 }

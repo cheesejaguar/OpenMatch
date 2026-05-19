@@ -23,7 +23,8 @@
       "!**/package-lock.json",
       "!**/matching/algorithm_config.json",
       "!**/doc/ux-review/**",
-      "!**/.playwright-mcp/**"
+      "!**/.playwright-mcp/**",
+      "!**/.claude/**"
     ]
   },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },

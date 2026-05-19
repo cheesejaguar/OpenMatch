@@ -27,6 +27,7 @@ import { adminMetrosRoutes } from "./routes/admin/metros.js";
 import { adminPhotoRoutes } from "./routes/admin/photos.js";
 import { adminReportRoutes } from "./routes/admin/reports.js";
 import { adminRoleRoutes } from "./routes/admin/roles.js";
+import { adminTotpRoutes } from "./routes/admin/totp.js";
 import { adminUserRoutes } from "./routes/admin/users.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { authRoutes } from "./routes/auth.js";
@@ -130,6 +131,7 @@ export async function buildServer() {
   await app.register(dsaRoutes, { prefix: "/api/v1/dsa" });
 
   await app.register(adminAuthRoutes, { prefix: "/api/v1/admin/auth" });
+  await app.register(adminTotpRoutes, { prefix: "/api/v1/admin/auth/totp" });
   await app.register(adminUserRoutes, { prefix: "/api/v1/admin/users" });
   await app.register(adminReportRoutes, { prefix: "/api/v1/admin/reports" });
   await app.register(adminConversationRoutes, { prefix: "/api/v1/admin" });
