@@ -46,17 +46,17 @@
 | 2 | Safety & trust | 7 | 4 | 57 % | 🟡 |
 | 3 | Beta cohort management | 5 | 3 | 60 % | 🟡 |
 | 4 | iOS user experience | 10 | 9 | 90 % | 🟢 |
-| 5 | Admin dashboard | 9 | 2 | 22 % | 🔴 |
-| 6 | Testing & CI | 6 | 2 | 33 % | 🔴 |
+| 5 | Admin dashboard | 9 | 7 | 78 % | 🟡 |
+| 6 | Testing & CI | 6 | 3 | 50 % | 🟡 |
 | 7 | Compliance & privacy | 6 | 5 | 83 % | 🟢 |
 | 8 | Performance & capacity | 4 | 1 | 25 % | 🔴 |
 | 9 | Post-launch monitoring | 6 | 1 | 17 % | 🔴 |
-| **Total** | | **61** | **31** | **52 %** | 🟠 |
+| **Total** | | **61** | **37** | **61 %** | 🟡 |
 
-> Note: ADMIN-1/2/3 backend halves shipped this round (`/api/v1/admin/health/snapshot`,
-> `/api/v1/admin/analytics/{funnel,retention,timeseries}`, `/api/v1/admin/geography`)
-> but those items still count as ⚠️ overall because the operator-facing UI is
-> Round 2B. They are not yet counted as "done" in the table above.
+> Round 2A backend (health/snapshot, analytics funnel + retention + timeseries,
+> geography, DSA SLA, deletion purge worker) and Round 2B admin UI (health,
+> analytics, geography, invites, flags, queue SLA dashboard, UI primitives,
+> admin integration tests) both landed in the same window.
 
 ---
 
@@ -272,4 +272,5 @@ This section tracks every PR that moved a score in the table above.
 | 2026-05-18 | Round 1A — backend cohort gate | BETA-1 BETA-2 OPS-2 (backend) + per-endpoint rate limits + 3 stub endpoints (/analytics/event, /notifications/device-token, /feedback) | 31 → 34 |
 | 2026-05-18 | Round 1B — iOS launch readiness | IOS-1 ✅ · IOS-2 ⚠️ · IOS-3 ✅ · IOS-4 ✅ · IOS-5 ✅ · IOS-6 ✅ · BETA-5 ✅ | 34 → 43 |
 | 2026-05-18 | Round 2A — backend ops | OPS-5 ✅ · OPS-6 ✅ · SAFE-4 ✅ · COMP-3 ✅ · COMP-4 ✅ · ADMIN-1 ⚠️ (backend) · ADMIN-2 ⚠️ (backend) · ADMIN-3 ⚠️ (backend) | 43 → 52 |
+| 2026-05-18 | Round 2B — admin dashboard expansion | ADMIN-1 ✅ · ADMIN-2 ✅ · ADMIN-3 ✅ · ADMIN-4 ✅ · ADMIN-5 ✅ · ADMIN-6 ✅ · ADMIN-7 ✅ · TEST-3 ✅ — admin UI for everything R2A unblocked | 52 → 61 |
 | | | | |

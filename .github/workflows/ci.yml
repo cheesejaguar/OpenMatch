@@ -118,6 +118,9 @@ jobs:
       - name: Lint admin
         run: npm run lint -w @openmatch/admin
 
+      - name: Test admin
+        run: npm test -w @openmatch/admin
+
   test-matching:
     name: Test @openmatch/matching
     runs-on: ubuntu-latest

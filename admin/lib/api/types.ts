@@ -145,3 +145,177 @@ export interface OverviewMetricsDTO {
   escalatedReports: number;
   adminActionsToday: number;
 }
+
+// ------------------------------------------------------------------
+// Round 2A backend DTOs. These endpoints are shipped by a sibling PR;
+// the admin UI tolerates 404s gracefully (see EmptyState fallbacks).
+// ------------------------------------------------------------------
+
+export type HealthStatus = "ok" | "degraded" | "down" | "unknown";
+
+// R2A backend shape — see backend/src/routes/admin/metrics.ts.
+// We adapt to a friendlier `{ backend/postgres/ably/redis: { status, latencyMs }, queues }`
+// shape inside the page itself so the rest of the UI doesn't need to
+// know about the readiness wrapper.
+export interface ReadyCheckDTO {
+  ok: boolean;
+  configured: boolean;
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface HealthSnapshotDTO {
+  ready: {
+    ok: boolean;
+    checkedAt: string;
+    checks: {
+      postgres: ReadyCheckDTO;
+      ably: ReadyCheckDTO;
+      redis: ReadyCheckDTO;
+    };
+  };
+  postgres: {
+    maxConnections: number | null;
+    activeConnections: number | null;
+    idleConnections: number | null;
+    poolUsage: number | null;
+  };
+  errorRate5m: number | null;
+  queueDepths: {
+    reportsOpen: number;
+    photosPending: number;
+    dsaNoticesUnack: number;
+  };
+}
+
+// R2A timeseries uses the compact `{ t, v }` wire format. The UI
+// adapts at the page level — see timeseriesToPoints() below.
+export interface TimeSeriesDTO {
+  metric: string;
+  granularity: "minute" | "hour" | "day";
+  from?: string;
+  to?: string;
+  cohort?: string | null;
+  points: Array<{ t: string; v: number }>;
+  note?: string;
+}
+
+/** Adapt R2A `{ t, v }` points to the chart's `{ ts, value }` shape. */
+export function timeseriesToPoints(
+  dto: { points?: Array<{ t: string; v: number }> } | null | undefined,
+): Array<{ ts: string; value: number }> {
+  if (!dto?.points) return [];
+  return dto.points.map((p) => ({ ts: p.t, value: p.v }));
+}
+
+export interface FunnelStepDTO {
+  name: string;
+  count: number;
+  /** Conversion from the immediately prior step (0..1). */
+  conversionFromPrior: number | null;
+}
+
+export interface FunnelDTO {
+  from: string;
+  to: string;
+  cohort: string | null;
+  steps: FunnelStepDTO[];
+}
+
+// R2A retention shape: each cohort is one signup-day, with d1/d7/d30
+// retention fractions. We keep this exact shape; the page projects it
+// into multi-series points for the chart.
+export interface RetentionCohortDTO {
+  signupDate: string;
+  cohortSize: number;
+  d1: number | null;
+  d7: number | null;
+  d30: number | null;
+}
+
+export interface RetentionDTO {
+  from: string;
+  to: string;
+  cohort?: string | null;
+  cohorts: RetentionCohortDTO[];
+}
+
+// R2A geography bucket. Note `lng` (not `lon`) to mirror the backend.
+export interface GeographyBucketDTO {
+  label: string;
+  lat: number;
+  lng: number;
+  userCount: number;
+  matchCount: number;
+}
+
+export interface GeographyDTO {
+  metro: { slug: string; name: string } | null;
+  bucketDegrees?: number;
+  buckets: GeographyBucketDTO[];
+}
+
+// ------------------------------------------------------------------
+// Round 1A endpoints — already live on main.
+// ------------------------------------------------------------------
+
+export interface InviteCodeDTO {
+  id: string;
+  code: string;
+  cohortLabel: string;
+  maxUses: number;
+  usedCount: number;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  createdByAdminUserId: string | null;
+}
+
+export interface InviteListDTO {
+  items: InviteCodeDTO[];
+  nextCursor: string | null;
+}
+
+export interface InviteCreatedDTO {
+  items: Array<{
+    id: string;
+    code: string;
+    cohortLabel: string;
+    maxUses: number;
+    expiresAt: string | null;
+  }>;
+}
+
+export interface FeatureFlagDTO {
+  id: string;
+  key: string;
+  enabled: boolean;
+  description: string;
+  variants: unknown;
+  updatedAt: string;
+  updatedByAdminUserId: string | null;
+  createdAt: string;
+}
+
+export interface FeatureFlagListDTO {
+  items: FeatureFlagDTO[];
+}
+
+export interface BetaFeedbackDTO {
+  id: string;
+  userId: string;
+  category: string;
+  body: string;
+  appVersion: string | null;
+  osVersion: string | null;
+  deviceModel: string | null;
+  resolvedAt: string | null;
+  resolvedByAdminUserId: string | null;
+  createdAt: string;
+}
+
+export interface FeedbackListDTO {
+  items: BetaFeedbackDTO[];
+  nextCursor: string | null;
+}
