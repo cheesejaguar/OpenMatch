@@ -54,9 +54,18 @@ final class RealtimeService: ObservableObject {
     }
 
     func disconnect() {
+        // Closing the Ably client detaches every attached channel and
+        // releases the underlying transport. Calling close() on a nil
+        // realtime is a no-op (idempotent), so a background → background
+        // double tap (e.g. scenePhase debounce) is safe.
         realtime?.close()
         realtime = nil
     }
+
+    // Test/debug helper: reports whether we currently hold an open Ably
+    // client. Used by ScenePhaseHandlerTests to verify background/active
+    // toggles the underlying socket.
+    var isConnected: Bool { realtime != nil }
 
     // Subscribe to live messages on `conversation:{id}`. The handler is
     // invoked on the main actor with the decoded MessageDTO when the

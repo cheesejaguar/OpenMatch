@@ -23,19 +23,7 @@ struct OpenMatchApp: App {
                 .environmentObject(appState.api)
                 .preferredColorScheme(nil)
                 .onChange(of: scenePhase) { _, phase in
-                    switch phase {
-                    case .active:
-                        Task { await Analytics.shared.record("app.foreground") }
-                    case .background:
-                        Task {
-                            await Analytics.shared.record("app.background")
-                            // Force a flush — backgrounded apps may
-                            // be suspended before the timer fires.
-                            await Analytics.shared.flush()
-                        }
-                    default:
-                        break
-                    }
+                    AppLifecycle.handleScenePhase(phase, appState: appState)
                 }
         }
     }
