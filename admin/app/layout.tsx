@@ -38,6 +38,11 @@ const fraunces = localFont({
 export const metadata = {
   title: "OpenMatch Admin",
   description: "OpenMatch admin dashboard",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/favicon.png",
+    shortcut: "/favicon.png",
+  },
 };
 
 export const dynamic = "force-dynamic";

@@ -60,7 +60,35 @@ export default async function Sidebar() {
   const session = await readSession();
   return (
     <aside className="sidebar">
-      <h1>OpenMatch Admin</h1>
+      <Link
+        href="/"
+        aria-label="OpenMatch Admin home"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          textDecoration: "none",
+          color: "var(--om-plum)",
+          marginBottom: 12,
+        }}
+      >
+        {/* Plain <img> rather than next/image: SVG with embedded font
+            doesn't benefit from Next's raster optimizer, and using
+            <Image src=".svg"> would require dangerouslyAllowSVG. */}
+        {/* biome-ignore lint/performance/noImgElement: explanation above */}
+        <img src="/om-mark.svg" alt="" width={32} height={32} />
+        <span
+          style={{
+            fontFamily: "var(--font-geist)",
+            fontWeight: 600,
+            fontSize: 18,
+            color: "var(--om-plum)",
+            letterSpacing: -0.2,
+          }}
+        >
+          OpenMatch Admin
+        </span>
+      </Link>
       <div className="who">
         {session?.email ?? "anonymous"}
         <br />
@@ -89,9 +117,15 @@ export default async function Sidebar() {
           }}
         >
           <Link href="/" style={{ color: "var(--fg-muted)" }}>
-            Botanic ·{" "}
-            <span style={{ fontFamily: "var(--font-display)", fontStyle: "italic" }}>
-              OpenMatch
+            Aurora Dawn ·{" "}
+            <span
+              style={{
+                fontFamily: "var(--font-fraunces)",
+                fontStyle: "italic",
+                fontWeight: 900,
+              }}
+            >
+              om
             </span>
           </Link>
         </div>

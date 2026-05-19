@@ -20,7 +20,8 @@
     "format:check": "biome format .",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "license-inventory": "node scripts/license-inventory.mjs"
+    "license-inventory": "node scripts/license-inventory.mjs",
+    "gen:logo": "node scripts/gen_logo.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15"
