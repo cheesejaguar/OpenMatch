@@ -3,6 +3,11 @@ import { buildDailyDigest, runDailyDigestOnce } from "../src/workers/daily-diges
 import { createUser, resetDb, testPrisma } from "./helpers/db.js";
 
 // MON-1 — daily digest worker.
+//
+// Round C — for the counting test we explicitly pass an `asOf` that
+// sits one minute in the future of every row we just inserted. That
+// guarantees the 24h window is `[asOf - 24h, asOf)` regardless of any
+// drift between the Postgres clock and the JS clock.
 
 describe("daily digest", () => {
   beforeEach(async () => {
@@ -42,7 +47,12 @@ describe("daily digest", () => {
       },
     });
 
-    const digest = await buildDailyDigest(testPrisma);
+    // Pull "real Postgres now + 1 minute" so the window strictly
+    // includes every row we just inserted (avoids JS clock skew vs
+    // Postgres clock breaking the window boundary).
+    const [{ now: pgNow }] = await testPrisma.$queryRaw<{ now: Date }[]>`SELECT NOW() AS now`;
+    const asOf = new Date(pgNow.getTime() + 60_000);
+    const digest = await buildDailyDigest(testPrisma, asOf);
     expect(digest.signupsToday).toBe(2);
     expect(digest.matchesToday).toBe(1);
     expect(digest.messagesToday).toBe(1);

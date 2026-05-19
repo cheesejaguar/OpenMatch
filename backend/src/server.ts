@@ -1,7 +1,6 @@
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import sensible from "@fastify/sensible";
-import swagger from "@fastify/swagger";
 import * as Sentry from "@sentry/node";
 import Fastify from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
@@ -18,6 +17,7 @@ import authPlugin from "./plugins/auth.js";
 import countryGatePlugin from "./plugins/country-gate.js";
 import flagsPlugin from "./plugins/flags.js";
 import metroGatePlugin from "./plugins/metro-gate.js";
+import { openapiPlugin } from "./plugins/openapi.js";
 import prismaPlugin from "./plugins/prisma.js";
 import ratelimitPlugin from "./plugins/ratelimit.js";
 import redisPlugin from "./plugins/redis.js";
@@ -160,17 +160,12 @@ export async function buildServer() {
       fields: 4,
     },
   });
-  await app.register(swagger, {
-    openapi: {
-      info: {
-        title: "OpenMatch API",
-        version: "0.1.0",
-        description:
-          "OpenMatch is an open-source dating app with an auditable matching algorithm and no paid dating advantage.",
-      },
-      servers: [{ url: `http://${env.HOST}:${env.PORT}` }],
-    },
-  });
+
+  // Round C — OpenAPI spec generation. Registered BEFORE any
+  // `app.register(routes, ...)` so the schemas attached to routes feed
+  // into the published spec. Internal + admin routes are hidden from the
+  // public document via the transform inside the plugin.
+  await app.register(openapiPlugin);
 
   await app.register(prismaPlugin);
   await app.register(redisPlugin);

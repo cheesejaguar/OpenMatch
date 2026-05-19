@@ -146,10 +146,40 @@ jobs:
             -scheme OpenMatch \
             -destination "platform=iOS Simulator,name=$DEVICE,OS=latest" \
             -configuration Debug \
+            -enableCodeCoverage YES \
+            -derivedDataPath build/DerivedData \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             test 2>&1 | tee /tmp/xcodebuild-test.log
+
+      # Round C — surface iOS line coverage in the GitHub step summary so
+      # we can graph it over time. No threshold is enforced yet; the goal
+      # is measurement first, gate later.
+      - name: Extract iOS coverage
+        if: always()
+        working-directory: ios
+        run: |
+          set +e
+          XCRESULT=$(find build/DerivedData/Logs/Test -name "*.xcresult" -maxdepth 2 | head -1)
+          if [ -z "$XCRESULT" ]; then
+            echo "no xcresult found" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          xcrun xccov view --report --json "$XCRESULT" > /tmp/xccov.json || true
+          LINE_COV=$(jq '.targets[] | select(.name == "OpenMatch") | .lineCoverage' /tmp/xccov.json 2>/dev/null)
+          {
+            echo "## iOS coverage"
+            echo "OpenMatch line coverage: ${LINE_COV:-unknown}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload iOS coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-coverage
+          path: /tmp/xccov.json
+          retention-days: 7
 
       - name: Annotate test failures
         if: failure()
