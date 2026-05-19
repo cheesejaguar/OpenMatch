@@ -75,6 +75,18 @@ const schema = z.object({
     .string()
     .default("true")
     .transform((v) => v === "true"),
+
+  // Bearer token gating the /api/v1/internal/* endpoints (deletion
+  // purge, DSA SLA check, future cron-style workers). MUST be set in
+  // production. Vercel cron requests include `Authorization: Bearer
+  // <CRON_SECRET>` so the cron secret value can be reused here, but
+  // we keep a distinct env var so the cron secret can be rotated
+  // independently and so non-Vercel invocations (manual ops cron, k8s
+  // CronJob, etc.) work with the same scheme.
+  INTERNAL_WORKER_TOKEN: z
+    .string()
+    .min(32)
+    .default("dev-internal-worker-token-please-change-32-chars"),
 });
 
 export const env = schema.parse(process.env);

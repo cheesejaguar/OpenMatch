@@ -11,5 +11,9 @@
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "crons": [
+    { "path": "/api/v1/internal/run-deletion-purge", "schedule": "*/15 * * * *" },
+    { "path": "/api/v1/internal/run-dsa-sla-check", "schedule": "0 * * * *" }
+  ]
 }

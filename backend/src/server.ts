@@ -13,11 +13,14 @@ import metroGatePlugin from "./plugins/metro-gate.js";
 import prismaPlugin from "./plugins/prisma.js";
 import ratelimitPlugin from "./plugins/ratelimit.js";
 import redisPlugin from "./plugins/redis.js";
+import { adminAnalyticsRoutes } from "./routes/admin/analytics.js";
 import { adminAuditRoutes } from "./routes/admin/audit.js";
 import { adminAuthRoutes } from "./routes/admin/auth.js";
 import { adminConversationRoutes } from "./routes/admin/conversations.js";
+import { adminDsaRoutes } from "./routes/admin/dsa.js";
 import { adminFeedbackRoutes } from "./routes/admin/feedback.js";
 import { adminFlagsRoutes } from "./routes/admin/flags.js";
+import { adminGeographyRoutes } from "./routes/admin/geography.js";
 import { adminInvitesRoutes } from "./routes/admin/invites.js";
 import { adminMetricsRoutes } from "./routes/admin/metrics.js";
 import { adminMetrosRoutes } from "./routes/admin/metros.js";
@@ -31,6 +34,8 @@ import { chatRoutes } from "./routes/chat.js";
 import { discoveryRoutes } from "./routes/discovery.js";
 import { dsaRoutes } from "./routes/dsa.js";
 import { feedbackRoutes } from "./routes/feedback.js";
+import { healthRoutes } from "./routes/health.js";
+import { internalRoutes } from "./routes/internal.js";
 import { invitesRoutes } from "./routes/invites.js";
 import { likesRoutes } from "./routes/likes.js";
 import { matchesRoutes } from "./routes/matches.js";
@@ -103,7 +108,9 @@ export async function buildServer() {
   await app.register(metroGatePlugin);
 
   app.get("/health", async () => ({ ok: true }));
+  await app.register(healthRoutes);
 
+  await app.register(internalRoutes, { prefix: "/api/v1/internal" });
   await app.register(authRoutes, { prefix: "/api/v1/auth" });
   await app.register(invitesRoutes, { prefix: "/api/v1/invites" });
   await app.register(notificationsRoutes, { prefix: "/api/v1/notifications" });
@@ -134,6 +141,9 @@ export async function buildServer() {
   await app.register(adminFlagsRoutes, { prefix: "/api/v1/admin/flags" });
   await app.register(adminMetrosRoutes, { prefix: "/api/v1/admin/metros" });
   await app.register(adminFeedbackRoutes, { prefix: "/api/v1/admin/feedback" });
+  await app.register(adminAnalyticsRoutes, { prefix: "/api/v1/admin/analytics" });
+  await app.register(adminGeographyRoutes, { prefix: "/api/v1/admin/geography" });
+  await app.register(adminDsaRoutes, { prefix: "/api/v1/admin/dsa-notices" });
 
   app.setErrorHandler((err, _req, reply) => {
     const e = err as { statusCode?: number; message?: string };

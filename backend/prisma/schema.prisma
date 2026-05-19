@@ -158,6 +158,10 @@ enum AdminEventType {
   metro_created
   metro_updated
   feedback_resolved
+  account_purged
+  dsa_notice_acknowledged
+  dsa_notice_decided
+  dsa_sla_breach
 }
 
 enum SensitiveEntityType {
@@ -252,6 +256,7 @@ enum AccountDeletionStatus {
   cancelled
   in_progress
   completed
+  purged
 }
 
 enum NoticeAndActionCategory {
@@ -927,6 +932,12 @@ model AccountDeletionRequest {
   cancelledAt       DateTime?
   startedAt         DateTime?
   completedAt       DateTime?
+  // Final "irreversibly purged" timestamp written by the async worker
+  // in backend/src/workers/deletion.ts. Distinct from completedAt to
+  // preserve the prior path's semantics (completedAt was set when the
+  // legacy in-line erasure finished). The new worker uses purgedAt +
+  // status=purged.
+  purgedAt          DateTime?
   status            AccountDeletionStatus @default(scheduled)
   reason            String?
   contactEmailHash  String? // so we can reach the user if they restore
@@ -967,38 +978,51 @@ model NotificationPreference {
 //  - the category vocabulary is statutory,
 //  - the workflow has its own SLA timer.
 model NoticeAndActionReport {
-  id                       String                  @id @default(cuid())
-  category                 NoticeAndActionCategory
-  status                   NoticeAndActionStatus   @default(received)
-  reporterIsUser           Boolean                 @default(false)
-  reporterUserId           String?
-  reporterName             String?
-  reporterEmail            String?
-  reporterCountry          String?
-  reporterIsTrustedFlagger Boolean                 @default(false)
-  trustedFlaggerId         String?
-  trustedFlagger           TrustedFlagger?         @relation(fields: [trustedFlaggerId], references: [id])
-  affectedUserId           String?
-  affectedUser             User?                   @relation("NoticeAndActionTarget", fields: [affectedUserId], references: [id])
-  contentReference         String // user_id / photo_id / message_id / URL
-  contentSnapshot          Json? // tamper-evident snapshot at time of report
-  description              String
-  isInGoodFaith            Boolean                 @default(true)
-  jurisdictionClaim        String? // member state, "EU", "global"
-  legalBasisClaim          String? // e.g. "TAKE IT DOWN Act §1309"
-  receivedAt               DateTime                @default(now())
-  acknowledgedAt           DateTime?
-  slaDueAt                 DateTime? // 48h for NCII; 24h for CSAM
-  resolvedAt               DateTime?
-  decisionId               String?
-  statementOfReasonsId     String?
-  statementOfReasons       DsaStatementOfReasons?  @relation("NoticeStatementOfReasons", fields: [statementOfReasonsId], references: [id])
-  metadata                 Json?
+  id                        String                  @id @default(cuid())
+  category                  NoticeAndActionCategory
+  status                    NoticeAndActionStatus   @default(received)
+  reporterIsUser            Boolean                 @default(false)
+  reporterUserId            String?
+  reporterName              String?
+  reporterEmail             String?
+  reporterCountry           String?
+  reporterIsTrustedFlagger  Boolean                 @default(false)
+  trustedFlaggerId          String?
+  trustedFlagger            TrustedFlagger?         @relation(fields: [trustedFlaggerId], references: [id])
+  affectedUserId            String?
+  affectedUser              User?                   @relation("NoticeAndActionTarget", fields: [affectedUserId], references: [id])
+  contentReference          String // user_id / photo_id / message_id / URL
+  contentSnapshot           Json? // tamper-evident snapshot at time of report
+  description               String
+  isInGoodFaith             Boolean                 @default(true)
+  jurisdictionClaim         String? // member state, "EU", "global"
+  legalBasisClaim           String? // e.g. "TAKE IT DOWN Act §1309"
+  receivedAt                DateTime                @default(now())
+  acknowledgedAt            DateTime?
+  acknowledgedByAdminUserId String?
+  respondedAt               DateTime?
+  decidedByAdminUserId      String?
+  slaDueAt                  DateTime? // legacy single-deadline (kept for back-compat)
+  // DSA Art. 16 / TAKE IT DOWN Act SLA: acknowledgement and decision
+  // each have their own deadline. Defaults populated by the service
+  // when the notice is opened — Prisma can't express "createdAt + 24h"
+  // as a column default, so we set them explicitly.
+  slaAckDueAt               DateTime?
+  slaDecisionDueAt          DateTime?
+  slaAckBreachedAt          DateTime?
+  slaDecisionBreachedAt     DateTime?
+  resolvedAt                DateTime?
+  decisionId                String?
+  statementOfReasonsId      String?
+  statementOfReasons        DsaStatementOfReasons?  @relation("NoticeStatementOfReasons", fields: [statementOfReasonsId], references: [id])
+  metadata                  Json?
 
   @@index([status, slaDueAt])
   @@index([category, status])
   @@index([reporterUserId])
   @@index([affectedUserId])
+  @@index([slaAckDueAt, acknowledgedAt])
+  @@index([slaDecisionDueAt, respondedAt])
 }
 
 model TrustedFlagger {
