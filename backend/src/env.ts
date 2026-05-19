@@ -67,6 +67,14 @@ const schema = z.object({
     .string()
     .default("false")
     .transform((v) => v === "true"),
+  // When dev login is enabled, this flag controls whether dev sign-ins
+  // bypass the invite-required gate. Default true so the screenshot
+  // scripts and integration suite keep working with `invite_required`
+  // on.
+  DEV_LOGIN_BYPASSES_INVITE: z
+    .string()
+    .default("true")
+    .transform((v) => v === "true"),
 });
 
 export const env = schema.parse(process.env);

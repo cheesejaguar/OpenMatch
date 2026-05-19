@@ -20,7 +20,7 @@ export const swipesRoutes: FastifyPluginAsync = async (app) => {
       {
         config: {
           rateLimit: {
-            max: 120,
+            max: 100,
             timeWindow: "1 minute",
           },
         },
@@ -34,6 +34,7 @@ export const swipesRoutes: FastifyPluginAsync = async (app) => {
         if (!targetProfile) {
           return reply.code(404).send({ error: "target_not_found" });
         }
+        const skipMatch = await app.flags.evaluate("match_pipeline_paused");
         const result = await recordSwipe(app.prisma, {
           viewerUserId: req.userId!,
           targetUserId: targetProfile.userId,
@@ -41,21 +42,28 @@ export const swipesRoutes: FastifyPluginAsync = async (app) => {
           algorithmVersion: body.algorithmVersion,
           rankingConfigVersion: body.rankingConfigVersion,
           deckSessionId: body.deckSessionId,
+          skipMatch,
         });
         return reply.send(result);
       },
     );
   });
 
-  app.post<{ Params: { swipeId: string } }>("/:swipeId/undo", async (req, reply) => {
-    const result = await undoSwipe(app.prisma, req.userId!, req.params.swipeId);
-    if (!result.undone) {
-      return reply.code(400).send({
-        error: "undo_not_available",
-        message:
-          "Undo is free, but it has integrity limits — your action may be too old, already undone, or affected by moderation.",
-      });
-    }
-    return reply.send({ undone: true });
-  });
+  app.post<{ Params: { swipeId: string } }>(
+    "/:swipeId/undo",
+    {
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    },
+    async (req, reply) => {
+      const result = await undoSwipe(app.prisma, req.userId!, req.params.swipeId);
+      if (!result.undone) {
+        return reply.code(400).send({
+          error: "undo_not_available",
+          message:
+            "Undo is free, but it has integrity limits — your action may be too old, already undone, or affected by moderation.",
+        });
+      }
+      return reply.send({ undone: true });
+    },
+  );
 };

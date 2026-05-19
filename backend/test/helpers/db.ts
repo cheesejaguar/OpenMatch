@@ -22,6 +22,8 @@ const TABLES = [
   "AdminAuthChallenge",
   "AdminSession",
   "AdminUserRole",
+  "BetaInviteRedemption",
+  "BetaInviteCode",
   "AdminUser",
   "AdminRole",
   "Message",
@@ -35,10 +37,15 @@ const TABLES = [
   "Preferences",
   "Profile",
   "DeviceToken",
+  "NotificationDevice",
+  "AnalyticsEvent",
+  "BetaFeedback",
   "AuthChallenge",
   "Session",
   "User",
   "AlgorithmAuditRecord",
+  "FeatureFlag",
+  "MetroBoundary",
 ];
 
 export async function resetDb(): Promise<void> {
@@ -108,4 +115,32 @@ export async function createUser(opts: CreateUserOptions = {}) {
   });
 
   return user;
+}
+
+let adminCounter = 0;
+
+export async function createAdmin(opts: { displayName?: string } = {}) {
+  adminCounter += 1;
+  return testPrisma.adminUser.create({
+    data: {
+      email: `admin-${adminCounter}-${Date.now()}@openmatch.local`,
+      displayName: opts.displayName ?? `Admin ${adminCounter}`,
+    },
+  });
+}
+
+export async function seedTestMetroSF() {
+  return testPrisma.metroBoundary.upsert({
+    where: { slug: "sf-bay-area" },
+    create: {
+      slug: "sf-bay-area",
+      name: "San Francisco Bay Area",
+      centerLat: 37.7749,
+      centerLng: -122.4194,
+      radiusKm: 80,
+      countryCode: "US",
+      active: true,
+    },
+    update: {},
+  });
 }

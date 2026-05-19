@@ -115,6 +115,30 @@ export async function buildDeck(input: BuildDeckInput) {
   }
 
   const maxDistanceKm = viewerUser.preferences.maxDistanceKm;
+  const viewerLat = viewerLoc[0].lat;
+  const viewerLng = viewerLoc[0].lng;
+
+  // Metro overlay (BETA-2). If the viewer's location sits inside an
+  // active MetroBoundary, we additionally require each candidate to
+  // sit inside that same boundary. The candidate radius-from-viewer
+  // filter still applies, but the metro filter prevents (e.g.) someone
+  // setting their preference radius wide enough to leak into an
+  // adjacent metro. If the viewer is in no metro, we fall back to
+  // the preference-radius filter only.
+  const activeMetros = await input.prisma.metroBoundary.findMany({
+    where: { active: true },
+  });
+  let viewerMetro: (typeof activeMetros)[number] | null = null;
+  for (const m of activeMetros) {
+    const dist = haversineKm(
+      { lat: viewerLat, lng: viewerLng },
+      { lat: m.centerLat, lng: m.centerLng },
+    );
+    if (dist <= m.radiusKm) {
+      viewerMetro = m;
+      break;
+    }
+  }
 
   // Candidate query: nearby, visible, moderation-clean, not the viewer.
   // Joins preferences for mutual gender filtering & age window.
@@ -158,10 +182,22 @@ export async function buildDeck(input: BuildDeckInput) {
     LIMIT 500
     `,
     input.viewerUserId,
-    viewerLoc[0].lng,
-    viewerLoc[0].lat,
+    viewerLng,
+    viewerLat,
     maxDistanceKm * 1000,
   );
+
+  // Apply the metro filter in-memory; the deck is bounded to 500 rows
+  // so this is cheap and keeps the SQL legible.
+  const inMetro = viewerMetro
+    ? candidateRows.filter(
+        (row) =>
+          haversineKm(
+            { lat: row.lat, lng: row.lng },
+            { lat: viewerMetro!.centerLat, lng: viewerMetro!.centerLng },
+          ) <= viewerMetro!.radiusKm,
+      )
+    : candidateRows;
 
   // Blocks (either direction)
   const blocks = await input.prisma.block.findMany({
@@ -233,11 +269,10 @@ export async function buildDeck(input: BuildDeckInput) {
   };
 
   // Build candidates, computing age and distance per row.
-  const candidates: Candidate[] = candidateRows
+  const candidates: Candidate[] = inMetro
     .filter((row) => !likedTargets.has(row.user_id))
     .map((row) => {
       const profile = toMatchingProfile(row);
-      const candidateUser = candidateRows.find((r) => r.profile_id === row.profile_id)!;
       // Age requires DOB which isn't joined — fetch DOB cheaply.
       // We accept a follow-up query rather than coupling matching to age math.
       return {
