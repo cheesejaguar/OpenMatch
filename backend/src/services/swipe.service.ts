@@ -9,6 +9,11 @@ export interface RecordSwipeInput {
   algorithmVersion: string;
   rankingConfigVersion: string;
   deckSessionId: string;
+  // When true (driven by the `match_pipeline_paused` feature flag),
+  // swipes are persisted and Likes are still recorded but no Match
+  // row is created. Lets ops drain the moderation queue without
+  // halting the swipe deck entirely.
+  skipMatch?: boolean;
 }
 
 export interface RecordSwipeResult {
@@ -87,6 +92,13 @@ export async function recordSwipe(
       },
     });
     if (!reciprocal || reciprocal.status === "withdrawn") {
+      return { swipeId: swipe.id, matched: false };
+    }
+    if (input.skipMatch) {
+      // Match pipeline paused: persist the swipe and the outbound Like
+      // but skip the Match insert. The reciprocal Like is left in
+      // "active"; when the flag flips back, the next swipe between the
+      // pair will create the Match.
       return { swipeId: swipe.id, matched: false };
     }
 

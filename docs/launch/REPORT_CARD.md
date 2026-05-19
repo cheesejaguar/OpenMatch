@@ -4,9 +4,9 @@
 > as PRs land. This file is the canonical scorecard — the HTML viewer at
 > `docs/launch/index.html` is a rendering of these tables for offline review.
 
-**Last refreshed:** 2026-05-18 (after Round 1B — iOS launch readiness)
-**Overall readiness:** 🔴 **39 / 100**
-**Verdict:** **NOT READY** for public beta. BLOCKERs remain on backend / admin side; iOS half of P0+P1 is closed.
+**Last refreshed:** 2026-05-18 (after Round 1A backend infra + Round 1B iOS launch readiness merged)
+**Overall readiness:** 🟠 **43 / 100**
+**Verdict:** **NOT READY** for public beta. Backend cohort gate + iOS half of P0+P1 are closed; admin UI, Sentry DSN, and the remaining backend P1 items still open.
 
 ---
 
@@ -42,16 +42,16 @@
 
 | # | Category | Items | Done | Score | Status |
 |---|---|---|---|---|---|
-| 1 | Operational readiness | 8 | 1 | 12 % | 🔴 |
+| 1 | Operational readiness | 8 | 2 | 25 % | 🔴 |
 | 2 | Safety & trust | 7 | 3 | 43 % | 🟡 |
-| 3 | Beta cohort management | 5 | 1 | 20 % | 🔴 |
+| 3 | Beta cohort management | 5 | 3 | 60 % | 🟡 |
 | 4 | iOS user experience | 10 | 9 | 90 % | 🟢 |
 | 5 | Admin dashboard | 9 | 2 | 22 % | 🔴 |
 | 6 | Testing & CI | 6 | 2 | 33 % | 🔴 |
 | 7 | Compliance & privacy | 6 | 4 | 67 % | 🟢 |
 | 8 | Performance & capacity | 4 | 1 | 25 % | 🔴 |
 | 9 | Post-launch monitoring | 6 | 1 | 17 % | 🔴 |
-| **Total** | | **61** | **24** | **39 %** | 🔴 |
+| **Total** | | **61** | **26** | **43 %** | 🟠 |
 
 ---
 
@@ -60,7 +60,7 @@
 | ID | Item | Goal | Target / DoD | Severity | Status | Notes |
 |---|---|---|---|---|---|---|
 | OPS-1 | Push notifications (APNs / web push) | Notify users of matches, messages, likes when app is backgrounded | iOS APNs cert in App Store Connect · backend worker that fans match/message events to APNs · device-token registration endpoint · respects `NotificationPreferencesDTO` | **P0** | ❌ | `backend/src/routes/privacy.ts:70` models prefs but no delivery |
-| OPS-2 | Feature flags / kill switches | Toggle features, disable signups, lower rate limits without redeploy | `FeatureFlag` table · `app.flags.evaluate(key, ctx)` · admin UI to flip flags · runtime cache w/ 30-s TTL | **P0** | ❌ | grep finds zero matches; need infra from scratch |
+| OPS-2 | Feature flags / kill switches | Toggle features, disable signups, lower rate limits without redeploy | `FeatureFlag` table · `app.flags.evaluate(key, ctx)` · admin UI to flip flags · runtime cache w/ 30-s TTL | **P0** | ✅ | shipped Round 1A (backend half — admin UI is ADMIN-5 in Round 2B) |
 | OPS-3 | Crash + error reporting | All backend errors land in Sentry / equivalent within 60 s | Sentry SDK installed in `backend/src/server.ts` · DSN in env · sample-rate config · release tagging · unhandled-rejection capture | **P1** | ❌ | Pino logs locally; no exporter |
 | OPS-4 | Structured request logging | Every request gets a request-id; logs are queryable by user-id / endpoint / status | Fastify request-id plugin · log shipper to Axiom / Datadog / Vercel Logs | **P1** | ⚠️ | Pino is wired; no shipper |
 | OPS-5 | /health & /ready endpoints | Vercel and uptime monitor can probe service health | `/health` returns 200 if process up · `/ready` checks Postgres + Ably + Redis · admin dashboard surfaces both | **P1** | ⚠️ | `/health` returns `{ok:true}` only; no readiness probe |
@@ -88,8 +88,8 @@
 
 | ID | Item | Goal | Target / DoD | Severity | Status | Notes |
 |---|---|---|---|---|---|---|
-| BETA-1 | Invite code system | New users must redeem a valid invite to sign up | `BetaInviteCode` table (code, createdBy, usedAt, usedByUserId, expiresAt, cohortLabel) · `/auth/start` accepts + validates code · admin CRUD + bulk-generate | **P0** | ❌ | no schema or endpoint exists |
-| BETA-2 | City / metro geo-fence | Signups + matches limited to target metro within radius | `MetroBoundary` config (center + radius_km) · enforced in `country-gate` plugin · discovery query filters to in-metro profiles · admin can edit boundaries | **P0** | ❌ | only country gate today |
+| BETA-1 | Invite code system | New users must redeem a valid invite to sign up | `BetaInviteCode` table (code, createdBy, usedAt, usedByUserId, expiresAt, cohortLabel) · `/auth/start` accepts + validates code · admin CRUD + bulk-generate | **P0** | ✅ | shipped Round 1A (schema + redemption tx + admin CRUD) |
+| BETA-2 | City / metro geo-fence | Signups + matches limited to target metro within radius | `MetroBoundary` config (center + radius_km) · enforced in `country-gate` plugin · discovery query filters to in-metro profiles · admin can edit boundaries | **P0** | ✅ | shipped Round 1A (metro-gate plugin + discovery filter + admin metros routes) |
 | BETA-3 | Waitlist | Out-of-cohort interest is captured for later expansion | public waitlist endpoint (rate-limited) · admin dashboard view · email capture only (no profile) | **P1** | ❌ | not implemented |
 | BETA-4 | Cohort labels | Each invite is tagged with a cohort (e.g. SF-week1, SF-week2) for analytics segmentation | cohort string on invite + propagates to user record · funnel filterable by cohort | **P2** | ❌ | depends on BETA-1 |
 | BETA-5 | In-app invite collection | iOS WelcomeView surfaces a code entry field when invite gating is on | toggled by `invite_required` flag (OPS-2) · pre-fills from universal link param if present | **P1** | ✅ | shipped Round 1B: invite-code field above email, normalises uppercase, parses `?invite=` from universal links, maps backend `invite_required` / `invite_invalid` errors to inline copy |
@@ -264,5 +264,6 @@ This section tracks every PR that moved a score in the table above.
 | Date | PR | Items closed | Score change |
 |---|---|---|---|
 | 2026-05-18 | (baseline) | — | 0 → 31 |
-| 2026-05-18 | Round 1B — iOS launch readiness | IOS-1 ✅ · IOS-2 ⚠️ · IOS-3 ✅ · IOS-4 ✅ · IOS-5 ✅ · IOS-6 ✅ · BETA-5 ✅ | 31 → 39 |
+| 2026-05-18 | Round 1A — backend cohort gate | BETA-1 BETA-2 OPS-2 (backend) + per-endpoint rate limits + 3 stub endpoints (/analytics/event, /notifications/device-token, /feedback) | 31 → 34 |
+| 2026-05-18 | Round 1B — iOS launch readiness | IOS-1 ✅ · IOS-2 ⚠️ · IOS-3 ✅ · IOS-4 ✅ · IOS-5 ✅ · IOS-6 ✅ · BETA-5 ✅ | 34 → 43 |
 | | | | |

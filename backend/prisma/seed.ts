@@ -112,8 +112,56 @@ async function main() {
   if (process.env.ALLOW_DEV_LOGIN === "true") {
     await seedDevAdmin();
   }
+  await seedMetros();
+  await seedFeatureFlags();
 
   console.log("Seed complete.");
+}
+
+async function seedMetros() {
+  await prisma.metroBoundary.upsert({
+    where: { slug: "sf-bay-area" },
+    create: {
+      slug: "sf-bay-area",
+      name: "San Francisco Bay Area",
+      centerLat: 37.7749,
+      centerLng: -122.4194,
+      radiusKm: 80,
+      countryCode: "US",
+      active: true,
+    },
+    update: {},
+  });
+}
+
+async function seedFeatureFlags() {
+  const flags: Array<{ key: string; enabled: boolean; description: string }> = [
+    {
+      key: "invite_required",
+      enabled: true,
+      description:
+        "Require a valid BetaInviteCode at /auth/start when creating new users. Toggle off after cohort expansion.",
+    },
+    {
+      key: "signups_paused",
+      enabled: false,
+      description:
+        "Operational kill switch. When on, /auth/start returns 503 for everyone. Use to freeze the cohort during incidents.",
+    },
+    {
+      key: "match_pipeline_paused",
+      enabled: false,
+      description:
+        "When on, swipe-commit skips creating Matches. Lets us drain the moderation queue without halting swipes entirely.",
+    },
+  ];
+  for (const f of flags) {
+    await prisma.featureFlag.upsert({
+      where: { key: f.key },
+      create: f,
+      update: { description: f.description },
+    });
+  }
 }
 
 async function seedAdminRoles() {

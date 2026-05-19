@@ -46,6 +46,9 @@ const updateSchema = z.object({
   location: z
     .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
     .optional(),
+  declaredLocation: z
+    .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
+    .optional(),
   dateOfBirth: z.string().optional(), // ISO; only accepted at first onboarding
 });
 
@@ -84,6 +87,22 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
   app.patch("/me/profile", async (req, reply) => {
     const body = updateSchema.parse(req.body);
 
+    // Metro gate on profile edits — keeps a user from changing their
+    // declared location to an out-of-cohort city after signup. If they
+    // didn't send a declaredLocation we don't check.
+    const declared = body.declaredLocation ?? body.location ?? null;
+    if (declared) {
+      const metro = await app.checkMetro(req, { location: declared });
+      if (!metro.allow) {
+        return reply.code(451).send({
+          error: "outside_metro",
+          message:
+            "OpenMatch is opening one metro at a time. Join the waitlist to be notified when we expand.",
+          nearestKm: metro.nearestKm,
+        });
+      }
+    }
+
     if (body.dateOfBirth) {
       const dob = new Date(body.dateOfBirth);
       if (Number.isNaN(dob.getTime())) {
@@ -99,7 +118,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const { location, dateOfBirth: _ignored, ...data } = body;
+    const { location, declaredLocation: _declared, dateOfBirth: _ignored, ...data } = body;
     const profile = await app.prisma.profile.upsert({
       where: { userId: req.userId! },
       create: {
