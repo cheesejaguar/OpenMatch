@@ -11,8 +11,20 @@ struct WelcomeView: View {
     @State private var loading = false
     @State private var appleCoordinator: AppleSignInCoordinator?
 
+    // BETA-5 — invite gating. Pre-filled from a universal link
+    // (`?invite=…`); the user can also type it. We normalize to
+    // uppercase on submit so the wire format is canonical.
+    @State private var inviteCode: String = ""
+
     @State private var revealStep: Int = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // Trimmed + uppercased code; nil when empty so we don't send "" to
+    // the backend.
+    private var normalizedInvite: String? {
+        let trimmed = inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return trimmed.isEmpty ? nil : trimmed
+    }
 
     var body: some View {
         NavigationStack {
@@ -41,6 +53,11 @@ struct WelcomeView: View {
                         .opacity(reveal(at: 2))
 
                         VStack(spacing: 12) {
+                            TextField("Invite code", text: $inviteCode)
+                                .textInputAutocapitalization(.characters)
+                                .autocorrectionDisabled(true)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityHint("Required during the beta. Tap your invite link or paste your code.")
                             TextField("Email", text: $email)
                                 .keyboardType(.emailAddress)
                                 .textInputAutocapitalization(.never)
@@ -111,6 +128,13 @@ struct WelcomeView: View {
             .toolbarBackground(OMColor.surface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .onAppear { startReveal() }
+            .onOpenURL { url in
+                // Universal-link shape: https://openmatch.app/welcome?invite=ABC123
+                // Tolerant of custom schemes too (openmatch://?invite=…).
+                if let parsed = Self.parseInviteCode(from: url) {
+                    inviteCode = parsed
+                }
+            }
             .alert("Sign-in error", isPresented: .init(
                 get: { error != nil },
                 set: { _ in error = nil }
@@ -165,12 +189,16 @@ struct WelcomeView: View {
     private func startEmail() async {
         loading = true
         defer { loading = false }
+        await Analytics.shared.record(
+            "signup.email_started",
+            ["email_domain": .s(Self.emailDomain(email))]
+        )
         do {
-            let r = try await api.startLogin(email: email)
+            let r = try await api.startLogin(email: email, inviteCode: normalizedInvite)
             challengeId = r.challengeId
             if let dev = r.devToken { token = dev }
         } catch {
-            self.error = error.localizedDescription
+            self.error = mapInviteError(from: error)
         }
     }
 
@@ -178,6 +206,7 @@ struct WelcomeView: View {
         guard let cid = challengeId else { return }
         do {
             _ = try await api.verifyLogin(challengeId: cid, token: token)
+            await Analytics.shared.record("signup.email_verified")
             appState.didSignIn(userId: api.cachedUserId ?? "self")
         } catch {
             self.error = error.localizedDescription
@@ -192,21 +221,62 @@ struct WelcomeView: View {
         defer { appleCoordinator = nil }
         do {
             let identityToken = try await coordinator.signIn()
-            _ = try await api.appleLogin(identityToken: identityToken)
+            _ = try await api.appleLogin(
+                identityToken: identityToken,
+                inviteCode: normalizedInvite
+            )
+            await Analytics.shared.record("signup.apple_completed")
             appState.didSignIn(userId: api.cachedUserId ?? "self")
         } catch AppleSignInCoordinator.AppleSignInError.cancelled {
             // User cancelled — no error UI.
         } catch {
-            self.error = error.localizedDescription
+            self.error = mapInviteError(from: error)
         }
     }
 
     private func devLogin() async {
         do {
-            _ = try await api.devLogin(userId: devUserId)
+            _ = try await api.devLogin(
+                userId: devUserId,
+                inviteCode: normalizedInvite
+            )
+            await Analytics.shared.record("signup.dev_login")
             appState.didSignIn(userId: api.cachedUserId ?? devUserId)
         } catch {
-            self.error = error.localizedDescription
+            self.error = mapInviteError(from: error)
         }
+    }
+
+    // Maps backend invite-gate errors to user-readable copy. Anything
+    // we don't recognise falls back to the raw localizedDescription.
+    private func mapInviteError(from error: Error) -> String {
+        if case APIError.http(let code, let body?) = error, code == 400 {
+            if body.contains("invite_required") {
+                return "An invite code is required during the beta. Tap your invite link or paste your code above."
+            }
+            if body.contains("invite_invalid") {
+                return "That invite code doesn't look right. Double-check the link in your invite email."
+            }
+        }
+        return error.localizedDescription
+    }
+
+    // Extract the domain (after `@`) for funnel segmentation. We
+    // intentionally don't send the whole email through analytics — the
+    // domain is enough to spot e.g. school cohorts and consumer-vs-work
+    // patterns without storing PII in the event store.
+    static func emailDomain(_ email: String) -> String {
+        guard let at = email.firstIndex(of: "@") else { return "" }
+        return String(email[email.index(after: at)...]).lowercased()
+    }
+
+    // Universal-link / custom-scheme parser for `?invite=…`.
+    // Returns the trimmed, uppercased code or nil if the URL doesn't
+    // contain one.
+    static func parseInviteCode(from url: URL) -> String? {
+        guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        guard let raw = comps.queryItems?.first(where: { $0.name == "invite" })?.value else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

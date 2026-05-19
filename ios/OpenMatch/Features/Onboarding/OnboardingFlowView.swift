@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 struct OnboardingFlowView: View {
@@ -11,11 +12,16 @@ struct OnboardingFlowView: View {
             case 0:
                 StepBasics(onNext: { step += 1 })
             case 1:
-                StepAgeGate(onNext: { step += 1 })
+                StepPhotos(onNext: { step += 1 })
             case 2:
+                StepAgeGate(onNext: { step += 1 })
+            case 3:
                 StepLikesVisibility(onNext: { step += 1 })
             default:
-                StepDone(onFinish: { appState.didSignIn(userId: userId) })
+                StepDone(onFinish: {
+                    Task { await Analytics.shared.record("onboarding.completed") }
+                    appState.didSignIn(userId: userId)
+                })
             }
         }
         .animation(.easeInOut, value: step)
@@ -31,6 +37,185 @@ private struct StepBasics: View {
             Button("Continue", action: onNext).buttonStyle(OMPrimaryButtonStyle())
         }
         .padding()
+    }
+}
+
+// IOS-5 — photos step. The server discovery filter requires at least
+// two photos before a profile is shown in any deck, so we enforce the
+// same floor here. The user can add up to 6 in onboarding; more can
+// be added later from Edit Profile (cap of 9).
+private struct StepPhotos: View {
+    let onNext: () -> Void
+    @EnvironmentObject private var appState: AppState
+    @State private var photos: [PhotoDTO] = []
+    @State private var pickedItem: PhotosPickerItem?
+    @State private var isLoading = false
+    @State private var isUploading = false
+    @State private var error: String?
+
+    private static let minPhotos = 2
+    private static let maxOnboardingPhotos = 6
+
+    private var canContinue: Bool { photos.count >= Self.minPhotos }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Add at least 2 photos")
+                    .font(OMFont.largeTitleItalic)
+                    .foregroundStyle(OMColor.moss)
+                Text("Real photos of you, no filters. You'll need two before you can browse — this is the same minimum we apply to everyone you might see.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                photoGrid
+
+                if photos.count < Self.maxOnboardingPhotos {
+                    PhotosPicker(
+                        selection: $pickedItem,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(OMColor.terracotta)
+                            Text(isUploading ? "Uploading…" : "Add a photo")
+                                .font(OMFont.body(16, weight: .medium))
+                                .foregroundStyle(OMColor.ink)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(
+                            OMShape.card(OMRadius.md).fill(OMColor.surfaceElevated)
+                        )
+                        .overlay(
+                            OMShape.card(OMRadius.md).stroke(OMColor.cardStroke, lineWidth: 1)
+                        )
+                    }
+                    .disabled(isUploading)
+                }
+
+                if let error {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(OMColor.safety)
+                }
+
+                Button {
+                    Task {
+                        await Analytics.shared.record(
+                            "onboarding.photos_completed",
+                            ["count": .i(photos.count)]
+                        )
+                        onNext()
+                    }
+                } label: {
+                    Text(canContinue
+                        ? "Continue"
+                        : "Add \(Self.minPhotos - photos.count) more")
+                }
+                .buttonStyle(OMPrimaryButtonStyle())
+                .disabled(!canContinue || isUploading)
+            }
+            .padding()
+        }
+        .task { await load() }
+        .onChange(of: pickedItem) { _, newItem in
+            guard let newItem else { return }
+            Task {
+                if let data = try? await newItem.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    await upload(image)
+                }
+                pickedItem = nil
+            }
+        }
+    }
+
+    private var photoGrid: some View {
+        let columns = [GridItem(.adaptive(minimum: 96, maximum: 110), spacing: 8)]
+        return LazyVGrid(columns: columns, spacing: 8) {
+            ForEach(photos) { photo in
+                OnboardingPhotoTile(photo: photo) {
+                    Task { await remove(photo) }
+                }
+            }
+        }
+    }
+
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let p = try await appState.api.getProfile()
+            photos = p.photos
+        } catch {
+            // First-time onboarding profile may not exist yet; leave
+            // photos empty rather than blocking the user with an alert.
+        }
+    }
+
+    private func upload(_ image: UIImage) async {
+        guard photos.count < Self.maxOnboardingPhotos else { return }
+        guard let data = ImageUploader.compressForUpload(image) else {
+            error = "Couldn't process that photo. Try a different one."
+            return
+        }
+        isUploading = true
+        defer { isUploading = false }
+        error = nil
+        do {
+            let photo = try await appState.api.uploadPhoto(data: data)
+            photos.append(photo)
+            await Analytics.shared.record("onboarding.photo_uploaded")
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func remove(_ photo: PhotoDTO) async {
+        do {
+            try await appState.api.deletePhoto(id: photo.id)
+            photos.removeAll { $0.id == photo.id }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}
+
+private struct OnboardingPhotoTile: View {
+    let photo: PhotoDTO
+    let onDelete: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            AsyncImage(url: URL(string: photo.cdnUrl)) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                case .empty:
+                    ProgressView().tint(OMColor.moss)
+                case .failure:
+                    BotanicPlaceholder(.large)
+                @unknown default:
+                    EmptyView()
+                }
+            }
+            .frame(width: 100, height: 100)
+            .clipShape(OMShape.card(OMRadius.md))
+            .background(OMColor.surfaceSunken, in: OMShape.card(OMRadius.md))
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "xmark.circle.fill")
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(OMColor.surface, OMColor.ink.opacity(0.55))
+                    .font(.title3)
+            }
+            .padding(4)
+            .accessibilityLabel("Remove photo")
+        }
     }
 }
 

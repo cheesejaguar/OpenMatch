@@ -52,6 +52,10 @@ final class ConversationViewModel: ObservableObject {
         draft = ""
         do {
             let msg = try await api.sendMessage(conversationId: conversationId, body: body)
+            await Analytics.shared.record(
+                "message.sent",
+                ["conversationId": .s(conversationId), "len": .i(body.count)]
+            )
             if !messages.contains(where: { $0.id == msg.id }) {
                 messages.append(msg)
             }

@@ -4,9 +4,9 @@
 > as PRs land. This file is the canonical scorecard — the HTML viewer at
 > `docs/launch/index.html` is a rendering of these tables for offline review.
 
-**Last refreshed:** 2026-05-18 (after PR #28 merged)
-**Overall readiness:** 🔴 **31 / 100** (pre-implementation baseline)
-**Verdict:** **NOT READY** for public beta. 3 BLOCKERs and 7 HIGHs must close.
+**Last refreshed:** 2026-05-18 (after Round 1B — iOS launch readiness)
+**Overall readiness:** 🔴 **39 / 100**
+**Verdict:** **NOT READY** for public beta. BLOCKERs remain on backend / admin side; iOS half of P0+P1 is closed.
 
 ---
 
@@ -44,14 +44,14 @@
 |---|---|---|---|---|---|
 | 1 | Operational readiness | 8 | 1 | 12 % | 🔴 |
 | 2 | Safety & trust | 7 | 3 | 43 % | 🟡 |
-| 3 | Beta cohort management | 5 | 0 | 0 % | 🔴 |
-| 4 | iOS user experience | 10 | 4 | 40 % | 🟡 |
+| 3 | Beta cohort management | 5 | 1 | 20 % | 🔴 |
+| 4 | iOS user experience | 10 | 9 | 90 % | 🟢 |
 | 5 | Admin dashboard | 9 | 2 | 22 % | 🔴 |
 | 6 | Testing & CI | 6 | 2 | 33 % | 🔴 |
 | 7 | Compliance & privacy | 6 | 4 | 67 % | 🟢 |
 | 8 | Performance & capacity | 4 | 1 | 25 % | 🔴 |
 | 9 | Post-launch monitoring | 6 | 1 | 17 % | 🔴 |
-| **Total** | | **61** | **18** | **31 %** | 🔴 |
+| **Total** | | **61** | **24** | **39 %** | 🔴 |
 
 ---
 
@@ -92,7 +92,7 @@
 | BETA-2 | City / metro geo-fence | Signups + matches limited to target metro within radius | `MetroBoundary` config (center + radius_km) · enforced in `country-gate` plugin · discovery query filters to in-metro profiles · admin can edit boundaries | **P0** | ❌ | only country gate today |
 | BETA-3 | Waitlist | Out-of-cohort interest is captured for later expansion | public waitlist endpoint (rate-limited) · admin dashboard view · email capture only (no profile) | **P1** | ❌ | not implemented |
 | BETA-4 | Cohort labels | Each invite is tagged with a cohort (e.g. SF-week1, SF-week2) for analytics segmentation | cohort string on invite + propagates to user record · funnel filterable by cohort | **P2** | ❌ | depends on BETA-1 |
-| BETA-5 | In-app invite collection | iOS WelcomeView surfaces a code entry field when invite gating is on | toggled by `invite_required` flag (OPS-2) · pre-fills from universal link param if present | **P1** | ❌ | depends on BETA-1 + OPS-2 |
+| BETA-5 | In-app invite collection | iOS WelcomeView surfaces a code entry field when invite gating is on | toggled by `invite_required` flag (OPS-2) · pre-fills from universal link param if present | **P1** | ✅ | shipped Round 1B: invite-code field above email, normalises uppercase, parses `?invite=` from universal links, maps backend `invite_required` / `invite_invalid` errors to inline copy |
 
 ---
 
@@ -100,12 +100,12 @@
 
 | ID | Item | Goal | Target / DoD | Severity | Status | Notes |
 |---|---|---|---|---|---|---|
-| IOS-1 | APNs capability + token registration | App registers for push and reports the token to backend | `aps-environment = development` (debug) / `production` (release) entitlement · `UIApplicationDelegate` registers + posts token to `/api/v1/notifications/register` | **P0** | ❌ | entitlement file lacks the key |
-| IOS-2 | Crash reporting | Every crash lands in a dashboard within 5 min | Sentry-cocoa (or equivalent) installed + initialised in `OpenMatchApp.init` · DSN from Info.plist (debug + prod) | **P0** | ❌ | only `print()` exists |
-| IOS-3 | In-app analytics events | Funnel, engagement, match conversion measurable | thin wrapper that POSTs `AnalyticsEvent { name, props, ts }` to backend `/api/v1/analytics/event` · debounced batching · DAU/funnel computed server-side | **P0** | ❌ | zero telemetry |
-| IOS-4 | In-app feedback | Testers can file a bug from inside the app | "Send feedback" row in `SettingsView` opens a form (or mail compose) pre-filled with device + app version | **P1** | ❌ | only TestFlight's built-in |
-| IOS-5 | Onboarding · photos step | User cannot reach the swipe deck with zero photos | `StepPhotos` between Basics and Age Gate · requires ≥ 2 photos · re-orderable · enforces upload before "Continue" | **P1** | ❌ | onboarding skips photos |
-| IOS-6 | Profile-completeness gate | Incomplete profiles can't enter the deck or be shown to others | server: discovery query already filters by minimal completeness; iOS: poll completeness on launch and redirect to `EditProfileView` when below threshold | **P1** | ⚠️ | server side present; iOS doesn't surface |
+| IOS-1 | APNs capability + token registration | App registers for push and reports the token to backend | `aps-environment = development` (debug) / `production` (release) entitlement · `UIApplicationDelegate` registers + posts token to `/api/v1/notifications/device-token` | **P0** | ✅ | shipped Round 1B: entitlement + `AppDelegate` + `PushService` ask permission after first match |
+| IOS-2 | Crash reporting | Every crash lands in a dashboard within 5 min | Sentry-cocoa (or equivalent) installed + initialised in `OpenMatchApp.init` · DSN from Info.plist (debug + prod) | **P0** | ⚠️ | integration shipped (`Observability/Crash.swift` + SwiftPM dep + `SentryDSN`/`SentryEnvironment` Info.plist keys). Operator must paste a real DSN before TestFlight; with empty DSN the SDK is a no-op |
+| IOS-3 | In-app analytics events | Funnel, engagement, match conversion measurable | thin wrapper that POSTs `AnalyticsEvent { name, props, ts }` to backend `/api/v1/analytics/event` · debounced batching · DAU/funnel computed server-side | **P0** | ✅ | shipped Round 1B: `Observability/Analytics.swift` actor with 5 s / 20-event batching; signup, swipe, match, message, app-foreground/background events wired |
+| IOS-4 | In-app feedback | Testers can file a bug from inside the app | "Send feedback" row in `SettingsView` opens a form (or mail compose) pre-filled with device + app version | **P1** | ✅ | shipped Round 1B: `FeedbackView` posts to `/api/v1/feedback` with category + device + version |
+| IOS-5 | Onboarding · photos step | User cannot reach the swipe deck with zero photos | `StepPhotos` between Basics and Age Gate · requires ≥ 2 photos · re-orderable · enforces upload before "Continue" | **P1** | ✅ | shipped Round 1B: `StepPhotos` requires ≥ 2 photos before Continue; uses the existing upload/delete endpoints |
+| IOS-6 | Profile-completeness gate | Incomplete profiles can't enter the deck or be shown to others | server: discovery query already filters by minimal completeness; iOS: poll completeness on launch and redirect to `EditProfileView` when below threshold | **P1** | ✅ | shipped Round 1B: `ProfileGate` polls `/api/v1/profile/me/completeness` (with client-side fallback); Swipe tab replaced with CTA + banner on other tabs when incomplete |
 | IOS-7 | Realtime backgrounding | Ably subscription pauses on background, resumes on foreground | hook `scenePhase` in `RootView` · `RealtimeService.disconnect()` on `.background`, `.connect()` on `.active` | **P2** | ❌ | always connected |
 | IOS-8 | Message send retry | Network-failed messages are queued and retried | local pending-messages store · retry on reconnect · "Tap to retry" affordance | **P2** | ❌ | one-shot send |
 | IOS-9 | Permissions UX polish | Each iOS permission asked with rationale + at the right moment | location asked on first deck load · photos asked on first upload · notifications asked after first match | **P1** | ⚠️ | strings exist; timing is ad-hoc |
@@ -264,4 +264,5 @@ This section tracks every PR that moved a score in the table above.
 | Date | PR | Items closed | Score change |
 |---|---|---|---|
 | 2026-05-18 | (baseline) | — | 0 → 31 |
+| 2026-05-18 | Round 1B — iOS launch readiness | IOS-1 ✅ · IOS-2 ⚠️ · IOS-3 ✅ · IOS-4 ✅ · IOS-5 ✅ · IOS-6 ✅ · BETA-5 ✅ | 31 → 39 |
 | | | | |

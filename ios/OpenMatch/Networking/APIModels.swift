@@ -8,6 +8,10 @@ struct StartLoginRequest: Codable {
     let email: String?
     let appleIdentityToken: String?
     let devUserId: String?
+    // Optional invite code. The backend rejects with HTTP 400
+    // "invite_required" / "invite_invalid" when the cohort gate is
+    // enabled and the code is missing or unknown. (BETA-1 / BETA-5)
+    let inviteCode: String?
 }
 
 struct StartLoginResponse: Codable {
@@ -227,6 +231,45 @@ struct AccountDeletionStatusDTO: Codable, Identifiable {
     let requestedAt: Date?
     let gracePeriodEndsAt: Date
     let cancelledAt: Date?
+}
+
+// MARK: - APNs device registration
+
+struct RegisterDeviceRequest: Codable {
+    let platform: String   // "ios"
+    let token: String      // lowercase hex APNs device token
+    let appVersion: String?
+    let osVersion: String?
+}
+
+// MARK: - Analytics
+
+struct AnalyticsBatch: Codable {
+    let events: [AnalyticsEvent]
+}
+
+// MARK: - Feedback (IOS-4)
+
+struct FeedbackRequest: Codable {
+    let category: String   // "bug" | "suggestion" | "praise" | "other"
+    let body: String
+    let email: String?
+    let appVersion: String?
+    let osVersion: String?
+    let deviceModel: String?
+}
+
+// MARK: - Profile completeness (IOS-6)
+
+// What the swipe deck needs from a profile before it's allowed to
+// enter discovery. Mirrors the server's discovery filter exactly so
+// the iOS gate doesn't disagree with the server's own filtering.
+struct ProfileCompletenessDTO: Codable, Equatable {
+    let isComplete: Bool
+    let hasPhotos: Bool
+    let hasDisplayName: Bool
+    let isAgeVerified: Bool
+    let photoCount: Int
 }
 
 struct NotificationPreferencesDTO: Codable {

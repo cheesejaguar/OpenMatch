@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 enum APIError: Error, LocalizedError {
     case notAuthenticated
@@ -77,32 +78,35 @@ final class APIClient: ObservableObject {
 
     // MARK: - Auth
 
-    func startLogin(email: String) async throws -> StartLoginResponse {
+    func startLogin(email: String, inviteCode: String? = nil) async throws -> StartLoginResponse {
         try await post("/api/v1/auth/start", body: StartLoginRequest(
             method: "email",
             email: email,
             appleIdentityToken: nil,
-            devUserId: nil
+            devUserId: nil,
+            inviteCode: inviteCode
         ))
     }
 
-    func appleLogin(identityToken: String) async throws -> SessionResponse {
+    func appleLogin(identityToken: String, inviteCode: String? = nil) async throws -> SessionResponse {
         let s: SessionResponse = try await post("/api/v1/auth/start", body: StartLoginRequest(
             method: "apple",
             email: nil,
             appleIdentityToken: identityToken,
-            devUserId: nil
+            devUserId: nil,
+            inviteCode: inviteCode
         ))
         setSession(s)
         return s
     }
 
-    func devLogin(userId: String) async throws -> SessionResponse {
+    func devLogin(userId: String, inviteCode: String? = nil) async throws -> SessionResponse {
         let s: SessionResponse = try await post("/api/v1/auth/start", body: StartLoginRequest(
             method: "dev",
             email: nil,
             appleIdentityToken: nil,
-            devUserId: userId
+            devUserId: userId,
+            inviteCode: inviteCode
         ))
         setSession(s)
         return s
@@ -282,6 +286,79 @@ final class APIClient: ObservableObject {
         -> NotificationPreferencesDTO
     {
         try await put("/api/v1/privacy/notifications", body: prefs)
+    }
+
+    // MARK: - Notifications · device token
+
+    // Registers the iOS APNs device token with the backend so future
+    // match/message pushes can be addressed to this install. The
+    // backend stores one row per (userId, token) and dedupes.
+    func registerDeviceToken(_ token: String) async throws {
+        let req = RegisterDeviceRequest(
+            platform: "ios",
+            token: token,
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+            osVersion: UIDevice.current.systemVersion
+        )
+        let _: EmptyResponse = try await post("/api/v1/notifications/device-token", body: req)
+    }
+
+    // MARK: - Analytics
+
+    // POSTs a batch of analytics events. The endpoint is best-effort;
+    // failures are swallowed by the caller (Analytics actor).
+    func recordAnalytics(events: [AnalyticsEvent]) async throws {
+        let _: EmptyResponse = try await post(
+            "/api/v1/analytics/event",
+            body: AnalyticsBatch(events: events)
+        )
+    }
+
+    // MARK: - Feedback
+
+    func submitFeedback(
+        category: String,
+        body: String,
+        email: String? = nil
+    ) async throws {
+        let req = FeedbackRequest(
+            category: category,
+            body: body,
+            email: email,
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+            osVersion: UIDevice.current.systemVersion,
+            deviceModel: UIDevice.current.model
+        )
+        let _: EmptyResponse = try await post("/api/v1/feedback", body: req)
+    }
+
+    // MARK: - Profile completeness
+
+    // Tries the dedicated completeness endpoint first; if the backend
+    // hasn't shipped it yet (404), falls back to computing client-side
+    // from the canonical profile DTO. The "complete" rule must match
+    // the discovery filter on the server: ≥ 2 photos, a display name,
+    // and an age-verified DOB.
+    func profileCompleteness() async throws -> ProfileCompletenessDTO {
+        do {
+            return try await get("/api/v1/profile/me/completeness")
+        } catch APIError.http(let code, _) where code == 404 {
+            let p = try await getProfile()
+            let displayName = p.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasPhotos = p.photos.count >= 2
+            let hasName = !displayName.isEmpty
+            // Server still owns 18+ validation. Until the dedicated
+            // endpoint exists, treat "moderationStatus != pending"
+            // *and* photos+name as a proxy for "ready to swipe".
+            let isAgeVerified = p.moderationStatus != "pending_age_check"
+            return ProfileCompletenessDTO(
+                isComplete: hasPhotos && hasName && isAgeVerified,
+                hasPhotos: hasPhotos,
+                hasDisplayName: hasName,
+                isAgeVerified: isAgeVerified,
+                photoCount: p.photos.count
+            )
+        }
     }
 
     // MARK: - HTTP plumbing

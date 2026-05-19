@@ -60,6 +60,15 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                     }
 
+                    OMSection("Beta") {
+                        NavigationLink {
+                            FeedbackView()
+                        } label: {
+                            OMRow("Send feedback", systemImage: "envelope.open", chevron: true)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Text("OpenMatch will never ask you to pay for likes, undo, or visibility. This screen is intentionally short.")
                         .font(OMFont.caption)
                         .foregroundStyle(OMColor.inkMuted)
