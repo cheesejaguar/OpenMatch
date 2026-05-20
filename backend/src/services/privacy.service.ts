@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ConsentScope, DsarChannel, DsarRequestType, PrismaClient } from "@prisma/client";
 import { hashIp, hashText } from "../lib/hash.js";
+import { revokeAllUserSessions } from "./auth.service.js";
 
 // Privacy / rights-request service.
 //
@@ -495,6 +496,53 @@ export async function scheduleAccountDeletion(
     });
   await prisma.preferences
     .update({ where: { userId: args.userId }, data: { discoveryPaused: true } })
+    .catch(() => undefined);
+
+  // SEV-A6 — the deletion-grace window previously left every active
+  // session, refresh token, push registration, and match in place, so
+  // an attacker who held an access / refresh token at the time of
+  // deletion could (a) keep using the account, (b) silently cancel
+  // the deletion, and (c) continue to be discoverable by matched
+  // peers. Revoke / detach / unmatch immediately so the account is
+  // effectively dead the moment `scheduleAccountDeletion` returns,
+  // and the async erasure worker can still finish the physical
+  // teardown after the grace window.
+  await revokeAllUserSessions(prisma, args.userId).catch(() => undefined);
+  // Delete APNs / push device tokens so the worker never fans a
+  // notification out to the deleted user. The device-token rows are
+  // recreated on next sign-in if the user cancels deletion.
+  await prisma.deviceToken.deleteMany({ where: { userId: args.userId } }).catch(() => undefined);
+  await prisma.notificationDevice
+    .deleteMany({ where: { userId: args.userId } })
+    .catch(() => undefined);
+  // Close every active match so the user disappears from matched
+  // peers' decks and conversation lists immediately. `unmatchedAt` is
+  // the existing mechanism for hiding a peer; we re-use it here so
+  // discovery / chat respect the same gate. The cascade in
+  // `performAccountErasure` later deletes the rows entirely.
+  await prisma.match
+    .updateMany({
+      where: {
+        OR: [{ userAId: args.userId }, { userBId: args.userId }],
+        status: "active",
+      },
+      data: {
+        status: "unmatched",
+        unmatchedAt: new Date(),
+        unmatchedByUserId: args.userId,
+      },
+    })
+    .catch(() => undefined);
+  // Withdraw any outstanding like rows so the deleted user is removed
+  // from the recipient's "liked you" tray immediately.
+  await prisma.like
+    .updateMany({
+      where: {
+        OR: [{ fromUserId: args.userId }, { toUserId: args.userId }],
+        status: "active",
+      },
+      data: { status: "withdrawn", withdrawnAt: new Date() },
+    })
     .catch(() => undefined);
   return request;
 }

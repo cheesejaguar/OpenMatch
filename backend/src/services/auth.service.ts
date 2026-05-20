@@ -143,6 +143,37 @@ export async function reserveInviteCode(
   return { id: row.id, cohortLabel: row.cohortLabel };
 }
 
+// SEV-A6 — magic-link re-entry cancels an in-grace deletion and
+// re-activates the user record. Out-of-grace requests are not
+// reactivated here (the erasure worker is about to physically delete
+// the row, and re-activating would race the worker).
+async function reactivateIfDeletionScheduled(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<void> {
+  const pending = await prisma.accountDeletionRequest
+    .findFirst({
+      where: { userId, status: "scheduled" },
+      select: { id: true, gracePeriodEndsAt: true },
+    })
+    .catch(() => null);
+  if (!pending) return;
+  if (pending.gracePeriodEndsAt.getTime() < Date.now()) return;
+  await prisma.$transaction(async (tx) => {
+    await tx.accountDeletionRequest.update({
+      where: { id: pending.id },
+      data: { status: "cancelled", cancelledAt: new Date() },
+    });
+    await tx.user.update({ where: { id: userId }, data: { status: "active" } });
+    await tx.profile
+      .updateMany({ where: { userId }, data: { visibilityStatus: "visible" } })
+      .catch(() => undefined);
+    await tx.preferences
+      .updateMany({ where: { userId }, data: { discoveryPaused: false } })
+      .catch(() => undefined);
+  });
+}
+
 export interface VerifyEmailLoginInput {
   challengeId: string;
   token: string;
@@ -180,6 +211,13 @@ async function verifyEmailLoginInner(
   });
 
   if (challenge.userId) {
+    // SEV-A6 — if the user has a scheduled deletion still inside the
+    // grace window, magic-link sign-in cancels the deletion and
+    // reactivates the account so the cancel UX still works after
+    // sessions have been revoked. Out-of-grace deletions cannot be
+    // reactivated this way (the worker will physically delete the row
+    // shortly).
+    await reactivateIfDeletionScheduled(prisma, challenge.userId);
     return { userId: challenge.userId, isNewUser: false };
   }
 
@@ -192,6 +230,9 @@ async function verifyEmailLoginInner(
     where: { emailHash: { in: hashIdentityCandidates(challenge.email) } },
   });
   if (existing) {
+    // SEV-A6 — re-activate a paused account inside its deletion grace
+    // window when the owner signs in again.
+    await reactivateIfDeletionScheduled(prisma, existing.id);
     return { userId: existing.id, isNewUser: false };
   }
 
@@ -351,6 +392,16 @@ async function rotateRefreshTokenInner(
     return null;
   }
   if (session.expiresAt.getTime() < Date.now()) return null;
+
+  // SEV-A6 — refuse rotation when the underlying user is paused /
+  // banned / deleted, even though the refresh token itself is still
+  // chronologically valid. Without this gate a stolen refresh token
+  // could keep minting fresh access tokens for the deletion-grace
+  // window of a scheduled-deletion account.
+  const userStatus = await prisma.user
+    .findUnique({ where: { id: session.userId }, select: { status: true } })
+    .catch(() => null);
+  if (!userStatus || userStatus.status !== "active") return null;
 
   await prisma.session.update({
     where: { id: session.id },

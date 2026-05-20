@@ -63,6 +63,25 @@ export default fp(async (app) => {
       if (claims.iss !== CONSUMER_JWT_ISSUER || claims.aud !== CONSUMER_JWT_AUDIENCE) {
         return reply.code(401).send({ error: "unauthorized" });
       }
+      // SEV-A6 — refuse any token whose underlying user is paused,
+      // banned, or deleted. A scheduled-deletion user (status =
+      // paused) keeps a valid-signature JWT until exp; without this
+      // check the still-in-flight token would let the attacker
+      // continue to read /me, message established matches, and most
+      // critically cancel the pending deletion. The lookup is cheap
+      // (PK index on User.id) and would benefit from a Redis-cached
+      // status column in a follow-up if it ever shows up in flame
+      // graphs.
+      const user = await req.server.prisma.user
+        .findUnique({
+          where: { id: claims.sub },
+          select: { status: true },
+        })
+        .catch(() => null);
+      if (!user) return reply.code(401).send({ error: "unauthorized" });
+      if (user.status !== "active") {
+        return reply.code(401).send({ error: "account_inactive" });
+      }
       req.userId = claims.sub;
     } catch {
       return reply.code(401).send({ error: "unauthorized" });
