@@ -17,6 +17,14 @@ final class PushService {
     // practice — iOS only shows the system prompt once per install.
     func requestAuthorization() async -> Bool {
         didAttemptThisSession = true
+        #if DEBUG
+        // UX-review hook: suppress the system notifications prompt so
+        // screenshot captures don't get blocked by a permission dialog.
+        // Set SIMCTL_CHILD_OPENMATCH_SUPPRESS_PUSH_PROMPT=1 when launching.
+        if ProcessInfo.processInfo.environment["OPENMATCH_SUPPRESS_PUSH_PROMPT"] == "1" {
+            return false
+        }
+        #endif
         let center = UNUserNotificationCenter.current()
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
