@@ -12,6 +12,27 @@ struct StartLoginRequest: Codable {
     // "invite_required" / "invite_invalid" when the cohort gate is
     // enabled and the code is missing or unknown. (BETA-1 / BETA-5)
     let inviteCode: String?
+    // SEV-M5 — raw (unhashed) SIWA nonce. Only sent on Apple sign-in;
+    // the backend re-hashes with SHA-256 and compares against the `nonce`
+    // claim on the identity-token JWT. Optional so the field can be
+    // omitted by email / dev login without changing the on-wire shape.
+    let appleRawNonce: String?
+
+    init(
+        method: String,
+        email: String?,
+        appleIdentityToken: String?,
+        devUserId: String?,
+        inviteCode: String?,
+        appleRawNonce: String? = nil
+    ) {
+        self.method = method
+        self.email = email
+        self.appleIdentityToken = appleIdentityToken
+        self.devUserId = devUserId
+        self.inviteCode = inviteCode
+        self.appleRawNonce = appleRawNonce
+    }
 }
 
 struct StartLoginResponse: Codable {

@@ -220,9 +220,10 @@ struct WelcomeView: View {
         appleCoordinator = coordinator
         defer { appleCoordinator = nil }
         do {
-            let identityToken = try await coordinator.signIn()
+            let credential = try await coordinator.signIn()
             _ = try await api.appleLogin(
-                identityToken: identityToken,
+                identityToken: credential.identityToken,
+                rawNonce: credential.rawNonce,
                 inviteCode: normalizedInvite
             )
             await Analytics.shared.record("signup.apple_completed")
