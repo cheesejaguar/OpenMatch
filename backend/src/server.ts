@@ -1,4 +1,5 @@
 import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import sensible from "@fastify/sensible";
 import * as Sentry from "@sentry/node";
@@ -7,6 +8,7 @@ import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod
 import pino from "pino";
 import { ZodError } from "zod";
 import { env } from "./env.js";
+import { parseCorsAllowlist } from "./lib/cors-allowlist.js";
 import { ErrorCodes } from "./lib/error-codes.js";
 import { HttpError, httpError, zodErrorToHttp } from "./lib/http-error.js";
 import { requestContext } from "./lib/request-context.js";
@@ -78,6 +80,17 @@ const REDACT_PATHS = [
   "req.body.inviteCode",
   "req.body.refreshToken",
   "req.body.token",
+  // SEV-N19 — magic-link tokens are passed as GET query parameters
+  // (`?challengeId=…&token=…`). Pino logs `req.url` on every completed
+  // request; without these paths, the redeemable secret leaks into the
+  // log aggregator and any Sentry breadcrumbs that fall back to req.url
+  // for context. Also redact `req.query.{token,t,challengeId}` for any
+  // route that asks Fastify to parse the query into req.query.
+  "req.url",
+  "req.raw.url",
+  "req.query.token",
+  "req.query.t",
+  "req.query.challengeId",
   "*.email",
   "*.emailHash",
   "*.refreshToken",
@@ -144,11 +157,57 @@ export async function buildServer() {
   app.setSerializerCompiler(serializerCompiler);
 
   await app.register(sensible);
+
+  // SEV-N2 — baseline security headers. We keep the CSP report-only for
+  // now so that adding it can't break the (currently unprotected) Swagger
+  // UI or any future static HTML the API might serve. HSTS, X-Frame,
+  // X-Content-Type-Options, Referrer-Policy, and Permissions-Policy are
+  // enforced. CSP can be flipped to enforce in a follow-up once the
+  // /docs surface has its nonce wiring sorted.
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'none'"],
+        formAction: ["'self'"],
+      },
+      reportOnly: true,
+    },
+    hsts: {
+      maxAge: 63072000,
+      includeSubDomains: true,
+      preload: true,
+    },
+    referrerPolicy: { policy: "no-referrer" },
+    xContentTypeOptions: true,
+    frameguard: { action: "deny" },
+    crossOriginOpenerPolicy: { policy: "same-origin" },
+    crossOriginResourcePolicy: { policy: "same-origin" },
+    // @fastify/helmet exposes permittedCrossDomainPolicies; the
+    // Permissions-Policy header itself isn't part of the helmet defaults
+    // so we set it explicitly via an onSend hook below.
+    permittedCrossDomainPolicies: { permittedPolicies: "none" },
+  });
+  app.addHook("onSend", async (_req, reply) => {
+    // SEV-N2 — Permissions-Policy. Empty allowlists deny camera /
+    // microphone / geolocation / payment / USB / serial access for any
+    // document served by this origin (defence in depth — the API doesn't
+    // serve HTML, but cron pages, error JSON loaded into devtools, and
+    // the OpenAPI doc all benefit).
+    reply.header(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()",
+    );
+  });
+
+  // SEV-N4 — strict CORS allow-list. We parse + validate each entry
+  // through `new URL()` so a typo'd or wildcard origin can't slip in,
+  // refuse to boot in production when the env defaults to localhost,
+  // and only enable `credentials: true` for the validated allow-list.
+  const allowedOrigins = parseCorsAllowlist(env.CORS_ORIGIN, env.ADMIN_CORS_ORIGIN, env.NODE_ENV);
   await app.register(cors, {
-    origin: [
-      ...env.CORS_ORIGIN.split(",").map((s) => s.trim()),
-      ...env.ADMIN_CORS_ORIGIN.split(",").map((s) => s.trim()),
-    ].filter(Boolean),
+    origin: allowedOrigins,
     credentials: true,
   });
   await app.register(multipart, {
