@@ -112,7 +112,10 @@ export async function startAdminLogin(
 
   return {
     challengeId: challenge.id,
-    devToken: env.NODE_ENV !== "production" ? token : undefined,
+    // SEV-V13: only emit the token in development/test. The previous
+    // `!== "production"` check leaked tokens in Vercel preview envs
+    // (NODE_ENV=preview).
+    devToken: env.NODE_ENV === "development" || env.NODE_ENV === "test" ? token : undefined,
   };
 }
 
@@ -190,19 +193,76 @@ export async function issueAdminSession(
   };
 }
 
+export interface RotateAdminSessionContext {
+  userAgent?: string | null;
+  ipHash?: string | null;
+  /**
+   * Invoked when reuse of an already-revoked refresh token is detected.
+   * The service revokes the entire session family for the admin and
+   * lets the caller emit a security event (Pino log, AdminAuditLog row,
+   * Sentry breadcrumb, etc.).
+   */
+  logReuse?: (adminUserId: string) => void;
+}
+
 export async function rotateAdminSession(
   prisma: PrismaClient,
   refreshToken: string,
   signAccess: (adminUserId: string, sessionId?: string) => string,
-  meta: { userAgent?: string | null; ipHash?: string | null } = {},
+  ctx: RotateAdminSessionContext = {},
 ): Promise<AdminSessionTokens | null> {
   const tokenHash = hashToken(refreshToken);
   const session = await prisma.adminSession.findUnique({ where: { refreshToken: tokenHash } });
-  if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
+  if (!session) return null;
+
+  // SEV-A2: reuse detection. A refresh token that has already been
+  // revoked implies one of two things:
+  //   (a) the legitimate admin's client rotated, the new pair was
+  //       delivered, then the network dropped the response and the
+  //       client retried with the old token, OR
+  //   (b) an attacker stole the refresh token, burned it for a fresh
+  //       pair, and the legitimate client just rotated with the now-
+  //       stale-to-them old token.
+  // OWASP guidance is to assume (b) and revoke the entire session
+  // family so the attacker is kicked too. The legitimate admin can
+  // sign in again. We mirror the consumer flow in auth.service.ts.
+  if (session.revokedAt) {
+    if (ctx.logReuse) ctx.logReuse(session.adminUserId);
+    await prisma.adminSession.updateMany({
+      where: { adminUserId: session.adminUserId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    // Best-effort audit log; never blocks the security response. We
+    // snapshot the roles inline rather than passing a context object
+    // because reuse detection can happen on a token that never
+    // authenticated — there's no request-scoped principal available.
+    const admin = await prisma.adminUser
+      .findUnique({
+        where: { id: session.adminUserId },
+        include: { roles: { include: { adminRole: true } } },
+      })
+      .catch(() => null);
+    const roleSnapshot = admin ? admin.roles.map((r) => r.adminRole.name).join(",") : "";
+    await prisma.adminAuditLog
+      .create({
+        data: {
+          adminUserId: session.adminUserId,
+          adminRoleSnapshot: roleSnapshot,
+          eventType: "admin_refresh_reuse",
+          ipHash: ctx.ipHash ?? null,
+          userAgent: ctx.userAgent ?? null,
+          metadata: { sessionId: session.id },
+        },
+      })
+      .catch(() => undefined);
+    return null;
+  }
+  if (session.expiresAt.getTime() < Date.now()) {
     return null;
   }
   // Rotation preserves the prior session's 2FA-elevation state so the
   // admin doesn't get prompted for a TOTP code every 15 minutes.
+  const meta = { userAgent: ctx.userAgent, ipHash: ctx.ipHash };
   const refreshed = await issueAdminSession(prisma, session.adminUserId, signAccess, meta);
   if (session.twoFactorAt) {
     await prisma.adminSession.update({

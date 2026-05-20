@@ -92,7 +92,22 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
         app.prisma,
         body.refreshToken,
         (id, sid) => app.signAdminAccessToken(id, sid),
-        { userAgent: req.headers["user-agent"] ?? null, ipHash },
+        {
+          userAgent: req.headers["user-agent"] ?? null,
+          ipHash,
+          // SEV-A2: emit a high-signal log line on detected reuse so
+          // downstream alerting / SOC2 reviewers can find the event.
+          logReuse: (adminUserId) => {
+            app.log.warn(
+              {
+                event: "admin.refresh_token_reuse",
+                adminUserId,
+                ip: req.ip ?? null,
+              },
+              "admin_refresh_token_reuse_detected",
+            );
+          },
+        },
       );
       if (!rotated) return sendHttpError(reply, httpError(ErrorCodes.INVALID_REFRESH));
       return reply.send({
