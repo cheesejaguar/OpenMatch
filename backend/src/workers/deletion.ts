@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { deleteProfilePhoto } from "../lib/media.js";
 import { requestContext } from "../lib/request-context.js";
 
 // Account-deletion purge worker (COMP-3).
@@ -84,6 +85,28 @@ async function runDeletionPurgeInner(prisma: PrismaClient): Promise<DeletionPurg
 // retain the User row — but explicit deletes are clearer than relying
 // on cascade for the cases where we KEEP something (Match, Message).
 async function purgeOne(prisma: PrismaClient, requestId: string, userId: string): Promise<void> {
+  // Step 1 (outside the txn): collect every blob this user's photos
+  // refer to and call `del()` on each one. Done BEFORE the txn drops
+  // the rows so a failed blob delete doesn't strand an orphan record.
+  // SEV-N16/M7: this is the "actually CDN-cleanup" half the audit
+  // flagged as missing. We tolerate per-blob failures but record the
+  // count so the system_admin audit row can capture them.
+  const profile = await prisma.profile.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
+  let blobDeleteFailures = 0;
+  if (profile) {
+    const photos = await prisma.profilePhoto.findMany({
+      where: { profileId: profile.id },
+      select: { id: true, storageKey: true, cdnUrl: true },
+    });
+    for (const photo of photos) {
+      const result = await deleteProfilePhoto(photo.storageKey, photo.cdnUrl);
+      if (!result.ok) blobDeleteFailures += 1;
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     // Mark the request as in_progress first so a concurrent worker
     // can't pick it up. The unique([userId, status]) constraint on
@@ -112,7 +135,9 @@ async function purgeOne(prisma: PrismaClient, requestId: string, userId: string)
 
     // Anonymise the Profile if it exists. Clear free-text fields,
     // location, and the precise PostGIS column. The location column is
-    // Unsupported() in Prisma so it needs raw SQL.
+    // Unsupported() in Prisma so it needs raw SQL. We re-read the
+    // profile id inside the txn (the outer lookup was for blob cleanup)
+    // so this scope reads the same snapshot the updates write into.
     const profile = await tx.profile.findUnique({
       where: { userId },
       select: { id: true },
@@ -152,8 +177,8 @@ async function purgeOne(prisma: PrismaClient, requestId: string, userId: string)
         `UPDATE "Profile" SET "location" = NULL WHERE "userId" = $1`,
         userId,
       );
-      // Photos: hard-delete the rows. CDN cleanup is out-of-band (blob
-      // tokens aren't available inside a transaction).
+      // Photos: hard-delete the DB rows. The underlying blobs were
+      // already `del()`-ed above the transaction (see step 1).
       await tx.profilePhoto.deleteMany({ where: { profileId: profile.id } });
     }
 
@@ -219,6 +244,7 @@ async function purgeOne(prisma: PrismaClient, requestId: string, userId: string)
         metadata: {
           requestId,
           source: "deletion-worker",
+          blobDeleteFailures,
         },
       },
     });

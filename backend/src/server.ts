@@ -51,6 +51,7 @@ import { invitesRoutes } from "./routes/invites.js";
 import { likesRoutes } from "./routes/likes.js";
 import { matchesRoutes } from "./routes/matches.js";
 import { notificationsRoutes } from "./routes/notifications.js";
+import { photosRoutes } from "./routes/photos.js";
 import { preferencesRoutes } from "./routes/preferences.js";
 import { privacyRoutes } from "./routes/privacy.js";
 import { profileRoutes } from "./routes/profile.js";
@@ -269,6 +270,7 @@ export async function buildServer() {
   await app.register(analyticsRoutes, { prefix: "/api/v1/analytics" });
   await app.register(feedbackRoutes, { prefix: "/api/v1/feedback" });
   await app.register(profileRoutes, { prefix: "/api/v1/profile" });
+  await app.register(photosRoutes, { prefix: "/api/v1/photos" });
   await app.register(preferencesRoutes, { prefix: "/api/v1/preferences" });
   await app.register(discoveryRoutes, { prefix: "/api/v1/discovery" });
   await app.register(swipesRoutes, { prefix: "/api/v1/swipes" });
