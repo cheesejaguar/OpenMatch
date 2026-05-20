@@ -53,9 +53,7 @@ describe("blockUser — SEV-M11 channel teardown", () => {
   });
 
   it("upserts the Block row and unmatches the active match", async () => {
-    const { prisma, spies } = buildPrismaMock([
-      { id: "m1", conversation: { id: "conv1" } },
-    ]);
+    const { prisma, spies } = buildPrismaMock([{ id: "m1", conversation: { id: "conv1" } }]);
     await blockUser(prisma, "u_alice", "u_bob");
     expect(spies.blockUpsert).toHaveBeenCalledOnce();
     const upsertArg = spies.blockUpsert.mock.calls[0]![0];

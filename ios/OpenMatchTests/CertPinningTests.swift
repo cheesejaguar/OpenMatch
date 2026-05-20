@@ -44,10 +44,13 @@ final class CertPinningTests: XCTestCase {
         XCTAssertTrue(encoded.hasSuffix("="), "SHA-256 base64 should end with =")
     }
 
+    @MainActor
     func testAPIClientInstallsPinningDelegate() {
         // Round-trip: APIClient must construct its URLSession with the
         // pinning delegate so that even an empty pin list runs through
         // the delegate code path (preventing bit-rot of the scaffold).
+        // APIClient.init is @MainActor-isolated, so the test method
+        // hops onto the main actor before constructing.
         let client = APIClient(baseURL: URL(string: "https://example.invalid")!)
         let mirror = Mirror(reflecting: client)
         let delegate = mirror.children.first { $0.label == "pinningDelegate" }?.value

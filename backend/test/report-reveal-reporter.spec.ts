@@ -31,12 +31,14 @@ function fakeUser(overrides: Partial<User & { profile?: Profile | null }> = {}):
     isBanned: false,
     deletedAt: null,
     ...overrides,
-    profile: overrides.profile ?? {
-      id: "p1",
-      userId: "u_real_reporter_123",
-      displayName: "Alice",
-      verificationStatus: "verified",
-    } as unknown as Profile,
+    profile:
+      overrides.profile ??
+      ({
+        id: "p1",
+        userId: "u_real_reporter_123",
+        displayName: "Alice",
+        verificationStatus: "verified",
+      } as unknown as Profile),
     _count: { reportsAbout: 0 },
   } as never;
 }
