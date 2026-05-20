@@ -67,6 +67,24 @@ import { waitlistRoutes } from "./routes/waitlist.js";
 // throw). When SENTRY_DSN is absent this is a no-op.
 initSentry();
 
+// SEV-A8 / SEV-V9 / SEV-N22 — boot-time warning when any of the
+// dev-only login bypasses are reachable. The runtime gate is already
+// strict (development + ALLOW_DEV_LOGIN), but a single audible warning
+// at boot makes an accidental preview / staging misconfiguration
+// impossible to miss in deployment logs.
+if (env.NODE_ENV === "development" && env.ALLOW_DEV_LOGIN) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    "[security] ALLOW_DEV_LOGIN is enabled in NODE_ENV=development. " +
+      "Admin auto-provision and POST /auth/start method=dev are reachable. " +
+      "This MUST never appear in a production or preview deployment.",
+  );
+}
+// (The hard failure for ALLOW_DEV_LOGIN=true in production is enforced
+// in env.ts via a Zod superRefine; the import of `env` at the top of
+// this module is sufficient to surface that error before any route
+// handler can run.)
+
 // Round D — Pino mixin + redaction shared between the Fastify app logger
 // and any standalone log line emitted from a worker entry point. The
 // mixin reads from AsyncLocalStorage so every log line carries the
@@ -218,6 +236,14 @@ export async function buildServer() {
       // a clean 413 instead of fastify-multipart throwing.
       fileSize: 5 * 1024 * 1024,
       fields: 4,
+      // SEV-N20 — bound every non-file metadata field. 1KB is plenty
+      // for the photo-upload metadata we accept today (a sort-order
+      // int + maybe a caption); the default would have permitted
+      // multi-MB text fields.
+      fieldSize: 1024,
+      fieldNameSize: 100,
+      parts: 6,
+      headerPairs: 200,
     },
   });
 
@@ -304,9 +330,25 @@ export async function buildServer() {
     return reply.code(500).send({ error: ErrorCodes.INTERNAL_ERROR });
   });
 
-  // PERF-1: /health stays the cheap liveness probe but also reports the
-  // current Postgres pool usage so an external monitor can graph it.
+  // PERF-1 + SEV-N9: /health is the unauthenticated liveness probe;
+  // it deliberately exposes only `{ ok: true }` so an external
+  // observer can't fingerprint the Postgres pool depth or correlate
+  // request volume with idle/busy stats. Pool depth is still
+  // graphable via `/health/internal/pool` (gated by
+  // INTERNAL_WORKER_TOKEN inside internal routes) for the operator
+  // dashboards.
   app.get("/health", async () => {
+    return { ok: true } as const;
+  });
+  // Keep the prior pool stats accessible to authenticated monitors —
+  // exposed via the existing internal-token gate so external observers
+  // see nothing more than the liveness probe.
+  app.get("/health/internal/pool", async (req, reply) => {
+    const expected = `Bearer ${env.INTERNAL_WORKER_TOKEN}`;
+    const authz = req.headers.authorization ?? "";
+    if (authz !== expected) {
+      return reply.code(401).send({ error: "unauthorized" });
+    }
     const out: { ok: true; pool?: { activeConnections: number } } = { ok: true };
     try {
       const rows = await app.prisma.$queryRawUnsafe<{ count: bigint }[]>(

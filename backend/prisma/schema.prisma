@@ -628,14 +628,19 @@ model Session {
 }
 
 model AuthChallenge {
-  id         String    @id @default(cuid())
-  userId     String?
-  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  email      String?
-  tokenHash  String    @unique
-  expiresAt  DateTime
-  consumedAt DateTime?
-  createdAt  DateTime  @default(now())
+  id             String    @id @default(cuid())
+  userId         String?
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email          String?
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  // SEV-A14 — per-challenge failed-attempt counter. After 5 wrong
+  // tokens the challenge is marked consumed so a leaked challengeId
+  // (referer, server log, etc.) can no longer be brute-forced via a
+  // rotating proxy pool that bypasses the per-IP rate limit.
+  failedAttempts Int       @default(0)
+  createdAt      DateTime  @default(now())
 
   @@index([userId])
   @@index([expiresAt])

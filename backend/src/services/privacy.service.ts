@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import type { ConsentScope, DsarChannel, DsarRequestType, PrismaClient } from "@prisma/client";
 import { env } from "../env.js";
 import { hashIp, hashText } from "../lib/hash.js";
+import { revokeAllUserSessions } from "./auth.service.js";
 
 // SEV-M9 — Pseudonymise a peer user id for inclusion in the requester's
 // DSAR bundle. The export is shareable (and increasingly publicly
@@ -589,34 +590,67 @@ export async function scheduleAccountDeletion(
     .update({ where: { userId: args.userId }, data: { discoveryPaused: true } })
     .catch(() => undefined);
 
-  // SEV-M10 — Tear down active push and chat surfaces *at schedule
-  // time*, not at purge time. Without this, a user who hits "delete my
-  // account" can still receive a cron-triggered "unread likes" push or
-  // an Ably message from a counterparty during the grace window, and
-  // an attacker holding the device during the grace window can keep
-  // using the existing session.
+  // SEV-A6 / SEV-M10 — Tear down active push, sessions, matches, and
+  // chat surfaces *at schedule time*, not at purge time. Without this,
+  // a user who hits "delete my account" can still receive a
+  // cron-triggered "unread likes" push or an Ably message from a
+  // counterparty during the grace window, and an attacker holding a
+  // valid access / refresh token at the time of deletion could
+  // (a) keep using the account, (b) silently cancel the deletion, and
+  // (c) continue to be discoverable by matched peers.
+  //
+  // The async erasure worker still owns the physical teardown after
+  // the grace window — these calls just make the account inert
+  // immediately.
   //
   // 1. Revoke active sessions — refresh tokens stop working immediately.
-  //    `cancelAccountDeletion` lets the user re-auth and resume.
-  await prisma.session.deleteMany({ where: { userId: args.userId } }).catch(() => undefined);
-  // 2. Drop registered push tokens so the cron alerter / digest workers
-  //    do not deliver any further notifications.
+  //    `cancelAccountDeletion` requires a re-auth so the user can
+  //    still recover during the grace window.
+  await revokeAllUserSessions(prisma, args.userId).catch(() => undefined);
+  // 2. Drop registered push tokens so the cron alerter / digest
+  //    workers don't deliver further notifications. Tokens are
+  //    re-registered on next sign-in if deletion is cancelled.
   await prisma.deviceToken.deleteMany({ where: { userId: args.userId } }).catch(() => undefined);
   await prisma.notificationDevice
     .deleteMany({ where: { userId: args.userId } })
     .catch(() => undefined);
-  // 3. Best-effort Ably channel teardown for every active conversation
-  //    the user belongs to. Future tokens won't grant subscribe (the
+  // 3. Close every active match so the user disappears from matched
+  //    peers' decks and conversation lists immediately. `unmatchedAt`
+  //    is the existing mechanism for hiding a peer; reuse it so
+  //    discovery / chat respect the same gate.
+  await prisma.match
+    .updateMany({
+      where: {
+        OR: [{ userAId: args.userId }, { userBId: args.userId }],
+        status: "active",
+      },
+      data: {
+        status: "unmatched",
+        unmatchedAt: new Date(),
+        unmatchedByUserId: args.userId,
+      },
+    })
+    .catch(() => undefined);
+  // 4. Withdraw outstanding like rows so the deleted user is removed
+  //    from the recipient's "liked you" tray immediately.
+  await prisma.like
+    .updateMany({
+      where: {
+        OR: [{ fromUserId: args.userId }, { toUserId: args.userId }],
+        status: "active",
+      },
+      data: { status: "withdrawn", withdrawnAt: new Date() },
+    })
+    .catch(() => undefined);
+  // 5. SEV-M10 — Best-effort Ably channel teardown for every active
+  //    conversation. Future Ably tokens won't grant subscribe (the
   //    realtime route already scopes on `status: active` and the user
-  //    is now paused), but already-issued tokens stay valid until TTL.
-  //    The sentinel publish drops cached state on connected peers.
+  //    is now paused), but already-issued tokens stay valid until
+  //    TTL. The sentinel publish drops cached state on connected peers.
   try {
     const activeConversations = await prisma.conversation.findMany({
       where: {
-        match: {
-          status: "active",
-          OR: [{ userAId: args.userId }, { userBId: args.userId }],
-        },
+        match: { OR: [{ userAId: args.userId }, { userBId: args.userId }] },
       },
       select: { id: true },
     });

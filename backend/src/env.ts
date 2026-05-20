@@ -214,5 +214,23 @@ function testEnvDefaults(): NodeJS.ProcessEnv {
   };
 }
 
-export const env = schema.parse(testEnvDefaults());
+// SEV-N22 / SEV-A8: refuse to accept `ALLOW_DEV_LOGIN=true` when
+// running in `NODE_ENV=production`. The dev-login endpoint mints a
+// session for any user id without an authentication factor — gated to
+// development as a developer-loop convenience. A typo in a production
+// env var must fail loud at boot, never silently widen the auth
+// surface. The server.ts boot path adds a console.warn when the
+// development+ALLOW_DEV_LOGIN combination is active so the bypass is
+// audible in deployment logs.
+const refinedSchema = schema.superRefine((cfg, ctx) => {
+  if (cfg.NODE_ENV === "production" && cfg.ALLOW_DEV_LOGIN) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "ALLOW_DEV_LOGIN=true is forbidden in NODE_ENV=production",
+      path: ["ALLOW_DEV_LOGIN"],
+    });
+  }
+});
+
+export const env = refinedSchema.parse(testEnvDefaults());
 export type Env = typeof env;

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
@@ -37,9 +38,20 @@ export const adminMetrosRoutes: FastifyPluginAsync = async (app) => {
   app.post("/", async (req, reply) => {
     const body = createSchema.parse(req.body);
     const principal = req.admin!;
-    const row = await app.prisma.metroBoundary.create({
-      data: { ...body, countryCode: body.countryCode.toUpperCase() },
-    });
+    // SEV-V11 — explicit allow-list rather than `...body`. If a future
+    // column lands on MetroBoundary and is accidentally also added to
+    // the Zod createSchema, only the fields enumerated below will be
+    // written via this route; everything else stays server-set.
+    const createData: Prisma.MetroBoundaryCreateInput = {
+      slug: body.slug,
+      name: body.name,
+      centerLat: body.centerLat,
+      centerLng: body.centerLng,
+      radiusKm: body.radiusKm,
+      countryCode: body.countryCode.toUpperCase(),
+      active: body.active,
+    };
+    const row = await app.prisma.metroBoundary.create({ data: createData });
     await writeAudit(
       app.prisma,
       auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
@@ -58,12 +70,19 @@ export const adminMetrosRoutes: FastifyPluginAsync = async (app) => {
     const principal = req.admin!;
     const existing = await app.prisma.metroBoundary.findUnique({ where: { id: req.params.id } });
     if (!existing) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
+    // SEV-V11 — explicit allow-list for the PATCH path too.
+    const updateData: Prisma.MetroBoundaryUpdateInput = {
+      ...(body.slug !== undefined && { slug: body.slug }),
+      ...(body.name !== undefined && { name: body.name }),
+      ...(body.centerLat !== undefined && { centerLat: body.centerLat }),
+      ...(body.centerLng !== undefined && { centerLng: body.centerLng }),
+      ...(body.radiusKm !== undefined && { radiusKm: body.radiusKm }),
+      ...(body.countryCode !== undefined && { countryCode: body.countryCode.toUpperCase() }),
+      ...(body.active !== undefined && { active: body.active }),
+    };
     const row = await app.prisma.metroBoundary.update({
       where: { id: req.params.id },
-      data: {
-        ...body,
-        countryCode: body.countryCode ? body.countryCode.toUpperCase() : undefined,
-      },
+      data: updateData,
     });
     await writeAudit(
       app.prisma,

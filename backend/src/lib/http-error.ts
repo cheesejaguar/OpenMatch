@@ -61,13 +61,18 @@ export function sendHttpError(reply: FastifyReply, err: HttpError) {
 
 // Translate a thrown ZodError into the canonical validation_failed
 // response. Each issue becomes a `fields[]` entry with a stable shape.
+//
+// SEV-V17 — the public `fields[]` exposes only `path` and `message`.
+// The raw Zod `code` (`invalid_type`, `too_small`, `custom`, …) is a
+// minor library fingerprinting surface and previously leaked the
+// internal codes of any custom refinements; it stays in the
+// server-side log path instead via the central error handler.
 export function zodErrorToHttp(err: ZodError): HttpError {
   return httpError(ErrorCodes.VALIDATION_FAILED, {
     details: {
       fields: err.issues.map((i) => ({
         path: i.path.map((p) => String(p)).join("."),
         message: i.message,
-        code: i.code,
       })),
     },
   });

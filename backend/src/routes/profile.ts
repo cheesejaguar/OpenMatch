@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { PUBLIC_PROFILE_SELECT } from "../lib/dto/peer-user.js";
@@ -170,15 +171,90 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { location, declaredLocation: _declared, dateOfBirth: _ignored, ...data } = body;
+    void _declared;
+    void _ignored;
+    // SEV-V1 — explicit allow-list of writable Profile columns. The
+    // previous `...(data as Record<string, unknown>)` / `update: data
+    // as never` cast escaped Prisma's generated types, so any future
+    // column added to the Zod schema by mistake became user-writable.
+    // Enumerating each field as a `Prisma.ProfileUpdateInput` makes
+    // the Prisma type system the authoritative gate again.
+    const updateData: Prisma.ProfileUpdateInput = {
+      ...(data.displayName !== undefined && { displayName: data.displayName }),
+      ...(data.bio !== undefined && { bio: data.bio }),
+      ...(data.gender !== undefined && { gender: data.gender as never }),
+      ...(data.pronouns !== undefined && { pronouns: data.pronouns }),
+      ...(data.city !== undefined && { city: data.city }),
+      ...(data.region !== undefined && { region: data.region }),
+      ...(data.country !== undefined && { country: data.country }),
+      ...(data.heightCm !== undefined && { heightCm: data.heightCm }),
+      ...(data.educationLevel !== undefined && { educationLevel: data.educationLevel }),
+      ...(data.college !== undefined && { college: data.college }),
+      ...(data.jobTitle !== undefined && { jobTitle: data.jobTitle }),
+      ...(data.companyDisplayEnabled !== undefined && {
+        companyDisplayEnabled: data.companyDisplayEnabled,
+      }),
+      ...(data.company !== undefined && { company: data.company }),
+      ...(data.relationshipGoal !== undefined && {
+        relationshipGoal: data.relationshipGoal as never,
+      }),
+      ...(data.childrenStatus !== undefined && { childrenStatus: data.childrenStatus }),
+      ...(data.familyPlans !== undefined && { familyPlans: data.familyPlans }),
+      ...(data.drinking !== undefined && { drinking: data.drinking }),
+      ...(data.smoking !== undefined && { smoking: data.smoking }),
+      ...(data.cannabis !== undefined && { cannabis: data.cannabis }),
+      ...(data.exercise !== undefined && { exercise: data.exercise }),
+      ...(data.diet !== undefined && { diet: data.diet }),
+      ...(data.religion !== undefined && { religion: data.religion }),
+      ...(data.politics !== undefined && { politics: data.politics }),
+      ...(data.languages !== undefined && { languages: data.languages }),
+      ...(data.interests !== undefined && { interests: data.interests }),
+      ...(data.prompts !== undefined && { prompts: data.prompts as never }),
+      ...(data.visibilityStatus !== undefined && { visibilityStatus: data.visibilityStatus }),
+    };
+    // Create-shape — Prisma's CreateInput requires the required
+    // columns by literal value rather than the update-operation
+    // wrappers, so we re-build the shape from the same allow-list
+    // rather than spreading `updateData` (which has the wrapper
+    // types).
+    const createData: Prisma.ProfileCreateInput = {
+      user: { connect: { id: req.userId! } },
+      displayName: data.displayName ?? "New user",
+      gender: (data.gender as never) ?? "PreferNotToSay",
+      ...(data.bio !== undefined && { bio: data.bio }),
+      ...(data.pronouns !== undefined && { pronouns: data.pronouns }),
+      ...(data.city !== undefined && { city: data.city }),
+      ...(data.region !== undefined && { region: data.region }),
+      ...(data.country !== undefined && { country: data.country }),
+      ...(data.heightCm !== undefined && { heightCm: data.heightCm }),
+      ...(data.educationLevel !== undefined && { educationLevel: data.educationLevel }),
+      ...(data.college !== undefined && { college: data.college }),
+      ...(data.jobTitle !== undefined && { jobTitle: data.jobTitle }),
+      ...(data.companyDisplayEnabled !== undefined && {
+        companyDisplayEnabled: data.companyDisplayEnabled,
+      }),
+      ...(data.company !== undefined && { company: data.company }),
+      ...(data.relationshipGoal !== undefined && {
+        relationshipGoal: data.relationshipGoal as never,
+      }),
+      ...(data.childrenStatus !== undefined && { childrenStatus: data.childrenStatus }),
+      ...(data.familyPlans !== undefined && { familyPlans: data.familyPlans }),
+      ...(data.drinking !== undefined && { drinking: data.drinking }),
+      ...(data.smoking !== undefined && { smoking: data.smoking }),
+      ...(data.cannabis !== undefined && { cannabis: data.cannabis }),
+      ...(data.exercise !== undefined && { exercise: data.exercise }),
+      ...(data.diet !== undefined && { diet: data.diet }),
+      ...(data.religion !== undefined && { religion: data.religion }),
+      ...(data.politics !== undefined && { politics: data.politics }),
+      ...(data.languages !== undefined && { languages: data.languages }),
+      ...(data.interests !== undefined && { interests: data.interests }),
+      ...(data.prompts !== undefined && { prompts: data.prompts as never }),
+      ...(data.visibilityStatus !== undefined && { visibilityStatus: data.visibilityStatus }),
+    };
     const profile = await app.prisma.profile.upsert({
       where: { userId: req.userId! },
-      create: {
-        userId: req.userId!,
-        displayName: data.displayName ?? "New user",
-        gender: (data.gender as never) ?? "PreferNotToSay",
-        ...(data as Record<string, unknown>),
-      } as never,
-      update: data as never,
+      create: createData,
+      update: updateData,
       include: { photos: { orderBy: { sortOrder: "asc" } } },
     });
 

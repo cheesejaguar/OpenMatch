@@ -40,10 +40,19 @@ function allowedEmails(): Set<string> {
 export function isEmailAdminAllowed(email: string): boolean {
   const list = allowedEmails();
   if (list.size === 0) {
-    // In dev, when the allowlist is empty we still permit existing
-    // AdminUser rows (e.g. the seeded admin@openmatch.local) to log in.
-    // Production deployments MUST set ADMIN_ALLOWED_EMAILS.
-    return env.NODE_ENV !== "production";
+    // SEV-A8 / SEV-V9 — the previous `!== "production"` check treated
+    // *any* non-production NODE_ENV (including `staging`, `qa`,
+    // Vercel's `preview`, or a misspelt value) as a free pass. With
+    // shared infrastructure between preview and production deployments
+    // this was effectively a "create an admin account for any email"
+    // backdoor reachable from any preview URL. We now require a strict
+    // `development` env AND an explicit `ALLOW_DEV_LOGIN=true` opt-in
+    // before honouring the empty-allowlist branch. `test` falls
+    // through because the integration suite seeds AdminUser rows
+    // before exercising the route and an empty allow-list there is the
+    // expected configuration.
+    if (env.NODE_ENV === "test") return true;
+    return env.NODE_ENV === "development" && env.ALLOW_DEV_LOGIN;
   }
   return list.has(email.toLowerCase());
 }
@@ -67,11 +76,18 @@ export async function startAdminLogin(
   }
 
   const admin = await prisma.adminUser.findUnique({ where: { email: normalized } });
-  // In dev, auto-provision an AdminUser when the email matches the
-  // allowlist but no row exists yet. In prod, require the AdminUser to
-  // have been created out-of-band by a system_admin.
+  // SEV-A8 — auto-provision is gated to strict `development` with the
+  // explicit `ALLOW_DEV_LOGIN` opt-in, OR to `test` so the
+  // integration suite's startAndVerifyLogin helper keeps working
+  // against an empty allow-list. Any preview / staging deploy (which
+  // historically defaulted to `NODE_ENV=preview`) now requires
+  // operators to seed AdminUser rows out of band via the
+  // `seed:admin` script — no implicit account creation reachable from
+  // a routable URL.
   let adminUserId = admin?.id ?? null;
-  if (!admin && env.NODE_ENV !== "production") {
+  const allowAutoProvision =
+    env.NODE_ENV === "test" || (env.NODE_ENV === "development" && env.ALLOW_DEV_LOGIN);
+  if (!admin && allowAutoProvision) {
     const created = await prisma.adminUser.create({
       data: { email: normalized, displayName: normalized.split("@")[0] ?? "admin" },
     });
