@@ -46,12 +46,14 @@ describe("privacy export bundle — type-shape invariants", () => {
       "preferences",
       "notificationPreferences",
       "photos",
-      "swipes",
+      // SEV-M9 — raw swipe history is now aggregated; peers' inbound
+      // message bodies are now a metadata-only summary.
+      "swipesSummary",
       "likesSent",
       "likesReceived",
       "matches",
       "messagesSent",
-      "messagesReceived",
+      "messagesReceivedSummary",
       "reportsMade",
       "blocksMade",
       "consents",

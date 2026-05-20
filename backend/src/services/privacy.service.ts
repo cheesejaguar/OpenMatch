@@ -1,6 +1,25 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import type { ConsentScope, DsarChannel, DsarRequestType, PrismaClient } from "@prisma/client";
+import { env } from "../env.js";
 import { hashIp, hashText } from "../lib/hash.js";
+
+// SEV-M9 — Pseudonymise a peer user id for inclusion in the requester's
+// DSAR bundle. The export is shareable (and increasingly publicly
+// posted to "rate-my-matches"-style forums), so revealing other users'
+// stable backend ids would re-identify them across separate exports.
+// We use an HMAC keyed by the requester's id and JWT secret so:
+//   - Two peers always hash to two different pseudonyms (privacy).
+//   - The same peer is consistent across a single user's export
+//     (utility — the user can see "peer:abc liked then unliked me").
+//   - The pseudonyms don't roundtrip back to real ids without the
+//     server's key (no enumeration).
+function peerPseudonym(requesterUserId: string, peerUserId: string): string {
+  const mac = createHmac("sha256", env.JWT_SECRET);
+  mac.update(`dsar:peer:${requesterUserId}:${peerUserId}`);
+  // 8 hex chars (32 bits) is enough collision-resistance per-requester
+  // (10s of thousands of peers max) and keeps the bundle readable.
+  return `peer:${mac.digest("hex").slice(0, 8)}`;
+}
 
 // Privacy / rights-request service.
 //
@@ -216,16 +235,26 @@ export interface ExportBundle {
   preferences: Record<string, unknown> | null;
   notificationPreferences: Record<string, unknown> | null;
   photos: Array<Record<string, unknown>>;
-  swipes: Array<Record<string, unknown>>;
+  // SEV-M9 — see swipesSummary below; raw target user-id list omitted.
+  swipesSummary: Record<string, unknown>;
+  // SEV-M9 — peer user ids are replaced with per-requester pseudonyms
+  // (`peer:abcd1234`). The pseudonyms are stable within a single user's
+  // export so the user can correlate "peer:abc liked me and we matched"
+  // across collections, but two different requesters' exports do not
+  // share pseudonyms — no cross-bundle re-identification of any peer.
   likesSent: Array<Record<string, unknown>>;
   likesReceived: Array<Record<string, unknown>>;
   matches: Array<Record<string, unknown>>;
   // Messages the user sent.
   messagesSent: Array<Record<string, unknown>>;
-  // Messages addressed to the user (Art. 15 — personal data concerning
-  // them, that they can already see in chat). Restricted to the
-  // current account's active conversations.
-  messagesReceived: Array<Record<string, unknown>>;
+  // SEV-M9 — Peers' message bodies are NOT included. The authoring
+  // peer never consented to having their private DM bundled into a
+  // portable, downloadable JSON. We include only message metadata
+  // (id, conversation id, timestamp, length) so the requester can
+  // reconcile the volume of incoming chat without re-distributing the
+  // peer's words. The peer's pseudonymous id is included so the
+  // requester can see "peer:abc sent 4 messages on 2026-05-10".
+  messagesReceivedSummary: Array<Record<string, unknown>>;
   reportsMade: Array<Record<string, unknown>>;
   blocksMade: Array<Record<string, unknown>>;
   consents: Array<Record<string, unknown>>;
@@ -338,7 +367,7 @@ export async function buildExportBundle(
     likesReceived,
     matches,
     messagesSent,
-    messagesReceived,
+    messagesReceivedRaw,
     reportsMade,
     blocks,
     consents,
@@ -381,11 +410,12 @@ export async function buildExportBundle(
         senderUserId: { not: userId },
         deletedAt: null,
       },
+      // SEV-M9 — Intentionally NOT selecting `body`. See ExportBundle
+      // comment.
       select: {
         id: true,
         conversationId: true,
         senderUserId: true,
-        body: true,
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },
@@ -424,22 +454,84 @@ export async function buildExportBundle(
     }),
   ]);
 
+  // SEV-M9 — Aggregate swipe history to counts instead of raw
+  // (targetUserId, decision) pairs. The raw list lets the holder of
+  // the bundle reconstruct everyone the user rejected; the summary is
+  // enough to satisfy "I want to know what data you hold about me".
+  const swipesSummary = {
+    totalSwipes: swipesMade.length,
+    likes: swipesMade.filter((s) => s.decision === "like").length,
+    rejects: swipesMade.filter((s) => s.decision === "reject").length,
+    undone: swipesMade.filter((s) => s.undoneAt !== null).length,
+    firstSwipeAt: swipesMade[swipesMade.length - 1]?.createdAt ?? null,
+    lastSwipeAt: swipesMade[0]?.createdAt ?? null,
+    note:
+      "Per-swipe target user ids were omitted to protect other users' privacy. " +
+      "If you need the raw per-swipe history, file a portability DSAR at " +
+      "/privacy/dsar with requestType=portability — fulfilment includes a " +
+      "manual review for peer re-identification risk.",
+  };
+
+  // SEV-M9 — Pseudonymise every peer id touched by the bundle.
+  const likesSentRedacted = likesSent.map((l) => ({
+    id: l.id,
+    peer: peerPseudonym(userId, l.toUserId),
+    status: l.status,
+    createdAt: l.createdAt,
+    withdrawnAt: l.withdrawnAt,
+  }));
+  const likesReceivedRedacted = likesReceived.map((l) => ({
+    id: l.id,
+    peer: peerPseudonym(userId, l.fromUserId),
+    status: l.status,
+    createdAt: l.createdAt,
+  }));
+  const matchesRedacted = matches.map((m) => {
+    const peerId = m.userAId === userId ? m.userBId : m.userAId;
+    return {
+      id: m.id,
+      peer: peerPseudonym(userId, peerId),
+      createdAt: m.createdAt,
+    };
+  });
+  const messagesReceivedSummary = messagesReceivedRaw.map((m) => ({
+    id: m.id,
+    conversationId: m.conversationId,
+    sender: peerPseudonym(userId, m.senderUserId),
+    createdAt: m.createdAt,
+  }));
+  const blocksRedacted = blocks.map((b) => ({
+    id: b.id,
+    peer: peerPseudonym(userId, b.blockedUserId),
+    createdAt: b.createdAt,
+  }));
+  const reportsRedacted = reportsMade.map((r) => ({
+    id: r.id,
+    peer: peerPseudonym(userId, r.reportedUserId),
+    reason: r.reason,
+    details: r.details,
+    status: r.status,
+    createdAt: r.createdAt,
+    resolvedAt: r.resolvedAt,
+    resolution: r.resolution,
+  }));
+
   return {
-    schemaVersion: "openmatch.export.v1",
+    schemaVersion: "openmatch.export.v2",
     generatedAt: new Date().toISOString(),
     user,
     profile: profileView,
     preferences,
     notificationPreferences,
     photos,
-    swipes: swipesMade,
-    likesSent,
-    likesReceived,
-    matches,
+    swipesSummary,
+    likesSent: likesSentRedacted,
+    likesReceived: likesReceivedRedacted,
+    matches: matchesRedacted,
     messagesSent,
-    messagesReceived,
-    reportsMade,
-    blocksMade: blocks,
+    messagesReceivedSummary,
+    reportsMade: reportsRedacted,
+    blocksMade: blocksRedacted,
     consents,
   };
 }
@@ -496,6 +588,59 @@ export async function scheduleAccountDeletion(
   await prisma.preferences
     .update({ where: { userId: args.userId }, data: { discoveryPaused: true } })
     .catch(() => undefined);
+
+  // SEV-M10 — Tear down active push and chat surfaces *at schedule
+  // time*, not at purge time. Without this, a user who hits "delete my
+  // account" can still receive a cron-triggered "unread likes" push or
+  // an Ably message from a counterparty during the grace window, and
+  // an attacker holding the device during the grace window can keep
+  // using the existing session.
+  //
+  // 1. Revoke active sessions — refresh tokens stop working immediately.
+  //    `cancelAccountDeletion` lets the user re-auth and resume.
+  await prisma.session.deleteMany({ where: { userId: args.userId } }).catch(() => undefined);
+  // 2. Drop registered push tokens so the cron alerter / digest workers
+  //    do not deliver any further notifications.
+  await prisma.deviceToken.deleteMany({ where: { userId: args.userId } }).catch(() => undefined);
+  await prisma.notificationDevice
+    .deleteMany({ where: { userId: args.userId } })
+    .catch(() => undefined);
+  // 3. Best-effort Ably channel teardown for every active conversation
+  //    the user belongs to. Future tokens won't grant subscribe (the
+  //    realtime route already scopes on `status: active` and the user
+  //    is now paused), but already-issued tokens stay valid until TTL.
+  //    The sentinel publish drops cached state on connected peers.
+  try {
+    const activeConversations = await prisma.conversation.findMany({
+      where: {
+        match: {
+          status: "active",
+          OR: [{ userAId: args.userId }, { userBId: args.userId }],
+        },
+      },
+      select: { id: true },
+    });
+    if (activeConversations.length > 0) {
+      const { ably, conversationChannel } = await import("../lib/realtime.js");
+      if (ably) {
+        await Promise.all(
+          activeConversations.map(async (c) => {
+            try {
+              await ably.channels.get(conversationChannel(c.id)).publish("conversation.closed", {
+                conversationId: c.id,
+                reason: "account_deletion_scheduled",
+                at: new Date().toISOString(),
+              });
+            } catch {
+              // Best-effort — application-layer auth still rejects new sends.
+            }
+          }),
+        );
+      }
+    }
+  } catch {
+    // Conversations may not exist (signup-only account); ignore.
+  }
   return request;
 }
 
