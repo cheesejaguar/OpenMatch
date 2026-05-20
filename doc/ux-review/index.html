@@ -2,31 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>OpenMatch — Botanic Polish Pass UX Review</title>
+<title>OpenMatch — Aesthetic V2 · Aurora Dawn UX Review</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   :root {
-    --bg: #F4EFE6;
-    --bg-elev: #FBF7EF;
-    --ink: #2A1F1A;
-    --ink-muted: #6B5D52;
-    --moss: #2F4F3E;
-    --terracotta: #C2654B;
-    --honey: #D4A340;
-    --sage: #9DAE8E;
-    --border: rgba(42, 31, 26, 0.10);
+    /* Aurora Dawn — light */
+    --paper: #FAF6F2;
+    --paper-elev: #FFFFFF;
+    --ink: #1A0E2A;
+    --ink-muted: #4F4360;
+    --plum: #5B2B6E;
+    --magenta: #E63D7C;
+    --marigold: #FFB347;
+    --periwinkle: #A6B4FF;
+    --bg: var(--paper);
+    --bg-elev: var(--paper-elev);
+    --border: rgba(26, 14, 42, 0.10);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #2A1F1A;
-      --bg-elev: #352822;
-      --ink: #F4EFE6;
-      --ink-muted: #B8AC9F;
-      --moss: #4E7A65;
-      --terracotta: #D88163;
-      --honey: #E6BC5B;
-      --sage: #7E9080;
-      --border: rgba(244, 239, 230, 0.10);
+      --bg: #1A0E2A;
+      --bg-elev: #261739;
+      --ink: #FAF6F2;
+      --ink-muted: #B8AEC4;
+      --plum: #B57EC9;
+      --magenta: #FF6FA1;
+      --marigold: #FFC773;
+      --periwinkle: #C9D2FF;
+      --border: rgba(250, 246, 242, 0.10);
     }
   }
   * { box-sizing: border-box; }
@@ -49,14 +52,14 @@
     font-style: italic;
     font-weight: 700;
     font-size: 44px;
-    color: var(--moss);
+    color: var(--plum);
     margin: 0;
     letter-spacing: -0.02em;
   }
-  h1 .botanic { color: var(--terracotta); }
+  h1 .aurora { color: var(--magenta); }
   .lede {
     margin: 8px 0 0;
-    max-width: 720px;
+    max-width: 760px;
     color: var(--ink-muted);
     font-size: 15px;
   }
@@ -67,7 +70,7 @@
     font-style: italic;
     font-weight: 600;
     font-size: 28px;
-    color: var(--moss);
+    color: var(--plum);
     margin: 0 0 4px;
     letter-spacing: -0.01em;
   }
@@ -79,18 +82,19 @@
   .grid { display: grid; gap: 24px; }
   .grid.ios { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
   .grid.admin { grid-template-columns: 1fr 1fr; }
+  .grid.brand { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
   figure {
     background: var(--bg-elev);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 18px;
     padding: 16px;
     margin: 0;
-    box-shadow: 0 1px 0 rgba(42, 31, 26, 0.04), 0 6px 14px -8px rgba(42, 31, 26, 0.18);
+    box-shadow: 0 1px 0 rgba(26, 14, 42, 0.04), 0 6px 14px -8px rgba(91, 43, 110, 0.18);
   }
   figure img {
     width: 100%;
     height: auto;
-    border-radius: 10px;
+    border-radius: 12px;
     display: block;
     background: var(--ink);
   }
@@ -104,29 +108,30 @@
     color: var(--ink);
     letter-spacing: -0.01em;
   }
-  figcaption .num { color: var(--terracotta); margin-right: 6px; }
+  figcaption .num { color: var(--magenta); margin-right: 6px; }
   figcaption p {
     margin: 0;
     color: var(--ink-muted);
     font-size: 13.5px;
   }
-  figcaption .fix {
+  figcaption .detail {
     margin-top: 10px;
     padding: 10px 12px;
-    background: rgba(47, 79, 62, 0.10);
-    border-left: 3px solid var(--moss);
+    background: rgba(91, 43, 110, 0.08);
+    border-left: 3px solid var(--plum);
     border-radius: 4px;
     color: var(--ink);
     font-size: 13px;
   }
-  figcaption .fix b { color: var(--moss); }
-  .swatches { display: flex; gap: 6px; margin-top: 10px; }
+  figcaption .detail b { color: var(--plum); }
+  .swatches { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
   .sw {
-    width: 22px;
-    height: 22px;
-    border-radius: 4px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
     border: 1px solid var(--border);
   }
+  .sw-label { font-size: 11px; color: var(--ink-muted); margin-left: 8px; }
   footer {
     padding: 24px 32px 40px;
     color: var(--ink-muted);
@@ -137,10 +142,10 @@
   code {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 12.5px;
-    background: rgba(47, 79, 62, 0.08);
+    background: rgba(91, 43, 110, 0.08);
     padding: 1px 6px;
     border-radius: 4px;
-    color: var(--moss);
+    color: var(--plum);
   }
   .tag {
     display: inline-block;
@@ -150,39 +155,101 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     border-radius: 999px;
-    background: var(--honey);
+    background: var(--marigold);
     color: var(--ink);
     margin-left: 8px;
     vertical-align: middle;
   }
+  .ship {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 999px;
+    background: rgba(230, 61, 124, 0.12);
+    color: var(--magenta);
+    margin-top: 12px;
+  }
+  table.changelog { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.changelog th, table.changelog td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.changelog th { color: var(--plum); font-weight: 600; }
+  table.changelog code { background: transparent; padding: 0; }
 </style>
 </head>
 <body>
 <header>
-  <h1>OpenMatch · <span class="botanic">Botanic</span> polish pass <span class="tag">round 2</span></h1>
+  <h1>OpenMatch · <span class="aurora">Aurora Dawn</span> aesthetic V2 <span class="tag">phase G</span></h1>
   <p class="lede">
-    Re-screenshot of the iOS app after addressing the three findings from the
-    first review. iPhone 17 simulator (iOS 26.5) against a local Postgres-seeded
-    backend. The strengths from round 1 (welcome typography, leaf-heart mark,
-    match overlay) are preserved as regression checks.
+    Consolidation gallery for the Aesthetic V2 — Aurora Dawn overhaul. Six phases (A–F) reshape
+    the palette, typography, brand mark, match overlay, action layout, and every screen that used
+    the previous Botanic tokens. Below: the iOS screen set with refreshed Aurora Dawn captions,
+    the new italic "om" wordmark, the admin surfaces, and the change-log for PRs #53–#58.
   </p>
-  <div class="swatches" title="Palette: moss / terracotta / honey / sage / espresso / bone">
-    <div class="sw" style="background:#2F4F3E"></div>
-    <div class="sw" style="background:#C2654B"></div>
-    <div class="sw" style="background:#D4A340"></div>
-    <div class="sw" style="background:#9DAE8E"></div>
-    <div class="sw" style="background:#2A1F1A"></div>
-    <div class="sw" style="background:#F4EFE6"></div>
+  <div class="ship">Aesthetic V2 — Aurora Dawn shipped (PRs #53–#58)</div>
+  <div class="swatches" title="Aurora Dawn palette: plum / magenta / marigold / periwinkle / paper / ink">
+    <div class="sw" style="background:#5B2B6E" title="plum #5B2B6E"></div>
+    <div class="sw" style="background:#E63D7C" title="magenta #E63D7C"></div>
+    <div class="sw" style="background:#FFB347" title="marigold #FFB347"></div>
+    <div class="sw" style="background:#A6B4FF" title="periwinkle #A6B4FF"></div>
+    <div class="sw" style="background:#FAF6F2" title="paper #FAF6F2"></div>
+    <div class="sw" style="background:#1A0E2A" title="ink #1A0E2A"></div>
+    <span class="sw-label">plum · magenta · marigold · periwinkle · paper · ink</span>
   </div>
 </header>
 
 <main>
   <section>
+    <h2>Brand · the italic 'om' wordmark</h2>
+    <p class="section-sub">
+      Phase C introduced a single typographic mark in italic Fraunces — three palette variants for
+      light surfaces, dark surfaces, and tinted hero treatments. Source SVGs live in
+      <code>assets/logo/</code>; rasterised PNGs ship in the iOS asset catalog and the admin
+      <code>public/</code> directory.
+    </p>
+    <div class="grid brand">
+      <figure>
+        <img src="branding/om-mark-light.png" alt="om wordmark — light variant" onerror="this.style.display='none'" />
+        <figcaption>
+          <h3><span class="num">L</span>Wordmark · light</h3>
+          <p>Plum (#5B2B6E) "om" in italic Fraunces on paper — primary light-mode lockup.</p>
+        </figcaption>
+      </figure>
+      <figure>
+        <img src="branding/om-mark-dark.png" alt="om wordmark — dark variant" onerror="this.style.display='none'" />
+        <figcaption>
+          <h3><span class="num">D</span>Wordmark · dark</h3>
+          <p>Paper "om" on ink — dark-mode + splash treatments.</p>
+        </figcaption>
+      </figure>
+      <figure>
+        <img src="branding/om-mark-tinted.png" alt="om wordmark — tinted variant" onerror="this.style.display='none'" />
+        <figcaption>
+          <h3><span class="num">T</span>Wordmark · tinted</h3>
+          <p>Magenta "om" for hero / overlay moments — the match overlay and the welcome hero.</p>
+        </figcaption>
+      </figure>
+    </div>
+    <p class="section-sub" style="margin-top:16px;">
+      Source files: <code>assets/logo/om-mark-light.svg</code>,
+      <code>assets/logo/om-mark-dark.svg</code>,
+      <code>assets/logo/om-mark-tinted.svg</code>. Favicon scales (16/32/60 px) are generated from
+      the light variant; preview PNGs in <code>branding/</code> are regenerated alongside iOS
+      captures.
+    </p>
+  </section>
+
+  <section>
     <h2>iOS — consumer app</h2>
     <p class="section-sub">
       DEBUG-only launch envs <code>OPENMATCH_AUTO_LOGIN</code>,
-      <code>OPENMATCH_INITIAL_TAB</code>, and <code>OPENMATCH_FORCE_MATCH</code>
-      now ship in the iOS target so screenshot sessions can re-run cleanly.
+      <code>OPENMATCH_INITIAL_TAB</code>, and <code>OPENMATCH_FORCE_MATCH</code> drive the screenshot
+      session. Captures below describe the Aurora Dawn surfaces; rerun the capture protocol after
+      every aesthetic delta.
     </p>
     <div class="grid ios">
       <figure>
@@ -190,9 +257,8 @@
         <figcaption>
           <h3><span class="num">01</span>Welcome</h3>
           <p>
-            Regression check — the staggered reveal, moss "OpenMatch"
-            wordmark, terracotta CTA, moss-outlined Apple sign-in, and the
-            leaf-heart mark are all unchanged.
+            Italic "om" wordmark on paper, magenta primary CTA, periwinkle-outlined Apple sign-in.
+            Hero typography uses the Fraunces hero-token scale introduced in Phase B.
           </p>
         </figcaption>
       </figure>
@@ -202,16 +268,10 @@
         <figcaption>
           <h3><span class="num">02</span>Swipe deck</h3>
           <p>
-            "Morgan" front card with clean Botanic photo placeholder. Back-card
-            preview shows only its photo layer; no text overlay bleeds through.
+            Profile card on paper with the new <code>OMRadius</code> scale (lg = 24pt). Back-card
+            preview renders photo-only at <code>scaleEffect(0.96)</code> / <code>opacity(0.7)</code>.
+            Action row positioning is configurable in Phase E (right / left / center).
           </p>
-          <div class="fix">
-            <b>Fixed:</b> back-card preview now renders with
-            <code>displayMode: .preview</code> — the summary text + action row
-            + edge glow + bottom gradient are all skipped. Visible behind the
-            front card: just the photo (or Botanic placeholder) at
-            <code>scaleEffect(0.96)</code> / <code>opacity(0.7)</code>.
-          </div>
         </figcaption>
       </figure>
 
@@ -220,10 +280,9 @@
         <figcaption>
           <h3><span class="num">03</span>Match overlay</h3>
           <p>
-            Regression check — espresso scrim, honey
-            <em>"It's a match"</em> in Fraunces italic bold, terracotta
-            "Send a message", ghost "Keep swiping". Particle burst layer
-            still fires on entry.
+            Magenta hero on paper, letter-by-letter spring reveal, 120-particle multi-color burst
+            (plum / magenta / marigold / periwinkle). "Send a message" CTA in magenta; "Keep
+            swiping" ghost. Phase D dopamine treatment.
           </p>
         </figcaption>
       </figure>
@@ -233,19 +292,9 @@
         <figcaption>
           <h3><span class="num">04</span>Likes</h3>
           <p>
-            Bone background, moss "Likes" nav title in Fraunces italic,
-            terracotta "free, always" banner. Tab bar moss-tinted.
+            Paper background, plum "Likes" nav title in italic Fraunces, magenta "free, always"
+            banner. Action buttons honor the configurable thumb-reach picker from Phase E.
           </p>
-          <div class="fix">
-            <b>Fixed:</b> ScrollView wrapped in <code>OMScreen</code>;
-            <code>.navigationTitle("Likes")</code> replaced with
-            <code>.omNavTitle("Likes")</code> (Fraunces italic moss
-            principal toolbar slot); previous <code>person.fill</code>
-            avatars in <code>LikeRow</code> swapped for
-            <code>BotanicPlaceholder(.avatar(56))</code>. Rows now use
-            <code>OMShape.card(OMRadius.md)</code> on
-            <code>surfaceElevated</code>.
-          </div>
         </figcaption>
       </figure>
 
@@ -254,18 +303,9 @@
         <figcaption>
           <h3><span class="num">05</span>Chat</h3>
           <p>
-            Bone background, moss "Chat" nav title, empty-state with a
-            96pt Botanic placeholder and the conversational copy.
+            Paper background, plum "Chat" nav title. Empty state renders the periwinkle Aurora
+            placeholder at 96pt with a Fraunces microcaption from the new Phase B token.
           </p>
-          <div class="fix">
-            <b>Fixed:</b> <code>List</code> replaced with
-            <code>ScrollView { LazyVStack { OMSection } }</code>. Empty
-            state replaced the SF symbol bubble with a
-            <code>BotanicPlaceholder(.avatar(96))</code>. Match rows now
-            use <code>OMRow</code>-style padding with the Botanic
-            placeholder leading, name in Geist semibold, last message
-            in Geist regular muted.
-          </div>
         </figcaption>
       </figure>
 
@@ -274,16 +314,13 @@
         <figcaption>
           <h3><span class="num">06</span>Profile</h3>
           <p>
-            Four <code>OMSection</code> cards on bone: profile summary +
-            Discovery + Privacy &amp; Safety + About. Section headers in
-            Fraunces italic moss small-caps. Sign-out button in safetyRed.
+            Four <code>OMSection</code> cards on paper: summary + Discovery + Privacy &amp; Safety +
+            About. Section headers in italic Fraunces plum small-caps. Sign-out button in magenta.
           </p>
-          <div class="fix">
-            <b>Fixed:</b> <code>List</code> replaced with custom
-            <code>OMSection</code> + <code>OMRow</code> stacks. Each row
-            carries a moss-tinted leading icon (safety center uses
-            safetyRed). Avatar swapped to
-            <code>BotanicPlaceholder(.avatar(64))</code>.
+          <div class="detail">
+            <b>Phase F sweep:</b> every <code>RoundedRectangle(cornerRadius: …)</code> migrated to
+            <code>OMShape.card(OMRadius.*)</code>; every hard-coded color migrated to the Aurora
+            Dawn token set.
           </div>
         </figcaption>
       </figure>
@@ -291,37 +328,58 @@
   </section>
 
   <section>
-    <h2>Other restyled screens (not captured)</h2>
+    <h2>Settings · thumb-reach picker</h2>
     <p class="section-sub">
-      These views were also fully restyled in this pass but require deeper
-      navigation than the screenshot launch-args can reach. All follow the
-      same <code>OMScreen</code> / <code>OMSection</code> / <code>OMRow</code>
-      pattern visible in Profile (#06) and Chat (#05).
+      Phase E introduced a configurable thumb-reach picker under Settings → Accessibility — users
+      pick where the swipe action buttons render (right-hand, left-hand, or centered). Defaults to
+      right-hand.
+    </p>
+    <p style="font-size: 14px; color: var(--ink-muted);">
+      Capture protocol: <code>SIMCTL_CHILD_OPENMATCH_AUTO_LOGIN=u001
+      SIMCTL_CHILD_OPENMATCH_INITIAL_TAB=settings xcrun simctl launch booted …</code> then navigate
+      to Accessibility. The picker uses <code>OMSegmented</code> with the magenta active state.
+    </p>
+  </section>
+
+  <section>
+    <h2>Other restyled screens</h2>
+    <p class="section-sub">
+      These views were swept by Phase F (RoundedRectangle + color-token migration) but require
+      deeper navigation than the screenshot launch-args can reach. All follow the Aurora Dawn token
+      set visible in Profile (#06) and Chat (#05).
     </p>
     <ul style="font-size: 14px; line-height: 1.9; color: var(--ink);">
-      <li><b>Settings</b> — Form replaced with <code>OMSection</code> stacks; toggles via <code>OMToggle</code> (moss tint), navigation rows via <code>OMRow</code> with chevron.</li>
-      <li><b>Edit profile</b> — Form replaced; <code>OMSection("Photos")</code> wraps a 3-up grid with a footer caption; <code>OMSection("Basics")</code> wraps named labeled fields; <code>OMSection("Bio")</code> wraps a multiline TextField.</li>
-      <li><b>Looking for</b> — All four preference groups (Age range, Distance, Goals, Incoming likes) rendered with <code>OMStepper</code>, <code>OMPicker</code>, <code>OMToggle</code>, and <code>OMSegmented</code>.</li>
-      <li><b>Algorithm transparency</b> — Hero title in Fraunces italic; weights as <code>OMSection</code> with terracotta-tinted ProgressView per row; "never use" list as <code>OMSection</code> with safetyRed icons.</li>
-      <li><b>Safety center</b> — All sections converted to <code>OMSection</code>; tips render as icon+text rows; crisis resource links use <code>OMRow</code> with chevron.</li>
-      <li><b>Blocked users</b> — Empty state shows the Botanic placeholder; populated list uses dividers between <code>OMRow</code>s; Unblock uses <code>OMGhostButtonStyle</code>.</li>
-      <li><b>Conversation</b> — Message bubbles recolored: outgoing on moss with bone text, incoming on <code>surfaceElevated</code> with a hairline stroke; input bar has a top divider and a terracotta send button.</li>
-      <li><b>Onboarding likes-visibility step</b> — Segmented control replaced with <code>OMSegmented</code> (capsule selector with moss active state).</li>
+      <li><b>Settings</b> — <code>OMSection</code> stacks; <code>OMToggle</code> with magenta tint; row chevrons in plum.</li>
+      <li><b>Edit profile</b> — Photos grid in <code>OMShape.card(OMRadius.lg)</code>; basics in labeled fields; bio in multiline TextField.</li>
+      <li><b>Looking for</b> — All four preference groups rendered with <code>OMStepper</code>, <code>OMPicker</code>, <code>OMToggle</code>, <code>OMSegmented</code> on the Aurora palette.</li>
+      <li><b>Algorithm transparency</b> — Hero title in italic Fraunces plum; weight bars in magenta ProgressView; "never use" list with periwinkle-tinted icons.</li>
+      <li><b>Safety center</b> — Sections converted to <code>OMSection</code>; tips render as icon+text rows; crisis links use <code>OMRow</code> with chevron.</li>
+      <li><b>Blocked users</b> — Empty state shows the periwinkle Aurora placeholder; populated list uses dividers between <code>OMRow</code>s.</li>
+      <li><b>Conversation</b> — Outgoing bubbles on plum with paper text, incoming bubbles on <code>surfaceElevated</code> with a hairline stroke; input bar has a magenta send button.</li>
+      <li><b>Onboarding likes-visibility step</b> — Segmented control as <code>OMSegmented</code> with magenta active state.</li>
     </ul>
   </section>
 
   <section>
     <h2>Admin dashboard</h2>
     <p class="section-sub">
-      Admin was already on-brand from PR #26 and didn't change in this pass.
-      Screenshots from the round-1 review remain accurate.
+      Phase F sweep extended to the admin app — Tailwind tokens migrated to Aurora Dawn (plum
+      headers, magenta primary actions, periwinkle accents). Screenshots reflect the admin login,
+      overview, users, reports, photo queue, audit log, and admin management routes.
     </p>
     <div class="grid admin">
+      <figure>
+        <img src="admin/00-login.png" alt="Admin login" />
+        <figcaption>
+          <h3><span class="num">00</span>Login</h3>
+          <p>Email + TOTP gate; plum heading on paper.</p>
+        </figcaption>
+      </figure>
       <figure>
         <img src="admin/01-overview.png" alt="Overview" />
         <figcaption>
           <h3><span class="num">01</span>Overview</h3>
-          <p>Metric tiles with Fraunces italic numerals on bone.</p>
+          <p>Metric tiles with italic Fraunces numerals on paper.</p>
         </figcaption>
       </figure>
       <figure>
@@ -331,15 +389,86 @@
           <p>Search + status filter; 20 seeded users.</p>
         </figcaption>
       </figure>
+      <figure>
+        <img src="admin/03-reports.png" alt="Reports queue" />
+        <figcaption>
+          <h3><span class="num">03</span>Reports</h3>
+          <p>Triage queue with magenta severity chips.</p>
+        </figcaption>
+      </figure>
+      <figure>
+        <img src="admin/04-photos.png" alt="Photo moderation" />
+        <figcaption>
+          <h3><span class="num">04</span>Photos</h3>
+          <p>Photo moderation grid with periwinkle action rail.</p>
+        </figcaption>
+      </figure>
+      <figure>
+        <img src="admin/05-audit.png" alt="Audit log" />
+        <figcaption>
+          <h3><span class="num">05</span>Audit</h3>
+          <p>Append-only audit log; tag chips colored by event kind.</p>
+        </figcaption>
+      </figure>
+      <figure>
+        <img src="admin/06-admins.png" alt="Admins" />
+        <figcaption>
+          <h3><span class="num">06</span>Admins</h3>
+          <p>Admin management; invite + role rotation; magenta destructive actions.</p>
+        </figcaption>
+      </figure>
     </div>
+  </section>
+
+  <section>
+    <h2>Change log</h2>
+    <p class="section-sub">
+      Aesthetic V2 — Aurora Dawn shipped in six PRs over 2026-05-19 / 2026-05-20. Phase G (this PR)
+      is the consolidation pass — gallery refresh, brand index, and report-card change-log entry.
+    </p>
+    <table class="changelog">
+      <thead>
+        <tr><th>PR</th><th>Phase</th><th>Headline</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>#53</td>
+          <td>A</td>
+          <td>Aurora Dawn palette (plum / magenta / marigold / periwinkle / paper / ink) + consolidated <code>OMRadius</code> token scale.</td>
+        </tr>
+        <tr>
+          <td>#54</td>
+          <td>B</td>
+          <td>Expanded Fraunces + Geist weight scale; new hero + microcaption typography tokens.</td>
+        </tr>
+        <tr>
+          <td>#57</td>
+          <td>C</td>
+          <td>Italic 'om' wordmark + light / dark / tinted variants + asset catalog regeneration.</td>
+        </tr>
+        <tr>
+          <td>#55</td>
+          <td>D</td>
+          <td>Dopamine match overlay — magenta hero typography, letter-by-letter spring reveal, 120-particle multi-color burst.</td>
+        </tr>
+        <tr>
+          <td>#56</td>
+          <td>F</td>
+          <td>Repo-wide sweep — every <code>RoundedRectangle</code> migrated to <code>OMShape</code>; every hard-coded color migrated to Aurora Dawn tokens.</td>
+        </tr>
+        <tr>
+          <td>#58</td>
+          <td>E</td>
+          <td>Configurable right / left / center action-button thumb-reach picker in Settings → Accessibility.</td>
+        </tr>
+      </tbody>
+    </table>
   </section>
 </main>
 
 <footer>
-  Regenerated locally for offline review after the Botanic polish pass.
-  Postgres on <code>localhost:5433</code> (avoiding port conflict with the
-  default <code>:5432</code>), MailHog on <code>:1025/:8025</code>, backend
-  on <code>:8080</code>. iPhone 17 simulator, iOS 26.5.
+  Aurora Dawn gallery — Phase G consolidation. iPhone 17 simulator (iOS 26.5), local
+  Postgres-seeded backend, paper / ink dual-mode. Source: <code>doc/ux-review/index.html</code>.
 </footer>
 </body>
 </html>
