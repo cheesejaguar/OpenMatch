@@ -17,6 +17,16 @@ import Sentry
 @inline(__always)
 private func omRunWithHTTPSpan<T>(_ path: String, _ work: () async throws -> T) async rethrows -> T {
     #if canImport(Sentry)
+    // Guard against lazy hub initialisation when SentrySDK was never
+    // started (e.g. test target, or production builds with an empty
+    // `SentryDSN` Info.plist value). Calling `startTransaction` on an
+    // unstarted SDK constructs a default hub on whatever queue we're on,
+    // which in turn reads `UIApplication.applicationState` off the main
+    // thread and trips Main Thread Checker — crashing the test process
+    // with signal abrt before any test case can run.
+    guard Crash.isReporting else {
+        return try await work()
+    }
     let span = SentrySDK.startTransaction(name: path, operation: "http.client")
     defer { span.finish() }
     return try await work()
