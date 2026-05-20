@@ -166,12 +166,18 @@
             </array>
         </dict>
         <!-- Diagnostics: crash logs and performance data. First-party
-             only; not shared. -->
+             only; not shared. SEV-M13 — we attach the OpenMatch user id
+             to Sentry events via `Crash.setUser(id:)` so we can scope
+             crash investigation to a single account on user-report.
+             That makes the diagnostic data "linked to identity" under
+             Apple's definition, even though the payload itself is
+             scrubbed by Sentry's `beforeSend` (PRs #48–#52). Declare
+             `Linked = true` to keep the manifest honest. -->
         <dict>
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypeCrashData</string>
             <key>NSPrivacyCollectedDataTypeLinked</key>
-            <false/>
+            <true/>
             <key>NSPrivacyCollectedDataTypeTracking</key>
             <false/>
             <key>NSPrivacyCollectedDataTypePurposes</key>
@@ -183,7 +189,7 @@
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypePerformanceData</string>
             <key>NSPrivacyCollectedDataTypeLinked</key>
-            <false/>
+            <true/>
             <key>NSPrivacyCollectedDataTypeTracking</key>
             <false/>
             <key>NSPrivacyCollectedDataTypePurposes</key>

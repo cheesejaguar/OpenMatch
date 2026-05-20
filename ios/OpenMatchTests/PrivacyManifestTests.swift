@@ -77,6 +77,35 @@ final class PrivacyManifestTests: XCTestCase {
         XCTAssertTrue(domains.isEmpty, "NSPrivacyTrackingDomains must be empty.")
     }
 
+    func testCrashAndPerformanceDataAreDeclaredLinked() throws {
+        // SEV-M13 — `Crash.setUser(id:)` attaches the user id to Sentry
+        // events. That makes our crash + performance data "linked to
+        // identity" under Apple's vocabulary; the manifest must say so.
+        guard let data = privacyManifestData() else {
+            return XCTFail("PrivacyInfo.xcprivacy not found")
+        }
+        let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
+        let types = plist?["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
+        let crash = types.first {
+            ($0["NSPrivacyCollectedDataType"] as? String) == "NSPrivacyCollectedDataTypeCrashData"
+        }
+        let perf = types.first {
+            ($0["NSPrivacyCollectedDataType"] as? String) == "NSPrivacyCollectedDataTypePerformanceData"
+        }
+        XCTAssertNotNil(crash, "CrashData entry must be declared")
+        XCTAssertNotNil(perf, "PerformanceData entry must be declared")
+        XCTAssertEqual(
+            crash?["NSPrivacyCollectedDataTypeLinked"] as? Bool,
+            true,
+            "CrashData must be Linked=true because Crash.setUser attaches the userId (SEV-M13)"
+        )
+        XCTAssertEqual(
+            perf?["NSPrivacyCollectedDataTypeLinked"] as? Bool,
+            true,
+            "PerformanceData must be Linked=true because the same Sentry context covers spans (SEV-M13)"
+        )
+    }
+
     // MARK: - Helpers
 
     private func sourcesContain(_ literal: String) -> Bool {

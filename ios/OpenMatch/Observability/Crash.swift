@@ -72,6 +72,16 @@ enum Crash {
         #endif
     }
 
+    /// Attach (or clear) the OpenMatch user id on subsequent Sentry
+    /// events.
+    ///
+    /// SEV-M13 — calling this with a non-nil id makes our crash and
+    /// performance telemetry "linked to identity" under Apple's privacy
+    /// vocabulary. `PrivacyInfo.xcprivacy` declares
+    /// `NSPrivacyCollectedDataTypeCrashData` and
+    /// `NSPrivacyCollectedDataTypePerformanceData` as `Linked = true`
+    /// to reflect that. If we ever drop the `setUser` call we should
+    /// flip those flags back to `false` to match.
     static func setUser(id: String?) {
         #if canImport(Sentry)
         guard isReporting else { return }
