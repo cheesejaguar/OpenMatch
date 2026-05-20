@@ -141,12 +141,23 @@ struct PreferencesDTO: Codable {
     var includeUnansweredOptionalFields: Bool
     var likesVisibility: String
     var discoveryPaused: Bool
+    var handedness: String?
 }
 
 enum LikesVisibility: String, Codable {
     case visible
     case count_only
     case hidden
+}
+
+/// Thumb-reach preference for the swipe deck action row. The server is
+/// the source of truth, but the value is also cached in UserDefaults so
+/// the UI can render in the user's preferred layout on cold launch
+/// before the network round-trip resolves.
+enum Handedness: String, Codable, CaseIterable {
+    case right
+    case left
+    case center
 }
 
 struct AlgorithmTransparencyDTO: Codable {

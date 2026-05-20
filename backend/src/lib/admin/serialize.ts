@@ -1,4 +1,4 @@
-import type { Profile, ProfilePhoto, User, UserBan } from "@prisma/client";
+import type { Preferences, Profile, ProfilePhoto, User, UserBan } from "@prisma/client";
 import { maskEmail } from "./hash.js";
 import { PERMISSIONS, type Permission } from "./permissions.js";
 
@@ -31,6 +31,9 @@ export interface UserDetailDTO extends UserSummaryDTO {
   dateOfBirth?: string | null;
   profile: ProfileDetailDTO | null;
   bans: BanSummaryDTO[];
+  /** Per-user swipe-deck thumb-reach preference (Phase E). Null when the
+   * user has no Preferences row yet. */
+  handedness: "right" | "left" | "center" | null;
 }
 
 export interface ProfileDetailDTO {
@@ -123,6 +126,7 @@ export function serializeUserDetail(
   user: User & {
     profile: (Profile & { photos?: ProfilePhoto[] }) | null;
     bans?: UserBan[];
+    preferences?: Preferences | null;
     _count?: { reportsAbout: number };
   },
   perms: PermissionSet,
@@ -179,6 +183,7 @@ export function serializeUserDetail(
         expiresAt: b.expiresAt?.toISOString() ?? null,
         unbannedAt: b.unbannedAt?.toISOString() ?? null,
       })) ?? [],
+    handedness: user.preferences?.handedness ?? null,
   };
 }
 

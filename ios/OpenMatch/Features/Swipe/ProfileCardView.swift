@@ -12,6 +12,7 @@ struct ProfileCardView: View {
     let canUndo: Bool
     var displayMode: DisplayMode = .top
 
+    @EnvironmentObject private var handedness: HandednessStore
     @State private var photoIndex: Int = 0
 
     private var intent: Double {
@@ -130,11 +131,28 @@ struct ProfileCardView: View {
                     .foregroundStyle(Color.white.opacity(0.92))
             }
 
-            actionRow
+            anchoredActionRow
                 .padding(.top, 8)
         }
         .foregroundStyle(.white)
         .padding(16)
+    }
+
+    /// Wraps the action row so its horizontal anchor follows the user's
+    /// thumb-reach preference. Default (`.right`) hugs the trailing edge
+    /// — natural for right-handed users holding the phone in one hand.
+    /// `.left` mirrors it for left-handed users, `.center` keeps both
+    /// buttons equidistant from the screen edges.
+    @ViewBuilder
+    private var anchoredActionRow: some View {
+        switch handedness.current {
+        case .right:
+            HStack { Spacer(); actionRow }
+        case .left:
+            HStack { actionRow; Spacer() }
+        case .center:
+            HStack { Spacer(); actionRow; Spacer() }
+        }
     }
 
     private var actionRow: some View {

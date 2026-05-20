@@ -14,6 +14,35 @@ interface Params {
   params: Promise<{ userId: string }>;
 }
 
+// Aurora Dawn (Phase E) — read-only chip showing the user's swipe-deck
+// thumb-reach preference. Color follows the palette guide:
+// plum = right (default), mauve = left, periwinkle = center.
+function HandednessChip({ value }: { value: "right" | "left" | "center" | null }) {
+  if (!value) return <span className="muted">—</span>;
+  const label = value === "right" ? "Right-handed" : value === "left" ? "Left-handed" : "Centered";
+  const bg =
+    value === "right"
+      ? "var(--om-plum)"
+      : value === "left"
+        ? "var(--om-mauve)"
+        : "var(--om-periwinkle)";
+  return (
+    <span
+      style={{
+        background: bg,
+        color: "var(--om-paper)",
+        padding: "2px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        letterSpacing: 0.2,
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
 interface NotesResponse {
   notes: Array<{
     id: string;
@@ -99,6 +128,10 @@ export default async function UserDetailPage({ params }: Params) {
             <dd style={{ margin: 0 }}>{user.lastActiveAt?.slice(0, 16) ?? "—"}</dd>
             <dt className="muted">Reports</dt>
             <dd style={{ margin: 0 }}>{user.reportCount}</dd>
+            <dt className="muted">Thumb reach</dt>
+            <dd style={{ margin: 0 }}>
+              <HandednessChip value={user.handedness} />
+            </dd>
           </dl>
         </div>
         <div className="card">

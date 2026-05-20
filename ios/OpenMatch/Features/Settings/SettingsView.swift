@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var handedness: HandednessStore
 
     var body: some View {
         OMScreen {
@@ -49,6 +50,21 @@ struct SettingsView: View {
                             OMRow("Delete account", systemImage: "trash", iconTint: OMColor.cinnabar, chevron: true)
                         }
                         .buttonStyle(.plain)
+                    }
+
+                    OMSection("Accessibility") {
+                        OMPicker(
+                            label: "Thumb reach",
+                            selection: Binding(
+                                get: { handedness.current },
+                                set: { handedness.current = $0 }
+                            ),
+                            options: [
+                                (label: "Right", value: Handedness.right),
+                                (label: "Left", value: Handedness.left),
+                                (label: "Center", value: Handedness.center),
+                            ]
+                        )
                     }
 
                     OMSection("Algorithm") {

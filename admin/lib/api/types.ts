@@ -54,6 +54,7 @@ export interface UserDetailDTO extends UserSummaryDTO {
   dateOfBirth: string | null;
   profile: ProfileDetailDTO | null;
   bans: BanSummaryDTO[];
+  handedness: "right" | "left" | "center" | null;
 }
 
 export interface PhotoDTO {
