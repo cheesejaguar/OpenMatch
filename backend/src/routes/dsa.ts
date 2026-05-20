@@ -1,8 +1,29 @@
+import { timingSafeEqual } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
 import { openNotice } from "../services/dsa.service.js";
+
+// SEV-V6 — constant-time email comparison for the unauthenticated
+// public ticket-status lookup. The original `===` short-circuited on
+// the first mismatching byte; given a known ticket id, a timing
+// oracle could incrementally reveal the reporter's email. The 30
+// req/min rate-limit gates practical exploitation but the comparison
+// should be principled.
+function ctStringEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  // Always run timingSafeEqual against a same-length buffer so the
+  // length mismatch itself doesn't leak via early-exit. We compare
+  // `ab` against itself when the lengths differ; the boolean is then
+  // AND'd with the (false) length-check.
+  const same =
+    ab.length === bb.length
+      ? timingSafeEqual(ab, bb)
+      : (timingSafeEqual(ab, ab), false);
+  return same;
+}
 
 // DSA notice-and-action intake — also fulfils:
 //   - TAKE IT DOWN Act NCII reporting form (`category=ncii`)
@@ -166,7 +187,7 @@ export const dsaRoutes: FastifyPluginAsync = async (app) => {
       if (!authorised) {
         const claimed = (req.query.email ?? "").trim().toLowerCase();
         const onTicket = (ticket.reporterEmail ?? "").trim().toLowerCase();
-        if (claimed.length > 0 && onTicket.length > 0 && claimed === onTicket) {
+        if (claimed.length > 0 && onTicket.length > 0 && ctStringEqual(claimed, onTicket)) {
           authorised = true;
         }
       }

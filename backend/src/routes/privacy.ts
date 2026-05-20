@@ -91,8 +91,11 @@ export const privacyRoutes: FastifyPluginAsync = async (app) => {
     { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
     async (req, reply) => {
       const body = consentSchema.parse(req.body);
-      const ip =
-        (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip;
+      // SEV-V5 — rely on `req.ip` (validated by Fastify's `trustProxy`
+      // chain) instead of parsing an unauthenticated XFF header. The
+      // hashed IP is persisted to ConsentRecord.ipHash and was the most
+      // user-controllable field in the previous implementation.
+      const ip = req.ip ?? null;
       try {
         const record = body.granted
           ? await recordConsent(app.prisma, {

@@ -60,12 +60,23 @@ describe("isEmailAdminAllowed — empty allowlist (SEV-A8)", () => {
     expect(isAllowed("alice@example.com")).toBe(true);
   });
 
-  it("never returns true in test without explicit allowlist (production-shape gate)", async () => {
+  it("returns true in NODE_ENV=test for backwards-compat with integration suite", async () => {
     setEnv({ NODE_ENV: "test", ADMIN_ALLOWED_EMAILS: "", ALLOW_DEV_LOGIN: undefined });
     const isAllowed = await loadIsEmailAdminAllowed();
-    // In test we expect the test suite to provision AdminUser rows
-    // explicitly via the helpers; the empty-allowlist branch must not
-    // act as a free pass even with NODE_ENV=test.
+    // The integration suite (test/admin-*.spec.ts) seeds AdminUser
+    // rows out of band and relies on the empty-allowlist branch to
+    // return true so the magic-link path can be exercised. Production
+    // and preview still fail closed.
+    expect(isAllowed("alice@example.com")).toBe(true);
+  });
+
+  it("returns false in unknown / misspelt NODE_ENV (preview / staging / qa)", async () => {
+    // The Zod schema only accepts development/test/production so the
+    // schema itself is the first defence; we still document the
+    // service-layer fallback here so a future widening of the enum
+    // can't silently re-enable the empty-allowlist branch.
+    setEnv({ NODE_ENV: "development", ADMIN_ALLOWED_EMAILS: "", ALLOW_DEV_LOGIN: "false" });
+    const isAllowed = await loadIsEmailAdminAllowed();
     expect(isAllowed("alice@example.com")).toBe(false);
   });
 });

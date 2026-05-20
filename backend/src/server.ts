@@ -236,6 +236,14 @@ export async function buildServer() {
       // a clean 413 instead of fastify-multipart throwing.
       fileSize: 5 * 1024 * 1024,
       fields: 4,
+      // SEV-N20 — bound every non-file metadata field. 1KB is plenty
+      // for the photo-upload metadata we accept today (a sort-order
+      // int + maybe a caption); the default would have permitted
+      // multi-MB text fields.
+      fieldSize: 1024,
+      fieldNameSize: 100,
+      parts: 6,
+      headerPairs: 200,
     },
   });
 
@@ -322,9 +330,25 @@ export async function buildServer() {
     return reply.code(500).send({ error: ErrorCodes.INTERNAL_ERROR });
   });
 
-  // PERF-1: /health stays the cheap liveness probe but also reports the
-  // current Postgres pool usage so an external monitor can graph it.
+  // PERF-1 + SEV-N9: /health is the unauthenticated liveness probe;
+  // it deliberately exposes only `{ ok: true }` so an external
+  // observer can't fingerprint the Postgres pool depth or correlate
+  // request volume with idle/busy stats. Pool depth is still
+  // graphable via `/health/internal/pool` (gated by
+  // INTERNAL_WORKER_TOKEN inside internal routes) for the operator
+  // dashboards.
   app.get("/health", async () => {
+    return { ok: true } as const;
+  });
+  // Keep the prior pool stats accessible to authenticated monitors —
+  // exposed via the existing internal-token gate so external observers
+  // see nothing more than the liveness probe.
+  app.get("/health/internal/pool", async (req, reply) => {
+    const expected = `Bearer ${env.INTERNAL_WORKER_TOKEN}`;
+    const authz = req.headers.authorization ?? "";
+    if (authz !== expected) {
+      return reply.code(401).send({ error: "unauthorized" });
+    }
     const out: { ok: true; pool?: { activeConnections: number } } = { ok: true };
     try {
       const rows = await app.prisma.$queryRawUnsafe<{ count: bigint }[]>(

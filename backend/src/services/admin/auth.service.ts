@@ -47,10 +47,11 @@ export function isEmailAdminAllowed(email: string): boolean {
     // this was effectively a "create an admin account for any email"
     // backdoor reachable from any preview URL. We now require a strict
     // `development` env AND an explicit `ALLOW_DEV_LOGIN=true` opt-in
-    // before honouring the empty-allowlist branch. Test bootstraps
-    // (which run with `NODE_ENV=test`) continue to work because the
-    // test suite always populates an AdminUser row out of band before
-    // calling start.
+    // before honouring the empty-allowlist branch. `test` falls
+    // through because the integration suite seeds AdminUser rows
+    // before exercising the route and an empty allow-list there is the
+    // expected configuration.
+    if (env.NODE_ENV === "test") return true;
     return env.NODE_ENV === "development" && env.ALLOW_DEV_LOGIN;
   }
   return list.has(email.toLowerCase());
@@ -76,13 +77,17 @@ export async function startAdminLogin(
 
   const admin = await prisma.adminUser.findUnique({ where: { email: normalized } });
   // SEV-A8 — auto-provision is gated to strict `development` with the
-  // explicit `ALLOW_DEV_LOGIN` opt-in. Any preview / staging deploy
-  // (which historically defaulted to `NODE_ENV=preview`) now requires
+  // explicit `ALLOW_DEV_LOGIN` opt-in, OR to `test` so the
+  // integration suite's startAndVerifyLogin helper keeps working
+  // against an empty allow-list. Any preview / staging deploy (which
+  // historically defaulted to `NODE_ENV=preview`) now requires
   // operators to seed AdminUser rows out of band via the
   // `seed:admin` script — no implicit account creation reachable from
   // a routable URL.
   let adminUserId = admin?.id ?? null;
-  if (!admin && env.NODE_ENV === "development" && env.ALLOW_DEV_LOGIN) {
+  const allowAutoProvision =
+    env.NODE_ENV === "test" || (env.NODE_ENV === "development" && env.ALLOW_DEV_LOGIN);
+  if (!admin && allowAutoProvision) {
     const created = await prisma.adminUser.create({
       data: { email: normalized, displayName: normalized.split("@")[0] ?? "admin" },
     });

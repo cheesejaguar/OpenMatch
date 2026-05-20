@@ -2,16 +2,24 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
 
+// SEV-V12 — bound every free-form filter so a multi-MB query string
+// cannot be DoS-piped through Prisma → Postgres before hitting an
+// enum-rejection. The free-form fields were `z.string().optional()`
+// with no length cap; the bounded form below caps each at 60 chars
+// (the longest currently-valid enum value is well under that).
+const FILTER_MAX_LEN = 60;
+const ID_MAX_LEN = 100;
+
 const listSchema = z.object({
-  adminUserId: z.string().optional(),
-  eventType: z.string().optional(),
-  targetEntityType: z.string().optional(),
-  targetEntityId: z.string().optional(),
-  accessReason: z.string().optional(),
+  adminUserId: z.string().min(1).max(ID_MAX_LEN).optional(),
+  eventType: z.string().min(1).max(FILTER_MAX_LEN).optional(),
+  targetEntityType: z.string().min(1).max(FILTER_MAX_LEN).optional(),
+  targetEntityId: z.string().min(1).max(ID_MAX_LEN).optional(),
+  accessReason: z.string().min(1).max(FILTER_MAX_LEN).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),
-  cursor: z.string().optional(),
+  cursor: z.string().min(1).max(ID_MAX_LEN).optional(),
 });
 
 export const adminAuditRoutes: FastifyPluginAsync = async (app) => {

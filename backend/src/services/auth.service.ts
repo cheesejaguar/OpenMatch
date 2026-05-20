@@ -202,8 +202,28 @@ async function verifyEmailLoginInner(
   if (challenge.consumedAt) throw Object.assign(new Error("challenge_used"), { statusCode: 400 });
   if (challenge.expiresAt.getTime() < Date.now())
     throw Object.assign(new Error("challenge_expired"), { statusCode: 400 });
-  if (challenge.tokenHash !== hashToken(input.token))
+  if (challenge.tokenHash !== hashToken(input.token)) {
+    // SEV-A14 — per-challenge attempt counter. The token itself is
+    // 256 bits so a direct brute-force needs the wall-clock budget of
+    // O(2^256), but a leaked challengeId (referer / log / MITM) lets
+    // an attacker burn arbitrary guesses against this specific row
+    // from a rotating proxy pool that bypasses the per-IP rate
+    // limit. After 5 wrong tokens we mark the challenge consumed so
+    // further guesses return `challenge_used` instead of remaining
+    // probable.
+    const ATTEMPT_CAP = 5;
+    const next = challenge.failedAttempts + 1;
+    await prisma.authChallenge
+      .update({
+        where: { id: challenge.id },
+        data: {
+          failedAttempts: next,
+          ...(next >= ATTEMPT_CAP ? { consumedAt: new Date() } : {}),
+        },
+      })
+      .catch(() => undefined);
     throw Object.assign(new Error("invalid_token"), { statusCode: 400 });
+  }
 
   await prisma.authChallenge.update({
     where: { id: challenge.id },
