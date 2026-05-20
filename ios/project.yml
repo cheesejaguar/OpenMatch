@@ -77,6 +77,13 @@ targets:
         # Manifest, not here.
         LSApplicationCategoryType: "public.app-category.social-networking"
         OMAPIBaseURL: "https://openmatch-backend-cheesejaguar-cheesejaguar-2353s-projects.vercel.app"
+        # SEV-M2 — SPKI (SubjectPublicKeyInfo) pins for backend TLS.
+        # Empty by default; see doc/security/cert-pinning-design.md for
+        # why Wave-2 ships the pinning *delegate* without enforcement.
+        # When the backend moves off the rotating Vercel preview host
+        # onto a custom domain we own, populate this array with two
+        # base64-encoded SHA-256 SPKI digests (current + backup).
+        OMBackendSPKIPins: []
         # IOS-2 · Crash reporting. Empty by default so local dev /
         # CI builds don't try to connect to Sentry; populated for
         # TestFlight + production builds via the build pipeline.
