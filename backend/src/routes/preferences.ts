@@ -20,6 +20,7 @@ const updatePrefs = z.object({
   excludeIncompatibleGoals: z.boolean().optional(),
   likesVisibility: z.enum(["visible", "count_only", "hidden"]).optional(),
   discoveryPaused: z.boolean().optional(),
+  handedness: z.enum(["right", "left", "center"]).optional(),
 });
 
 export const preferencesRoutes: FastifyPluginAsync = async (app) => {

@@ -506,6 +506,14 @@ final class APIClient: ObservableObject {
         try await patch("/api/v1/preferences/me", body: prefs)
     }
 
+    /// Patch only the handedness field. The backend route accepts a
+    /// partial body so we avoid round-tripping the full preferences
+    /// object every time a user changes their thumb-reach setting.
+    func updateHandedness(_ handedness: Handedness) async throws -> PreferencesDTO {
+        struct B: Codable { let handedness: String }
+        return try await patch("/api/v1/preferences/me", body: B(handedness: handedness.rawValue))
+    }
+
     // MARK: - Safety
 
     func report(reportedUserId: String, reason: String, details: String?) async throws {

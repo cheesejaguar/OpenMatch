@@ -52,6 +52,7 @@ export async function getUserDetail(prisma: PrismaClient, userId: string, perms:
     include: {
       profile: { include: { photos: { orderBy: { sortOrder: "asc" } } } },
       bans: { orderBy: { bannedAt: "desc" } },
+      preferences: true,
       _count: { select: { reportsAbout: true } },
     },
   });

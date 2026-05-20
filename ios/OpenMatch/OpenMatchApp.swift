@@ -21,6 +21,7 @@ struct OpenMatchApp: App {
             RootView()
                 .environmentObject(appState)
                 .environmentObject(appState.api)
+                .environmentObject(appState.handedness)
                 .preferredColorScheme(nil)
                 .onChange(of: scenePhase) { _, phase in
                     AppLifecycle.handleScenePhase(phase, appState: appState)

@@ -15,6 +15,7 @@ final class AppState: ObservableObject {
     @Published var likesVisibility: LikesVisibility = .visible
 
     let api: APIClient
+    let handedness: HandednessStore
 
     // The default APIClient must be constructed inside the body — its
     // init is @MainActor-isolated and Swift evaluates default parameter
@@ -23,10 +24,15 @@ final class AppState: ObservableObject {
     init(api: APIClient? = nil) {
         let client = api ?? APIClient(baseURL: APIConfig.defaultBaseURL)
         self.api = client
+        self.handedness = HandednessStore(api: client)
         self.auth = client.hasSession ? .loggedIn(userId: client.cachedUserId ?? "self") : .loggedOut
         if client.hasSession {
             RealtimeService.shared.connect(api: client)
             Crash.setUser(id: client.cachedUserId)
+            // Server is source of truth — pull on launch so a
+            // setting changed on another device propagates here.
+            let store = handedness
+            Task { await store.refreshFromServer() }
         }
         // Analytics is fire-and-forget; attach now so any pre-login
         // events (e.g. signup funnel) reach the backend.
@@ -63,6 +69,8 @@ final class AppState: ObservableObject {
         auth = .loggedIn(userId: userId)
         RealtimeService.shared.connect(api: api)
         Crash.setUser(id: userId)
+        let store = handedness
+        Task { await store.refreshFromServer() }
     }
 
     func signOut() {

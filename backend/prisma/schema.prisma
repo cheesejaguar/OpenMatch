@@ -64,6 +64,12 @@ enum LikesVisibility {
   hidden
 }
 
+enum Handedness {
+  right
+  left
+  center
+}
+
 enum SwipeDecision {
   like
   reject
@@ -480,6 +486,7 @@ model Preferences {
   excludeIncompatibleGoals        Boolean            @default(false)
   likesVisibility                 LikesVisibility    @default(visible)
   discoveryPaused                 Boolean            @default(false)
+  handedness                      Handedness         @default(right)
   createdAt                       DateTime           @default(now())
   updatedAt                       DateTime           @updatedAt
 }
