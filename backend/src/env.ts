@@ -1,5 +1,24 @@
 import { z } from "zod";
 
+// Hard-coded sentinels that must NEVER be the live value in any deployed
+// environment. They exist only as test/dev fallbacks (we inject them in
+// the test bootstrap, see backend/test/helpers/db.ts). Boot fails loudly
+// if any of them slips into a non-test env.
+const FORBIDDEN_ADMIN_JWT_SECRET = "dev-admin-secret-please-change";
+const FORBIDDEN_INTERNAL_WORKER_TOKEN = "dev-internal-worker-token-please-change-32-chars";
+
+function refuseDefaultInProduction(forbidden: string, label: string) {
+  return (value: string) => {
+    if (value === forbidden && process.env.NODE_ENV !== "test") {
+      throw new Error(
+        `${label} is using the documented placeholder value. ` +
+          `Generate a real secret (>=32 bytes of random data) and set ${label} in your environment.`,
+      );
+    }
+    return true;
+  };
+}
+
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8080),
@@ -13,14 +32,34 @@ const schema = z.object({
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
-  JWT_SECRET: z.string().min(16),
+  // Min length 32 forces ≥256 bits of entropy. Symmetric HS256 secrets at
+  // this size are well above any practical brute-force threshold.
+  JWT_SECRET: z.string().min(32),
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
 
   // Admin dashboard. Distinct signing key so a leaked consumer JWT_SECRET
-  // cannot mint admin tokens. Defaults are dev-friendly but production
-  // MUST set ADMIN_JWT_SECRET explicitly.
-  ADMIN_JWT_SECRET: z.string().min(16).default("dev-admin-secret-please-change"),
+  // cannot mint admin tokens. Required in all non-test environments —
+  // we deliberately removed the dev fallback because preview deploys
+  // running on Vercel with NODE_ENV=preview would otherwise mint admin
+  // tokens with a publicly-known string. The `test` bootstrap explicitly
+  // sets a long random value.
+  ADMIN_JWT_SECRET: z
+    .string()
+    .min(32)
+    .refine((v) => v !== FORBIDDEN_ADMIN_JWT_SECRET, {
+      message: "ADMIN_JWT_SECRET must not be the documented placeholder value",
+    })
+    .superRefine((v, ctx) => {
+      try {
+        refuseDefaultInProduction(FORBIDDEN_ADMIN_JWT_SECRET, "ADMIN_JWT_SECRET")(v);
+      } catch (err) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }),
   ADMIN_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   ADMIN_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
   ADMIN_MAGIC_LINK_TTL_SECONDS: z.coerce.number().int().positive().default(600),
@@ -93,7 +132,31 @@ const schema = z.object({
   INTERNAL_WORKER_TOKEN: z
     .string()
     .min(32)
-    .default("dev-internal-worker-token-please-change-32-chars"),
+    .refine((v) => v !== FORBIDDEN_INTERNAL_WORKER_TOKEN, {
+      message: "INTERNAL_WORKER_TOKEN must not be the documented placeholder value",
+    })
+    .superRefine((v, ctx) => {
+      try {
+        refuseDefaultInProduction(FORBIDDEN_INTERNAL_WORKER_TOKEN, "INTERNAL_WORKER_TOKEN")(v);
+      } catch (err) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }),
+
+  // TOTP envelope-encryption KEK. 32-byte symmetric key (hex or base64)
+  // used by `lib/crypto/totp-encryption.ts` to AES-256-GCM the stored
+  // `AdminUser.totpSecret` plaintext. Optional in dev/test to keep the
+  // local loop simple; when absent we store plaintext (legacy behaviour)
+  // and surface a startup warning. Production MUST set this.
+  ADMIN_TOTP_KEK: z.string().min(32).optional(),
+  // Salt for identity-hash HMAC. When set, `hashIdentity` uses
+  // HMAC-SHA256(salt, value) instead of plain SHA-256 so a leaked
+  // emailHash can no longer be confirmed against a candidate email
+  // without also knowing the salt.
+  IDENTITY_HASH_SECRET: z.string().min(32).optional(),
 
   // APNs delivery (OPS-1). When APNS_TEAM_ID is empty the push worker
   // logs a warning at startup but is otherwise a no-op (dev / CI safe).
@@ -120,5 +183,26 @@ const schema = z.object({
   SLACK_WEBHOOK_URL: z.string().url().optional(),
 });
 
-export const env = schema.parse(process.env);
+// In `NODE_ENV=test` we inject ephemeral random secrets so the existing
+// test suite doesn't need to plumb every secret env var through its
+// fixtures. These values are NEVER reachable in development or
+// production — the test bootstrap process is single-process and uses
+// `process.env.NODE_ENV === "test"`.
+//
+// When running the test suite outside CI (e.g. a developer pushing to a
+// branch worktree) the developer can still override any of these by
+// setting the env var explicitly before invoking vitest.
+function testEnvDefaults(): NodeJS.ProcessEnv {
+  if (process.env.NODE_ENV !== "test") return process.env;
+  return {
+    ...process.env,
+    JWT_SECRET: process.env.JWT_SECRET ?? "test-jwt-secret-32-bytes-min-padding-bytes-here",
+    ADMIN_JWT_SECRET:
+      process.env.ADMIN_JWT_SECRET ?? "test-admin-jwt-secret-32-bytes-min-padding-bytes-here",
+    INTERNAL_WORKER_TOKEN:
+      process.env.INTERNAL_WORKER_TOKEN ?? "test-internal-worker-token-32-bytes-min-padding-here",
+  };
+}
+
+export const env = schema.parse(testEnvDefaults());
 export type Env = typeof env;
