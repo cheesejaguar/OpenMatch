@@ -40,6 +40,7 @@ export const ErrorCodes = {
   RECOVERY_CODE_INVALID: "recovery_code_invalid",
   INVALID_RECOVERY_CODE: "invalid_recovery_code",
   TOTP_NOT_ENROLLED: "totp_not_enrolled",
+  TOTP_ALREADY_ENROLLED: "totp_already_enrolled",
   SESSION_MISSING_SID: "session_missing_sid",
   INVITE_REQUIRED: "invite_required",
   INVITE_CODE_REQUIRED: "invite_code_required",
