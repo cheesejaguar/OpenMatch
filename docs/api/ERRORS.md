@@ -31,8 +31,11 @@ MUST branch on this string, not on `message`.
 
 | Code | HTTP | Description |
 | --- | --- | --- |
+| `apple_email_unverified` | 400 | Apple identity token reports email_verified=false; new accounts require a verified email. |
 | `apple_identity_token_required` | 400 | An appleIdentityToken is required for the Apple auth method. |
 | `apple_invalid_sub` | 400 | Apple identity token did not carry a usable subject claim. |
+| `apple_nonce_mismatch` | 401 | Apple identity token nonce claim did not match SHA-256 of the nonce supplied by the client. |
+| `apple_nonce_required` | 400 | Sign in with Apple requires the client to send a per-request nonce when APPLE_NONCE_REQUIRED is on. |
 | `apple_not_configured` | 501 | Sign in with Apple is not configured for this deployment. |
 | `apple_verification_failed` | 401 | Apple identity token verification failed. |
 | `challenge_expired` | 400 | The auth challenge has expired; start a new login. |
@@ -97,6 +100,8 @@ MUST branch on this string, not on `message`.
 | `payload_too_large` | 413 | The uploaded file exceeds the size limit. |
 | `photo_not_found` | 404 | The photo id does not exist for this profile. |
 | `photo_not_owned` | 400 | A photo id in the reorder payload does not belong to this profile. |
+| `photo_url_token_expired` | 401 | The photo-serve token has expired; request a fresh URL. |
+| `photo_url_token_invalid` | 401 | The photo-serve token is missing, malformed, or has a bad signature. |
 | `profile_not_found` | 404 | The caller does not yet have a Profile row. |
 | `underage` | 403 | The declared date of birth is under 18. |
 | `unsupported_media_type` | 415 | The uploaded file's MIME type is not in the allowlist. |

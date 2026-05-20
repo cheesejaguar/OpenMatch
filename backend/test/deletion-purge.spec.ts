@@ -1,3 +1,5 @@
+import { access, mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { env } from "../src/env.js";
@@ -6,6 +8,8 @@ import { internalRoutes } from "../src/routes/internal.js";
 import { scheduleAccountDeletion } from "../src/services/privacy.service.js";
 import { runDeletionPurgeOnce } from "../src/workers/deletion.js";
 import { createUser, resetDb, testPrisma } from "./helpers/db.js";
+
+const LOCAL_MEDIA_DIR = path.resolve(process.cwd(), ".local-media");
 
 // COMP-3 — account deletion purge worker.
 //
@@ -126,6 +130,43 @@ describe("deletion purge worker", () => {
     });
     expect(after?.status).toBe("purged");
     expect(after?.purgedAt).toBeInstanceOf(Date);
+  });
+
+  it("hard-deletes the user's photo blobs from storage as well as DB rows", async () => {
+    // SEV-N16 / SEV-M7: the worker previously deleted ProfilePhoto rows
+    // but left the underlying blobs orphaned ("CDN cleanup is out-of-band"
+    // comment). Verify the local-fs dev branch — which mirrors the
+    // production `del()` call — actually removes files.
+    const user = await createUser({ displayName: "WithPhotos" });
+    const profile = await testPrisma.profile.findUnique({ where: { userId: user.id } });
+    const profileId = profile!.id;
+
+    const storageKey = `profiles/${profileId}/purge-test-${Math.random().toString(36).slice(2)}.jpg`;
+    const cdnUrl = `/media/${encodeURIComponent(storageKey)}`;
+    const filePath = path.join(LOCAL_MEDIA_DIR, storageKey);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+    await testPrisma.profilePhoto.create({
+      data: { profileId, storageKey, cdnUrl, sortOrder: 0 },
+    });
+
+    // Sanity: file was actually created.
+    await expect(access(filePath)).resolves.toBeUndefined();
+
+    const req = await scheduleAccountDeletion(testPrisma, { userId: user.id });
+    await testPrisma.accountDeletionRequest.update({
+      where: { id: req.id },
+      data: { gracePeriodEndsAt: new Date(Date.now() - 1_000) },
+    });
+
+    const report = await runDeletionPurgeOnce(testPrisma);
+    expect(report.purged).toBe(1);
+    expect(report.errors).toBe(0);
+
+    // DB row gone.
+    expect(await testPrisma.profilePhoto.count({ where: { profileId } })).toBe(0);
+    // Blob file gone — access() should now reject.
+    await expect(access(filePath)).rejects.toBeTruthy();
   });
 
   it("ignores deletions whose grace window has not yet elapsed", async () => {

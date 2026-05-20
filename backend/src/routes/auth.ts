@@ -75,6 +75,11 @@ const startSchema = z.object({
   method: z.enum(["email", "apple", "dev"]),
   email: z.string().email().optional(),
   appleIdentityToken: z.string().optional(),
+  // SEV-M5: raw (unhashed) nonce the iOS client used in its
+  // ASAuthorizationAppleIDRequest. Server SHA-256s it and compares to
+  // the `nonce` claim in the identity token. Required when
+  // env.APPLE_NONCE_REQUIRED is true; optional otherwise (legacy clients).
+  appleNonce: z.string().min(8).max(256).optional(),
   devUserId: z.string().optional(),
   inviteCode: z.string().min(1).max(64).optional(),
   declaredLocation: declaredLocationSchema,
@@ -176,7 +181,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         return sendHttpError(reply, httpError(ErrorCodes.APPLE_IDENTITY_TOKEN_REQUIRED));
       }
       try {
-        const identity = await verifyAppleIdentityToken(body.appleIdentityToken);
+        const identity = await verifyAppleIdentityToken(body.appleIdentityToken, {
+          rawNonce: body.appleNonce ?? null,
+        });
         const { user, isNewUser } = await upsertAppleUser(app.prisma, identity, {
           inviteRequired,
           inviteCode: body.inviteCode ?? null,
@@ -194,10 +201,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
             }),
           );
         }
-        if (e.statusCode === 400 || e.statusCode === 409) {
+        if (e.statusCode === 400 || e.statusCode === 401 || e.statusCode === 409) {
           // Service-thrown errors carry their canonical code as `message`.
           // Preserve them verbatim so iOS can branch on e.g. invite_invalid
-          // vs invite_exhausted vs invite_expired without a parallel mapping.
+          // vs apple_nonce_mismatch vs apple_email_unverified without a
+          // parallel mapping.
           return reply.code(e.statusCode).send({ error: e.message ?? ErrorCodes.INVITE_INVALID });
         }
         return sendHttpError(

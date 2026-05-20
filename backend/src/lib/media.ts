@@ -17,6 +17,26 @@ import { stripExif } from "./safety/exif.js";
 // Swift means depending on undocumented wire formats. `put()` is part of
 // the stable public SDK API. The 4.5MB Vercel function body limit is more
 // than enough for an on-device-downscaled 1080px JPEG (~400KB-1.5MB).
+//
+// Privacy hardening (SEV-N16 / SEV-M7): the raw Vercel Blob URL is a
+// non-guessable but immutable bearer token. We treat it as a server-only
+// secret — the `cdnUrl` column persists it so the server can re-fetch
+// or `del()` later, but the URL is NEVER returned to API clients. iOS
+// asks the server for a short-lived signed URL via
+// `GET /api/v1/photos/:id/url`, which performs authorization checks
+// (owner / matched / not-blocked / admin) and returns a JWT scoped to
+// the `GET /api/v1/photos/:id/serve` proxy endpoint. The proxy revalidates
+// the JWT and streams the blob bytes back. This adds two server hops per
+// thumbnail load but means:
+//   1. A blocked user cannot view their blocker's photos even with a stale
+//      cached URL.
+//   2. Revoking access (unmatch, block, delete) takes effect at the next
+//      URL fetch — at worst the signed-URL TTL later (5 min).
+//   3. The blob URL itself never appears in client storage / proxies.
+// `@vercel/blob` v0.23 only supports `access: "public"`; private blobs are
+// on the SDK roadmap. When private blobs ship, we can drop the proxy and
+// mint Blob-signed download URLs directly — the API surface
+// (`/photos/:id/url`) stays the same so iOS doesn't change.
 
 const LOCAL_DIR = path.resolve(process.cwd(), ".local-media");
 
@@ -70,6 +90,10 @@ export async function uploadProfilePhoto(args: {
   const storageKey = `profiles/${args.profileId}/${randomUUID()}.${extForMime(args.contentType)}`;
 
   if (env.BLOB_READ_WRITE_TOKEN) {
+    // `access: "public"` is the only value @vercel/blob@^0.23 accepts; the
+    // SDK comment notes private blobs are planned. We compensate at the API
+    // layer by never returning blob.url to clients and gating all reads
+    // behind the photos/:id/url -> /serve proxy.
     const blob = await put(storageKey, bytes, {
       access: "public",
       contentType: args.contentType,
@@ -90,20 +114,37 @@ export async function uploadProfilePhoto(args: {
   };
 }
 
-export async function deleteProfilePhoto(storageKey: string, cdnUrl: string): Promise<void> {
+export interface PhotoDeleteResult {
+  ok: boolean;
+  error?: string;
+}
+
+// Hard-delete the underlying blob. Returns success/failure rather than
+// swallowing errors silently so the deletion-purge worker can record the
+// outcome and retry. Local-fs deletes are treated as success even if the
+// file is already missing.
+export async function deleteProfilePhoto(
+  storageKey: string,
+  cdnUrl: string,
+): Promise<PhotoDeleteResult> {
   if (env.BLOB_READ_WRITE_TOKEN) {
-    // Vercel Blob's `del` takes the public URL (or storageKey on newer SDKs).
-    // Best-effort: a failed delete should not block removing the DB row,
-    // since orphan blobs are cheaper than orphan DB rows.
     try {
       await del(cdnUrl, { token: env.BLOB_READ_WRITE_TOKEN });
-    } catch {
-      // intentionally swallowed
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
-    return;
   }
   const full = path.join(LOCAL_DIR, storageKey);
-  await fs.unlink(full).catch(() => undefined);
+  try {
+    await fs.unlink(full);
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException | undefined)?.code;
+    if (code !== "ENOENT") {
+      return { ok: false, error: code ?? "unlink_failed" };
+    }
+  }
+  return { ok: true };
 }
 
 export async function readLocal(storageKey: string): Promise<Buffer | null> {
@@ -113,6 +154,48 @@ export async function readLocal(storageKey: string): Promise<Buffer | null> {
   } catch {
     return null;
   }
+}
+
+// Server-side fetch of the blob bytes for the proxy endpoint. Used by
+// `GET /api/v1/photos/:id/serve` after the JWT has been validated.
+// Returns null when the blob is missing or the fetch fails so the route
+// can render a 404. Streams are deliberately bypassed in favour of the
+// existing buffer-based contract — these are profile thumbnails (~1.5MB
+// each), and the proxy is invoked over the function execution model
+// where streaming responses would force a different runtime config.
+export interface PhotoBytes {
+  bytes: Buffer;
+  contentType: string;
+}
+
+export async function fetchPhotoBytes(
+  storageKey: string,
+  cdnUrl: string,
+): Promise<PhotoBytes | null> {
+  if (env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const res = await fetch(cdnUrl);
+      if (!res.ok) return null;
+      const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+      const buf = Buffer.from(await res.arrayBuffer());
+      return { bytes: buf, contentType };
+    } catch {
+      return null;
+    }
+  }
+  const buf = await readLocal(storageKey);
+  if (!buf) return null;
+  // Best-effort content-type from extension.
+  const ext = path.extname(storageKey).toLowerCase();
+  const contentType =
+    ext === ".jpg" || ext === ".jpeg"
+      ? "image/jpeg"
+      : ext === ".png"
+        ? "image/png"
+        : ext === ".webp"
+          ? "image/webp"
+          : "application/octet-stream";
+  return { bytes: buf, contentType };
 }
 
 // hashIdentity has moved to lib/hash.ts; re-export so any out-of-tree

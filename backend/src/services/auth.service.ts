@@ -235,6 +235,16 @@ async function upsertAppleUserInner(
   const existing = await prisma.user.findUnique({ where: { authSubject: identity.sub } });
   if (existing) return { user: existing, isNewUser: false };
 
+  // SEV-V: new accounts must come from an Apple identity whose email is
+  // verified. Apple sets email_verified=false for the relay address ONLY
+  // when the user is signing up with an unverified Apple ID; legitimate
+  // signups always see true. We allow existing users to sign in even with
+  // email_verified=false because they're already established and the
+  // relay-address quirk should not lock them out.
+  if (identity.email != null && identity.emailVerified !== true) {
+    throw Object.assign(new Error("apple_email_unverified"), { statusCode: 400 });
+  }
+
   if (options.inviteRequired && !options.inviteCode) {
     throw Object.assign(new Error("invite_code_required"), { statusCode: 400 });
   }

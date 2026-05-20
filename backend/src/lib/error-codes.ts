@@ -45,6 +45,9 @@ export const ErrorCodes = {
   APPLE_IDENTITY_TOKEN_REQUIRED: "apple_identity_token_required",
   APPLE_VERIFICATION_FAILED: "apple_verification_failed",
   APPLE_INVALID_SUB: "apple_invalid_sub",
+  APPLE_NONCE_REQUIRED: "apple_nonce_required",
+  APPLE_NONCE_MISMATCH: "apple_nonce_mismatch",
+  APPLE_EMAIL_UNVERIFIED: "apple_email_unverified",
 
   // ---- Admin auth / 2FA ----------------------------------------------
   ADMIN_NOT_FOUND: "admin_not_found",
@@ -82,6 +85,8 @@ export const ErrorCodes = {
   DUPLICATE_PHOTOS: "duplicate_photos",
   MIN_AGE_ABOVE_MAX: "min_age_above_max",
   UPLOAD_FAILED: "upload_failed",
+  PHOTO_URL_TOKEN_INVALID: "photo_url_token_invalid",
+  PHOTO_URL_TOKEN_EXPIRED: "photo_url_token_expired",
 
   // ---- Discovery / swipe / match / chat -------------------------------
   VIEWER_NOT_INITIALIZED: "viewer_not_initialized",
@@ -290,6 +295,24 @@ export const ERROR_CODE_META: Record<ErrorCode, ErrorCodeMeta> = {
     description: "Apple identity token did not carry a usable subject claim.",
     group: "Auth",
   },
+  [ErrorCodes.APPLE_NONCE_REQUIRED]: {
+    status: 400,
+    description:
+      "Sign in with Apple requires the client to send a per-request nonce when APPLE_NONCE_REQUIRED is on.",
+    group: "Auth",
+  },
+  [ErrorCodes.APPLE_NONCE_MISMATCH]: {
+    status: 401,
+    description:
+      "Apple identity token nonce claim did not match SHA-256 of the nonce supplied by the client.",
+    group: "Auth",
+  },
+  [ErrorCodes.APPLE_EMAIL_UNVERIFIED]: {
+    status: 400,
+    description:
+      "Apple identity token reports email_verified=false; new accounts require a verified email.",
+    group: "Auth",
+  },
 
   // Admin auth / 2FA
   [ErrorCodes.ADMIN_NOT_FOUND]: {
@@ -451,6 +474,16 @@ export const ERROR_CODE_META: Record<ErrorCode, ErrorCodeMeta> = {
   [ErrorCodes.UPLOAD_FAILED]: {
     status: 500,
     description: "Photo upload to blob storage failed.",
+    group: "Profile",
+  },
+  [ErrorCodes.PHOTO_URL_TOKEN_INVALID]: {
+    status: 401,
+    description: "The photo-serve token is missing, malformed, or has a bad signature.",
+    group: "Profile",
+  },
+  [ErrorCodes.PHOTO_URL_TOKEN_EXPIRED]: {
+    status: 401,
+    description: "The photo-serve token has expired; request a fresh URL.",
     group: "Profile",
   },
 

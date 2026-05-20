@@ -220,7 +220,22 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       return sendHttpError(reply, httpError(ErrorCodes.PHOTO_NOT_FOUND));
     }
 
-    await deleteProfilePhoto(photo.storageKey, photo.cdnUrl);
+    // Hard-delete the underlying blob FIRST. If blob deletion fails we
+    // still drop the DB row (orphan blobs are cheaper than orphan rows
+    // pointing at content the user thinks they deleted) but log the
+    // failure so the deletion-worker / on-call can reconcile.
+    const blobResult = await deleteProfilePhoto(photo.storageKey, photo.cdnUrl);
+    if (!blobResult.ok) {
+      app.log.warn(
+        {
+          event: "media.blob_delete_failed",
+          photoId: photo.id,
+          storageKey: photo.storageKey,
+          error: blobResult.error,
+        },
+        "blob_delete_failed",
+      );
+    }
     await app.prisma.profilePhoto.delete({ where: { id: photo.id } });
 
     // Compact the remaining photos' sort orders so the next upload's index

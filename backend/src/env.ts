@@ -56,6 +56,16 @@ const schema = z.object({
   APPLE_CLIENT_ID: z.string().optional(),
   APPLE_KEY_ID: z.string().optional(),
   APPLE_PRIVATE_KEY: z.string().optional(),
+  // SEV-M5: when `true`, /api/v1/auth/start with method=apple REQUIRES a
+  // per-request unhashed nonce in the request body and rejects identity
+  // tokens whose `nonce` claim does not equal SHA-256(nonce). Defaults to
+  // false for one release cycle so the iOS-side change can ship first;
+  // flip to true once the iOS coordinator generating the nonce is rolled
+  // out to all clients.
+  APPLE_NONCE_REQUIRED: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
 
   // Ably realtime fan-out for chat. Required in production for live message
   // delivery; if absent, POST /messages still works but no push is emitted.
