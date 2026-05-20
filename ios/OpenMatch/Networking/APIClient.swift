@@ -391,13 +391,22 @@ final class APIClient: ObservableObject {
         ))
     }
 
-    func appleLogin(identityToken: String, inviteCode: String? = nil) async throws -> SessionResponse {
+    func appleLogin(
+        identityToken: String,
+        rawNonce: String,
+        inviteCode: String? = nil
+    ) async throws -> SessionResponse {
+        // SEV-M5 — `rawNonce` is the unhashed value that the coordinator
+        // SHA-256-hashed into `request.nonce` before kicking off the
+        // ASAuthorizationController flow. The backend re-hashes it and
+        // compares against the `nonce` claim on the JWT.
         let s: SessionResponse = try await post("/api/v1/auth/start", body: StartLoginRequest(
             method: "apple",
             email: nil,
             appleIdentityToken: identityToken,
             devUserId: nil,
-            inviteCode: inviteCode
+            inviteCode: inviteCode,
+            appleRawNonce: rawNonce
         ))
         setSession(s)
         return s
