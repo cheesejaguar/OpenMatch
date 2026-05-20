@@ -68,6 +68,7 @@ MUST branch on this string, not on `message`.
 | `invalid_totp_code` | 401 | The supplied TOTP code is not valid. |
 | `recovery_code_invalid` | 401 | The supplied TOTP recovery code is not valid or has been consumed. |
 | `session_missing_sid` | 409 | Cannot elevate an admin session that lacks a session id; re-issue tokens via /auth/verify. |
+| `totp_already_enrolled` | 409 | TOTP is already enrolled; use /admin/auth/totp/reset (2FA-elevated) to replace the device. |
 | `totp_invalid` | 401 | The supplied TOTP code is not valid. |
 | `totp_not_enrolled` | 409 | TOTP has not been enrolled for this admin yet. |
 | `two_factor_required` | 403 | This admin endpoint requires an elevated (2FA) session. |

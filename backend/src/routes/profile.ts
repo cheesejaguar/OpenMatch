@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { PUBLIC_PROFILE_SELECT } from "../lib/dto/peer-user.js";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
 import {
@@ -285,9 +286,13 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get<{ Params: { profileId: string } }>("/:profileId", async (req, reply) => {
+    // SEV-A3: explicit `select` (PUBLIC_PROFILE_SELECT) excludes the
+    // raw PostGIS `location` / `declaredLocation` geographies and the
+    // internal moderation columns from the response. The previous
+    // `include` returned every column including raw lat/lng.
     const profile = await app.prisma.profile.findUnique({
       where: { id: req.params.profileId },
-      include: { photos: { orderBy: { sortOrder: "asc" } } },
+      select: PUBLIC_PROFILE_SELECT,
     });
     if (!profile) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     if (profile.visibilityStatus === "hidden") {

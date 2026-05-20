@@ -7,6 +7,13 @@ import { env } from "../env.js";
 // plugins/auth.ts. We register a second @fastify/jwt instance with a
 // dedicated namespace so the two cannot accidentally accept each other's
 // tokens.
+//
+// SEV-V3 / SEV-A13: pin iss/aud/alg. The admin namespace uses
+// `openmatch-admin` as both iss and aud so a consumer token can never
+// be replayed against an admin endpoint even if the two JWT secrets
+// ever collide. The consumer plugin pins `openmatch-api` / `openmatch-ios`.
+export const ADMIN_JWT_ISSUER = "openmatch-admin";
+export const ADMIN_JWT_AUDIENCE = "openmatch-admin-bff";
 
 export interface AdminClaims {
   sub: string; // adminUserId
@@ -45,7 +52,15 @@ export default fp(async (app) => {
     jwtSign: "adminJwtSign",
     secret: env.ADMIN_JWT_SECRET,
     sign: {
+      algorithm: "HS256",
       expiresIn: `${env.ADMIN_ACCESS_TTL_SECONDS}s`,
+      iss: ADMIN_JWT_ISSUER,
+      aud: ADMIN_JWT_AUDIENCE,
+    },
+    verify: {
+      algorithms: ["HS256"],
+      allowedIss: ADMIN_JWT_ISSUER,
+      allowedAud: ADMIN_JWT_AUDIENCE,
     },
   });
 
@@ -59,6 +74,17 @@ export default fp(async (app) => {
       // @ts-expect-error - augmented by fastify-jwt namespace
       const payload = (await req.adminJwtVerify()) as AdminClaims;
       if (payload.scope !== "admin") {
+        return reply.code(401).send({ error: "unauthorized" });
+      }
+      // Defence-in-depth: re-check iss/aud after verify in case the
+      // registration options are ever weakened. Closes the gap where
+      // a future refactor removes `allowedIss`/`allowedAud` and a
+      // misconfigured caller forges a token with the right secret but
+      // the wrong namespace.
+      if (
+        (payload as unknown as { iss?: string }).iss !== ADMIN_JWT_ISSUER ||
+        (payload as unknown as { aud?: string }).aud !== ADMIN_JWT_AUDIENCE
+      ) {
         return reply.code(401).send({ error: "unauthorized" });
       }
       const admin = await app.prisma.adminUser.findUnique({

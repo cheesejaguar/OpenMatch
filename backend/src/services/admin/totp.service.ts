@@ -1,5 +1,6 @@
-import { createHash, createHmac, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { decryptTotpSecret, encryptTotpSecret } from "../../lib/crypto/totp-encryption.js";
 
 // Round 3 (ADMIN-9): TOTP-based 2FA. The flow is:
 //
@@ -82,6 +83,17 @@ export function generateTotpCode(secretBase32: string, now: number = Date.now())
   return hotp(secret, counter);
 }
 
+// Constant-time string compare. Returns false on length mismatch
+// (intentional: lengths leaking would be a marginal vector but the API
+// is `string == string` so callers pass two 6-digit strings). Uses
+// `crypto.timingSafeEqual` after Buffer-coercing.
+function constantTimeStringEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
 export function verifyTotpAgainstSecret(
   secretBase32: string,
   code: string,
@@ -96,10 +108,17 @@ export function verifyTotpAgainstSecret(
     return false;
   }
   const counter = Math.floor(now / 1000 / STEP_SECONDS);
+  // Iterate every offset before returning so the wall-clock time is
+  // a function of WINDOW size, not whether the input matched. The
+  // per-iteration comparison uses crypto.timingSafeEqual.
+  let matched = false;
   for (let drift = -WINDOW; drift <= WINDOW; drift += 1) {
-    if (hotp(secret, counter + drift) === cleaned) return true;
+    const candidate = hotp(secret, counter + drift);
+    if (constantTimeStringEqual(candidate, cleaned)) {
+      matched = true;
+    }
   }
-  return false;
+  return matched;
 }
 
 export interface EnrollResult {
@@ -153,13 +172,35 @@ export interface EnrollOptions {
   issuer?: string;
 }
 
+export interface EnrollOptionsInternal extends EnrollOptions {
+  /**
+   * When true, allows the enrol path to overwrite an existing TOTP
+   * secret. Caller MUST have verified the request is authorised to do
+   * so (admin has presented a current TOTP code, supplied a recovery
+   * code, or otherwise been elevated). Defaults to false; the default
+   * fails closed with `totp_already_enrolled` (HTTP 409).
+   *
+   * Audit reference: SEV-A1 (admin TOTP downgrade via re-enrolment).
+   */
+  allowOverwrite?: boolean;
+}
+
 export async function enrollTotp(
   prisma: PrismaClient,
   adminUserId: string,
-  options: EnrollOptions = {},
+  options: EnrollOptionsInternal = {},
 ): Promise<EnrollResult> {
   const admin = await prisma.adminUser.findUnique({ where: { id: adminUserId } });
   if (!admin) throw Object.assign(new Error("admin_not_found"), { statusCode: 404 });
+
+  // SEV-A1: fail closed on re-enrolment. The previous behaviour silently
+  // overwrote the existing secret, which let a magic-link-only attacker
+  // displace the legitimate admin's authenticator. The route layer is
+  // responsible for routing legitimate device-replacement requests
+  // through `/totp/reset` (which requires an elevated session).
+  if (admin.totpSecret && !options.allowOverwrite) {
+    throw Object.assign(new Error("totp_already_enrolled"), { statusCode: 409 });
+  }
 
   // 20 random bytes = 160 bits of entropy; that's the RFC 6238 SHOULD.
   const secret = base32Encode(randomBytes(20));
@@ -169,10 +210,14 @@ export async function enrollTotp(
   const recoveryCodes = Array.from({ length: 8 }, generateRecoveryCode);
   const recoveryHashes = recoveryCodes.map(hashRecoveryCode);
 
+  // SEV-V8: encrypt the secret at rest (envelope-encrypted with
+  // ADMIN_TOTP_KEK). Falls back to plaintext in dev when KEK is unset.
+  const stored = encryptTotpSecret(secret);
+
   await prisma.adminUser.update({
     where: { id: adminUserId },
     data: {
-      totpSecret: secret,
+      totpSecret: stored.stored,
       totpEnrolledAt: new Date(),
       recoveryCodes: recoveryHashes,
     },
@@ -188,7 +233,16 @@ export async function verifyTotpCode(
 ): Promise<boolean> {
   const admin = await prisma.adminUser.findUnique({ where: { id: adminUserId } });
   if (!admin || !admin.totpSecret) return false;
-  return verifyTotpAgainstSecret(admin.totpSecret, code);
+  let plaintext: string;
+  try {
+    plaintext = decryptTotpSecret(admin.totpSecret);
+  } catch {
+    // Stored ciphertext that we can't decrypt (KEK missing or tampered).
+    // Fail closed; the operator must investigate before the admin can
+    // verify again.
+    return false;
+  }
+  return verifyTotpAgainstSecret(plaintext, code);
 }
 
 export interface RecoveryResult {
@@ -204,7 +258,20 @@ export async function consumeRecoveryCode(
   const admin = await prisma.adminUser.findUnique({ where: { id: adminUserId } });
   if (!admin) return { ok: false, remainingCodes: 0 };
   const target = hashRecoveryCode(rawCode);
-  if (!admin.recoveryCodes.includes(target)) {
+  // SEV-V2: replace `Array.prototype.includes` with a constant-time
+  // sweep across the stored hashes. `includes` short-circuits on the
+  // first byte mismatch, which is a per-position timing oracle when
+  // the list is small. Iterate every element and accumulate the
+  // result so wall-clock time is constant w.r.t. position.
+  const targetBuf = Buffer.from(target, "utf8");
+  let matched = false;
+  for (const stored of admin.recoveryCodes) {
+    const storedBuf = Buffer.from(stored, "utf8");
+    if (storedBuf.length === targetBuf.length && timingSafeEqual(storedBuf, targetBuf)) {
+      matched = true;
+    }
+  }
+  if (!matched) {
     return { ok: false, remainingCodes: admin.recoveryCodes.length };
   }
   const remaining = admin.recoveryCodes.filter((h) => h !== target);
