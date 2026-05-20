@@ -6,6 +6,7 @@ import {
   writeAudit,
 } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
+import { createAccessGrant } from "../../lib/admin/sensitive-access.js";
 import { permsFrom } from "../../lib/admin/serialize.js";
 import { ErrorCodes } from "../../lib/error-codes.js";
 import { httpError, sendHttpError } from "../../lib/http-error.js";
@@ -69,15 +70,23 @@ export const adminReportRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.get<{ Params: { reportId: string } }>(
+  app.get<{ Params: { reportId: string }; Querystring: { revealGrantId?: string } }>(
     "/:reportId",
     { preHandler: app.requirePermission(PERMISSIONS.REPORT_READ_ALL) },
     async (req, reply) => {
       const principal = req.admin!;
+      // SEV-M12 — Optional ?revealGrantId=… lets a moderator unmask
+      // the reporter for *this* report when a previous POST to
+      // /reveal-reporter returned a SensitiveAccessGrant. The grant
+      // is per-report and TTL-bound.
       const detail = await getReportDetail(
         app.prisma,
         req.params.reportId,
         permsFrom(principal.permissions),
+        {
+          revealReporterGrantId: req.query.revealGrantId ?? null,
+          adminUserId: principal.adminUserId,
+        },
       );
       if (!detail) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
       await writeAudit(
@@ -88,9 +97,85 @@ export const adminReportRoutes: FastifyPluginAsync = async (app) => {
           targetEntityType: "report",
           targetEntityId: req.params.reportId,
           reportId: req.params.reportId,
+          metadata: {
+            // Record whether the reporter was revealed for this read
+            // so the audit trail surfaces sensitive-access decisions.
+            reporterRevealed: !detail.reporter.redactedIdentity,
+            revealGrantId: req.query.revealGrantId ?? null,
+          },
         },
       );
       return reply.send(detail);
+    },
+  );
+
+  // SEV-M12 — Explicit "reveal reporter" admin action.
+  //
+  // A triager with `report.read.all` (but not
+  // `report.read.reporter_identity`) sees a pseudonymous reporter in
+  // the report DTO. When investigating a retaliation appeal or a ban
+  // evasion they sometimes legitimately need the real identity. This
+  // endpoint:
+  //  1. Requires `report.reveal_reporter` permission.
+  //  2. Requires the caller to state a non-empty `reason` (one of the
+  //     `AccessReasonCode` enum values) and an optional free-text note.
+  //  3. Mints a short-lived `SensitiveAccessGrant`. The next
+  //     `GET /admin/reports/:id?revealGrantId=…` call will unmask the
+  //     reporter for that admin, for that report, until the grant
+  //     expires.
+  //  4. Writes an `AdminAuditLog` row with
+  //     eventType=`sensitive_access_granted` so every reveal is
+  //     captured for after-the-fact review.
+  const revealSchema = z.object({
+    reason: z.enum([
+      "active_report_investigation",
+      "user_appeal",
+      "scam_investigation",
+      "impersonation_investigation",
+      "safety_escalation",
+      "legal_compliance",
+      "quality_review",
+      "other",
+    ]),
+    note: z.string().max(2000).optional(),
+  });
+  app.post<{ Params: { reportId: string } }>(
+    "/:reportId/reveal-reporter",
+    { preHandler: app.requirePermission(PERMISSIONS.REPORT_REVEAL_REPORTER) },
+    async (req, reply) => {
+      const body = revealSchema.parse(req.body);
+      const principal = req.admin!;
+      const report = await app.prisma.report.findUnique({
+        where: { id: req.params.reportId },
+        select: { id: true, reporterUserId: true },
+      });
+      if (!report) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
+      const grant = await createAccessGrant({
+        prisma: app.prisma,
+        adminUserId: principal.adminUserId,
+        entityType: "user",
+        entityId: report.reporterUserId,
+        reason: body.reason,
+        note: body.note ?? null,
+        reportId: report.id,
+      });
+      await writeAudit(
+        app.prisma,
+        auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
+        {
+          eventType: "sensitive_access_granted",
+          targetEntityType: "report",
+          targetEntityId: report.id,
+          accessReason: body.reason,
+          sensitiveAccessGrantId: grant.id,
+          reportId: report.id,
+          metadata: { surface: "reveal_reporter" },
+        },
+      );
+      return reply.send({
+        accessGrantId: grant.id,
+        expiresAt: grant.expiresAt.toISOString(),
+      });
     },
   );
 

@@ -6,7 +6,11 @@ struct WelcomeView: View {
     @State private var email: String = ""
     @State private var challengeId: String?
     @State private var token: String = ""
+    // SEV-M4 — Dev-only state. Gated so the field isn't allocated in
+    // Release builds where the disclosure-group is absent.
+    #if DEBUG
     @State private var devUserId: String = "u001"
+    #endif
     @State private var error: String?
     @State private var loading = false
     @State private var appleCoordinator: AppleSignInCoordinator?
@@ -67,7 +71,14 @@ struct WelcomeView: View {
                                 .disabled(email.isEmpty || loading)
 
                             if challengeId != nil {
-                                TextField("6-digit code from email", text: $token)
+                                // SEV-M15 — Render the verification
+                                // code through `SecureField` so the
+                                // dev token auto-filled in non-prod
+                                // builds isn't shoulder-surfable. Real
+                                // users still tap-paste the 6-digit
+                                // code; SecureField hides the glyphs
+                                // either way.
+                                SecureField("6-digit code from email", text: $token)
                                     .textFieldStyle(.roundedBorder)
                                 Button("Verify") { Task { await verify() } }
                                     .buttonStyle(OMPrimaryButtonStyle())
@@ -95,6 +106,12 @@ struct WelcomeView: View {
                         .padding(.top, 8)
                         .opacity(reveal(at: 3))
 
+                        // SEV-M4 — The Developer-login disclosure is a
+                        // pure local-dev convenience and must not ship
+                        // in TestFlight / App Store builds. Compile-time
+                        // gated so the strings are not present in
+                        // Release-binary stringification.
+                        #if DEBUG
                         DisclosureGroup("Developer login (local dev only)") {
                             VStack(spacing: 8) {
                                 TextField("User id", text: $devUserId)
@@ -108,6 +125,7 @@ struct WelcomeView: View {
                         .foregroundStyle(OMColor.inkMuted)
                         .padding(.horizontal, 24)
                         .opacity(reveal(at: 4))
+                        #endif
 
                         HStack(spacing: 16) {
                             Link("Privacy", destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/privacy/principles.md")!)
@@ -196,7 +214,14 @@ struct WelcomeView: View {
         do {
             let r = try await api.startLogin(email: email, inviteCode: normalizedInvite)
             challengeId = r.challengeId
+            // SEV-M15 — Only auto-fill the dev token into the
+            // verification field in DEBUG builds. In Release the
+            // backend should never emit `devToken`, but belt-and-braces
+            // gating means a misconfigured `NODE_ENV` on a staging
+            // TestFlight build still doesn't pre-populate the field.
+            #if DEBUG
             if let dev = r.devToken { token = dev }
+            #endif
         } catch {
             self.error = mapInviteError(from: error)
         }
@@ -235,6 +260,13 @@ struct WelcomeView: View {
         }
     }
 
+    // SEV-M4 — The dev-login call site is wrapped in `#if DEBUG`
+    // alongside its UI. Defining the method itself only in DEBUG removes
+    // the symbol from the Release binary; the `devLogin` API on
+    // APIClient stays callable so tests can still exercise it, but
+    // there is no Welcome-view code path that calls it in shipped
+    // builds.
+    #if DEBUG
     private func devLogin() async {
         do {
             _ = try await api.devLogin(
@@ -247,6 +279,7 @@ struct WelcomeView: View {
             self.error = mapInviteError(from: error)
         }
     }
+    #endif
 
     // Maps backend invite-gate errors to user-readable copy. The
     // typed APIError cases below come from the central registry in

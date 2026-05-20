@@ -328,6 +328,10 @@ final class APIClient: ObservableObject {
     private(set) var cachedUserId: String?
 
     private let session: URLSession
+    // SEV-M2 — Strong-held reference to the pinning delegate. URLSession
+    // also retains it, but keeping a property makes the lifetime explicit
+    // and lets tests reach in to verify the delegate was installed.
+    private let pinningDelegate: PinningSessionDelegate
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
     private var accessToken: String?
@@ -347,7 +351,15 @@ final class APIClient: ObservableObject {
         // doesn't 451. Production requests are tagged by Vercel/Cloudflare.
         cfg.httpAdditionalHeaders = ["x-openmatch-country": "US"]
         #endif
-        self.session = URLSession(configuration: cfg)
+        // SEV-M2 — Install the SPKI pinning delegate. The delegate
+        // is a no-op when `OMBackendSPKIPins` in Info.plist is empty
+        // (default for Wave 2 — see `doc/security/cert-pinning-design.md`).
+        // When pins are configured it rejects any TLS chain whose leaf
+        // SPKI hash isn't in the pin list, even if system trust accepts
+        // the chain.
+        let delegate = PinningSessionDelegate()
+        self.pinningDelegate = delegate
+        self.session = URLSession(configuration: cfg, delegate: delegate, delegateQueue: nil)
         self.decoder = JSONDecoder()
         self.decoder.dateDecodingStrategy = .iso8601
         self.encoder = JSONEncoder()

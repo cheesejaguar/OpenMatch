@@ -23,6 +23,60 @@ export interface UserSummaryDTO {
   createdAt: string;
   lastActiveAt: string | null;
   reportCount: number;
+  /**
+   * SEV-M12 — `true` when the userId / displayName have been replaced
+   * with a per-report pseudonym because the calling admin does not
+   * hold `report.read.reporter_identity`. The admin UI uses this flag
+   * to render a "Reveal reporter" button that POSTs to the explicit
+   * reveal endpoint (which audit-logs the unmask).
+   */
+  redactedIdentity?: boolean;
+}
+
+/**
+ * SEV-M12 — Build an opaque, per-report pseudonym for a reporter whose
+ * identity should not be visible to the calling admin. Deterministic
+ * per (reportId, userId) so the same admin sees the same handle across
+ * page reloads, but two reports about the same person yield different
+ * handles — preventing cross-report correlation by a triager who lacks
+ * the identity permission.
+ */
+export function reporterPseudonym(reportId: string, userId: string): string {
+  // Lightweight FNV-style mix; doesn't need to be cryptographically
+  // strong because the real user id never leaves the server.
+  let h = 0x811c9dc5;
+  const input = `${reportId}:${userId}`;
+  for (let i = 0; i < input.length; i += 1) {
+    h = (h ^ input.charCodeAt(i)) >>> 0;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `reporter:${h.toString(16).padStart(8, "0")}`;
+}
+
+/**
+ * SEV-M12 — Project a reporter into a fully-redacted summary. We keep
+ * the *aggregate* signals the triager genuinely needs (account status,
+ * verification, prior-report count for context) and zero out anything
+ * that could identify the human behind the report.
+ */
+export function serializeRedactedReporter(
+  reportId: string,
+  user: User & { profile?: Profile | null; _count?: { reportsAbout: number } },
+): UserSummaryDTO {
+  return {
+    userId: reporterPseudonym(reportId, user.id),
+    displayName: null,
+    age: null,
+    status: user.status,
+    isBanned: user.isBanned,
+    profileStatus: null,
+    moderationStatus: null,
+    verificationStatus: user.profile?.verificationStatus ?? null,
+    createdAt: user.createdAt.toISOString(),
+    lastActiveAt: null,
+    reportCount: user._count?.reportsAbout ?? 0,
+    redactedIdentity: true,
+  };
 }
 
 export interface UserDetailDTO extends UserSummaryDTO {

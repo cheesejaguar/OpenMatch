@@ -234,10 +234,26 @@ final class FileMessageQueueStorage: MessageQueueStorage {
         // Best-effort: ensure the containing directory exists. We don't
         // throw here because a missing directory at init time just means
         // load() returns []; save() will create it on first write.
+        // SEV-M6 — Apply `.completeFileProtection` to the directory so
+        // the queue file inherits it. iOS evaluates the protection class
+        // at create-time; setting it on the directory means future
+        // writes in this folder get the same class without each caller
+        // having to remember.
+        let dir = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
+            at: dir,
+            withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.complete]
         )
+        // Also exclude the queue directory from iCloud / iTunes backups
+        // so the at-rest message bodies can't escape via a backup
+        // restore onto a second device. The flag is best-effort — on a
+        // brand-new install the directory may not exist yet; the same
+        // attribute is re-applied in save() before each write.
+        var mutableDir = dir
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? mutableDir.setResourceValues(values)
     }
 
     static func defaultURL() -> URL {
@@ -260,7 +276,20 @@ final class FileMessageQueueStorage: MessageQueueStorage {
     func save(_ items: [PendingMessage]) {
         do {
             let data = try encoder.encode(items)
-            try data.write(to: url, options: .atomic)
+            // SEV-M6 — `.completeFileProtection` makes the bytes
+            // unreadable when the device is locked, which is the
+            // strongest data-protection class iOS offers. Combined with
+            // `.atomic` (write to tempfile, fsync, rename) we keep
+            // crash-consistency *and* at-rest encryption tied to the
+            // user's passcode.
+            try data.write(to: url, options: [.atomic, .completeFileProtection])
+            // Re-apply the no-backup attribute on the file itself so a
+            // queue-file that pre-dates the directory-level attribute
+            // (e.g. an upgrade install) is also excluded.
+            var fileURL = url
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try? fileURL.setResourceValues(values)
         } catch {
             // Persistence is best-effort. On failure the queue still
             // works in-memory for the current process lifetime.
