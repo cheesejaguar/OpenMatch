@@ -10,10 +10,7 @@
       }
     ]]></style>
   </defs>
-  
   <g>
-    <text x="512" y="640" font-family="Fraunces9pt-Black, Fraunces, Georgia, serif" font-style="italic" font-weight="900" font-size="560" letter-spacing="-36" fill="#5B2B6E" text-anchor="middle">om</text>
-    <path d="M 462 612 Q 500 660 552 612" stroke="#E63D7C" stroke-width="18" stroke-linecap="round" fill="none" />
-    <circle cx="620" cy="300" r="60" fill="#FFB347" />
+    <text x="512" y="638" font-family="Fraunces9pt-Black, Fraunces, Georgia, serif" font-style="italic" font-weight="900" font-size="560" letter-spacing="-130" fill="#5B2B6E" text-anchor="middle">om</text>
   </g>
 </svg>

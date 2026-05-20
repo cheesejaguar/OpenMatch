@@ -36,14 +36,18 @@ struct OMPlaceholder: View {
         }
     }
 
-    // 32–96pt circular avatar. Periwinkle disc + italic "om" wordmark
+    // 32–96pt circular avatar. Periwinkle disc + italic "om" ligature
     // in plum, sized to ~50% of the disc diameter so it reads at the
-    // smallest avatar use cases (chat list, mention chips).
+    // smallest avatar use cases (chat list, mention chips). Tracking
+    // factor (-0.116 × diameter) mirrors the SVG mark's letter-spacing
+    // ratio (-130/560) so the o's right shoulder visually flows into
+    // the m's first stem, matching the Aurora Dawn V3 wordmark.
     private func avatarMark(diameter d: CGFloat) -> some View {
         ZStack {
             Circle().fill(OMColor.periwinkle.opacity(0.20))
             Text("om")
                 .font(OMFont.display(d * 0.50, weight: .black, italic: true))
+                .tracking(-d * 0.116)
                 .foregroundStyle(OMColor.plum)
                 .baselineOffset(-d * 0.02)
         }
@@ -67,6 +71,7 @@ struct OMPlaceholder: View {
                         .frame(width: discDiameter, height: discDiameter)
                     Text("om")
                         .font(OMFont.display(discDiameter * 0.50, weight: .black, italic: true))
+                        .tracking(-discDiameter * 0.116)
                         .foregroundStyle(OMColor.plum)
                         .baselineOffset(-discDiameter * 0.02)
                 }
