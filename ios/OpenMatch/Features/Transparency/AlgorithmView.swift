@@ -32,7 +32,7 @@ struct AlgorithmView: View {
                     if let data = vm.data {
                         HStack {
                             Label(data.algorithmVersion, systemImage: "tag.fill")
-                                .foregroundStyle(OMColor.moss)
+                                .foregroundStyle(OMColor.plum)
                             Spacer()
                             Text(data.rankingConfigVersion)
                                 .foregroundStyle(OMColor.inkMuted)
@@ -73,7 +73,7 @@ struct AlgorithmView: View {
                             .padding(.top, 4)
                         }
                     } else {
-                        ProgressView().tint(OMColor.moss)
+                        ProgressView().tint(OMColor.plum)
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -96,7 +96,7 @@ private struct WeightRow: View {
             Spacer()
             ProgressView(value: value)
                 .progressViewStyle(.linear)
-                .tint(OMColor.terracotta)
+                .tint(OMColor.magenta)
                 .frame(width: 120)
             Text(String(format: "%.2f", value))
                 .font(OMFont.caption)
@@ -128,7 +128,7 @@ private struct ForbiddenRow: View {
         HStack(spacing: OMSpacing.md) {
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(OMColor.safetyRed)
+                .foregroundStyle(OMColor.cinnabar)
             Text(text)
                 .font(OMFont.callout)
                 .foregroundStyle(OMColor.ink)

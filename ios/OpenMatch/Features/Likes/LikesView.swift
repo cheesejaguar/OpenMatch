@@ -51,7 +51,7 @@ struct LikesView: View {
                         SettingsView()
                     } label: {
                         Image(systemName: "gear")
-                            .foregroundStyle(OMColor.moss)
+                            .foregroundStyle(OMColor.plum)
                     }
                 }
             }
@@ -156,7 +156,7 @@ private struct FreeBanner: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            OMShape.card(OMRadius.md).fill(OMColor.terracotta)
+            OMShape.card(OMRadius.md).fill(OMColor.magenta)
         )
     }
 }

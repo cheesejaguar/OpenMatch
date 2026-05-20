@@ -32,7 +32,7 @@ private struct StepBasics: View {
     let onNext: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Welcome").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.moss)
+            Text("Welcome").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.plum)
             Text("Tell us the basics. You can change everything later. The minimum for a complete profile is two photos, a display name, and your age.")
             Button("Continue", action: onNext).buttonStyle(OMPrimaryButtonStyle())
         }
@@ -63,7 +63,7 @@ private struct StepPhotos: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Add at least 2 photos")
                     .font(OMFont.largeTitleItalic)
-                    .foregroundStyle(OMColor.moss)
+                    .foregroundStyle(OMColor.plum)
                 Text("Real photos of you, no filters. You'll need two before you can browse — this is the same minimum we apply to everyone you might see.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -79,7 +79,7 @@ private struct StepPhotos: View {
                         HStack(spacing: 10) {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(OMColor.terracotta)
+                                .foregroundStyle(OMColor.magenta)
                             Text(isUploading ? "Uploading…" : "Add a photo")
                                 .font(OMFont.body(16, weight: .medium))
                                 .foregroundStyle(OMColor.ink)
@@ -100,7 +100,7 @@ private struct StepPhotos: View {
                 if let error {
                     Text(error)
                         .font(.footnote)
-                        .foregroundStyle(OMColor.safety)
+                        .foregroundStyle(OMColor.cinnabar)
                 }
 
                 Button {
@@ -196,7 +196,7 @@ private struct OnboardingPhotoTile: View {
                 case .success(let image):
                     image.resizable().scaledToFill()
                 case .empty:
-                    ProgressView().tint(OMColor.moss)
+                    ProgressView().tint(OMColor.plum)
                 case .failure:
                     BotanicPlaceholder(.large)
                 @unknown default:
@@ -210,7 +210,7 @@ private struct OnboardingPhotoTile: View {
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "xmark.circle.fill")
                     .symbolRenderingMode(.palette)
-                    .foregroundStyle(OMColor.surface, OMColor.ink.opacity(0.55))
+                    .foregroundStyle(OMColor.paper, OMColor.ink.opacity(0.55))
                     .font(.title3)
             }
             .padding(4)
@@ -249,7 +249,7 @@ private struct StepAgeGate: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Your date of birth").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.moss)
+            Text("Your date of birth").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.plum)
             Text("OpenMatch is 18+. We never show your date of birth to other users — only your age, if you choose to display it.")
                 .font(.callout).foregroundStyle(.secondary)
 
@@ -268,12 +268,12 @@ private struct StepAgeGate: View {
                     "OpenMatch is only available to people aged 18 or older.",
                     systemImage: "exclamationmark.shield"
                 )
-                .foregroundStyle(OMColor.safety)
+                .foregroundStyle(OMColor.cinnabar)
                 .font(.footnote)
             }
 
             if let error {
-                Text(error).font(.footnote).foregroundStyle(OMColor.safety)
+                Text(error).font(.footnote).foregroundStyle(OMColor.cinnabar)
             }
 
             Button {
@@ -313,7 +313,7 @@ private struct StepLikesVisibility: View {
     @State private var choice: LikesVisibility = .visible
     var body: some View {
         VStack(alignment: .leading, spacing: OMSpacing.md) {
-            Text("Who liked you").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.moss)
+            Text("Who liked you").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.plum)
             Text("Seeing who liked you is always free. You can choose how it's shown — change anytime.")
                 .font(OMFont.callout)
                 .foregroundStyle(OMColor.inkMuted)
@@ -336,8 +336,8 @@ private struct StepDone: View {
     let onFinish: () -> Void
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "checkmark.seal.fill").font(.system(size: 56)).foregroundStyle(OMColor.honey)
-            Text("You're in.").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.moss)
+            Image(systemName: "checkmark.seal.fill").font(.system(size: 56)).foregroundStyle(OMColor.marigold)
+            Text("You're in.").font(OMFont.largeTitleItalic).foregroundStyle(OMColor.plum)
             Text("Open the Swipe tab to start browsing. Undo, filters, and seeing likes — all free.")
                 .multilineTextAlignment(.center).foregroundStyle(.secondary)
             Button("Start swiping", action: onFinish).buttonStyle(OMPrimaryButtonStyle())

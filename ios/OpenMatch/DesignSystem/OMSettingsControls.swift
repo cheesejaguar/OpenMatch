@@ -25,7 +25,7 @@ struct OMToggle: View {
                 }
             }
         }
-        .tint(OMColor.moss)
+        .tint(OMColor.plum)
         .padding(.horizontal, OMSpacing.lg)
         .padding(.vertical, 12)
     }
@@ -56,7 +56,7 @@ struct OMStepper<Value: Strideable & Comparable>: View where Value.Stride: Signe
             Spacer()
             Text(format(value))
                 .font(OMFont.display(18, weight: .semibold))
-                .foregroundStyle(OMColor.moss)
+                .foregroundStyle(OMColor.plum)
                 .monospacedDigit()
                 .frame(minWidth: 44, alignment: .trailing)
             HStack(spacing: 6) {
@@ -80,12 +80,12 @@ struct OMStepper<Value: Strideable & Comparable>: View where Value.Stride: Signe
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(OMColor.terracotta)
+                .foregroundStyle(OMColor.magenta)
                 .frame(width: 32, height: 32)
                 .background(
-                    Circle().fill(OMColor.surface)
+                    Circle().fill(OMColor.paper)
                 )
-                .overlay(Circle().stroke(OMColor.terracotta.opacity(0.30), lineWidth: 1))
+                .overlay(Circle().stroke(OMColor.magenta.opacity(0.30), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -112,10 +112,10 @@ struct OMPicker<Value: Hashable>: View {
                 HStack(spacing: 4) {
                     Text(currentLabel)
                         .font(OMFont.body(15, weight: .medium))
-                        .foregroundStyle(OMColor.moss)
+                        .foregroundStyle(OMColor.plum)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(OMColor.moss.opacity(0.7))
+                        .foregroundStyle(OMColor.plum.opacity(0.7))
                 }
             }
         }
@@ -151,7 +151,7 @@ struct OMSegmented<Value: Hashable>: View {
                         .foregroundStyle(selection == opt.value ? OMColor.onAccent : OMColor.ink)
                         .background(
                             Capsule()
-                                .fill(selection == opt.value ? OMColor.moss : Color.clear)
+                                .fill(selection == opt.value ? OMColor.plum : Color.clear)
                         )
                 }
                 .buttonStyle(.plain)

@@ -7,7 +7,7 @@ struct OMRow<Trailing: View>: View {
     let label: String
     var caption: String? = nil
     var systemImage: String? = nil
-    var iconTint: Color = OMColor.moss
+    var iconTint: Color = OMColor.plum
     var chevron: Bool = false
     var action: (() -> Void)? = nil
     @ViewBuilder var trailing: () -> Trailing
@@ -16,7 +16,7 @@ struct OMRow<Trailing: View>: View {
         _ label: String,
         caption: String? = nil,
         systemImage: String? = nil,
-        iconTint: Color = OMColor.moss,
+        iconTint: Color = OMColor.plum,
         chevron: Bool = false,
         action: (() -> Void)? = nil,
         @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }

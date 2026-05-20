@@ -9,7 +9,7 @@ struct OMScreen<Content: View>: View {
 
     var body: some View {
         ZStack {
-            OMColor.surface.ignoresSafeArea()
+            OMColor.paper.ignoresSafeArea()
             content()
         }
         .scrollContentBackground(.hidden)

@@ -12,10 +12,10 @@ private struct OMNavTitleModifier: ViewModifier {
                     Text(title)
                         .font(OMFont.display(20, weight: .semibold, italic: true))
                         .tracking(-0.2)
-                        .foregroundStyle(OMColor.moss)
+                        .foregroundStyle(OMColor.plum)
                 }
             }
-            .toolbarBackground(OMColor.surface, for: .navigationBar)
+            .toolbarBackground(OMColor.paper, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
     }
 }

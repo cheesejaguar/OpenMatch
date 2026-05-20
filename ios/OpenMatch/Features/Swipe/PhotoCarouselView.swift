@@ -14,7 +14,7 @@ struct PhotoCarouselView: View {
                     switch phase {
                     case .empty:
                         BotanicPlaceholder(.large).overlay(
-                            ProgressView().tint(OMColor.moss)
+                            ProgressView().tint(OMColor.plum)
                         )
                     case .success(let image):
                         image.resizable().scaledToFill()

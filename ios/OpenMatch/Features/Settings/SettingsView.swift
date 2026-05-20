@@ -46,7 +46,7 @@ struct SettingsView: View {
                         NavigationLink {
                             DeleteAccountView()
                         } label: {
-                            OMRow("Delete account", systemImage: "trash", iconTint: OMColor.safetyRed, chevron: true)
+                            OMRow("Delete account", systemImage: "trash", iconTint: OMColor.cinnabar, chevron: true)
                         }
                         .buttonStyle(.plain)
                     }
@@ -109,7 +109,7 @@ struct ExportDataView: View {
                         .buttonStyle(OMPrimaryButtonStyle())
                     } else if isLoading {
                         ProgressView("Preparing your export…")
-                            .tint(OMColor.moss)
+                            .tint(OMColor.plum)
                     } else {
                         Button {
                             Task { await fetch() }
@@ -123,7 +123,7 @@ struct ExportDataView: View {
                     if let error {
                         Text(error)
                             .font(OMFont.caption)
-                            .foregroundStyle(OMColor.safetyRed)
+                            .foregroundStyle(OMColor.cinnabar)
                     }
 
                     Text("Exports are rate-limited to a few per hour. Photos are included as URLs you can re-download.")
@@ -174,7 +174,7 @@ struct DeleteAccountView: View {
                                 Spacer()
                                 Text(existing.status.capitalized)
                                     .font(OMFont.body(15, weight: .semibold))
-                                    .foregroundStyle(OMColor.moss)
+                                    .foregroundStyle(OMColor.plum)
                             }
                             .padding(.horizontal, OMSpacing.lg)
                             .padding(.vertical, 12)
@@ -226,7 +226,7 @@ struct DeleteAccountView: View {
                     if let error {
                         Text(error)
                             .font(OMFont.caption)
-                            .foregroundStyle(OMColor.safetyRed)
+                            .foregroundStyle(OMColor.cinnabar)
                             .multilineTextAlignment(.center)
                     }
                 }
@@ -307,13 +307,13 @@ struct NotificationPreferencesView: View {
                             .buttonStyle(OMPrimaryButtonStyle())
                     } else {
                         ProgressView()
-                            .tint(OMColor.moss)
+                            .tint(OMColor.plum)
                             .padding(.top, 80)
                     }
                     if let error {
                         Text(error)
                             .font(OMFont.caption)
-                            .foregroundStyle(OMColor.safetyRed)
+                            .foregroundStyle(OMColor.cinnabar)
                             .multilineTextAlignment(.center)
                     }
                 }

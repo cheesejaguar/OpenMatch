@@ -123,7 +123,7 @@ struct LookingForView: View {
                     .padding(OMSpacing.lg)
                 } else {
                     ProgressView()
-                        .tint(OMColor.moss)
+                        .tint(OMColor.plum)
                         .padding(.top, 80)
                 }
             }
