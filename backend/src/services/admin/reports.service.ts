@@ -5,7 +5,12 @@ import type {
   ReasonCode,
   ReportStatus,
 } from "@prisma/client";
-import { type PermissionSet, serializeUserSummary } from "../../lib/admin/serialize.js";
+import { PERMISSIONS } from "../../lib/admin/permissions.js";
+import {
+  type PermissionSet,
+  serializeRedactedReporter,
+  serializeUserSummary,
+} from "../../lib/admin/serialize.js";
 
 export interface ReportedMessageDTO {
   id: string;
@@ -45,6 +50,11 @@ export async function listReports(
   });
   const next = rows.length > take - 1 ? rows[take - 1]!.id : null;
   const page = rows.slice(0, take - 1);
+  // SEV-M12 — Reporter identity is gated on a stricter permission than
+  // the rest of the DTO. Admins without it see a pseudonymous handle
+  // (`reporter:<8-hex>`) — they can still triage the report content
+  // and ban the reported user; what they can't do is leak who reported.
+  const canSeeReporter = perms.has(PERMISSIONS.REPORT_READ_REPORTER_IDENTITY);
   return {
     reports: page.map((r) => ({
       id: r.id,
@@ -53,17 +63,34 @@ export async function listReports(
       createdAt: r.createdAt.toISOString(),
       resolution: r.resolution,
       assignedAdminUserId: r.assignedAdminUserId,
-      reporter: serializeUserSummary(r.reporter, perms),
+      reporter: canSeeReporter
+        ? serializeUserSummary(r.reporter, perms)
+        : serializeRedactedReporter(r.id, r.reporter),
       reported: serializeUserSummary(r.reported, perms),
     })),
     nextCursor: next,
   };
 }
 
+export interface GetReportDetailOptions {
+  /**
+   * SEV-M12 — When the caller previously POSTed to
+   * `/admin/reports/:id/reveal-reporter` and that call returned an
+   * `accessGrantId`, the admin UI passes it back here. The service
+   * validates the grant (admin, entity, expiry) and unmasks the
+   * reporter even if the calling admin lacks `report.read.reporter_identity`
+   * by default.
+   */
+  revealReporterGrantId?: string | null;
+  /** Adminuser invoking the call, used to check grant ownership. */
+  adminUserId?: string;
+}
+
 export async function getReportDetail(
   prisma: PrismaClient,
   reportId: string,
   perms: PermissionSet,
+  options: GetReportDetailOptions = {},
 ) {
   const r = await prisma.report.findUnique({
     where: { id: reportId },
@@ -129,6 +156,23 @@ export async function getReportDetail(
       context = [...before.reverse().map(mapMsg), mapMsg(msg), ...after.map(mapMsg)];
     }
   }
+  // SEV-M12 — Reporter identity gating, with optional unmask via a
+  // `SensitiveAccessGrant` returned from the reveal endpoint.
+  let canSeeReporter = perms.has(PERMISSIONS.REPORT_READ_REPORTER_IDENTITY);
+  if (!canSeeReporter && options.revealReporterGrantId && options.adminUserId) {
+    const grant = await prisma.sensitiveAccessGrant.findUnique({
+      where: { id: options.revealReporterGrantId },
+    });
+    if (
+      grant &&
+      grant.adminUserId === options.adminUserId &&
+      grant.targetEntityType === "user" &&
+      grant.targetEntityId === r.reporterUserId &&
+      grant.expiresAt.getTime() > Date.now()
+    ) {
+      canSeeReporter = true;
+    }
+  }
   return {
     id: r.id,
     reason: r.reason,
@@ -138,7 +182,9 @@ export async function getReportDetail(
     createdAt: r.createdAt.toISOString(),
     resolvedAt: r.resolvedAt?.toISOString() ?? null,
     assignedAdminUserId: r.assignedAdminUserId,
-    reporter: serializeUserSummary(r.reporter, perms),
+    reporter: canSeeReporter
+      ? serializeUserSummary(r.reporter, perms)
+      : serializeRedactedReporter(r.id, r.reporter),
     reported: serializeUserSummary(r.reported, perms),
     reportedProfileId: r.reportedProfileId,
     reportedMessageId: r.reportedMessageId,

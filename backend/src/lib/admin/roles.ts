@@ -48,6 +48,11 @@ export const ADMIN_ROLE_DEFINITIONS: RoleDefinition[] = [
       P.MESSAGE_READ_REPORT_CONTEXT,
       P.MESSAGE_READ_ALL,
       P.REPORT_READ_ALL,
+      // SEV-M12 — senior_moderator sees the reporter identity by
+      // default; the role is approved for handling retaliation-sensitive
+      // appeals where knowing the reporter matters.
+      P.REPORT_READ_REPORTER_IDENTITY,
+      P.REPORT_REVEAL_REPORTER,
       P.REPORT_ASSIGN,
       P.REPORT_RESOLVE,
       P.REPORT_ESCALATE,
@@ -71,6 +76,8 @@ export const ADMIN_ROLE_DEFINITIONS: RoleDefinition[] = [
       P.MESSAGE_READ_ALL,
       P.MESSAGE_READ_REPORT_CONTEXT,
       P.REPORT_READ_ALL,
+      P.REPORT_READ_REPORTER_IDENTITY,
+      P.REPORT_REVEAL_REPORTER,
       P.REPORT_ASSIGN,
       P.REPORT_RESOLVE,
       P.REPORT_ESCALATE,
