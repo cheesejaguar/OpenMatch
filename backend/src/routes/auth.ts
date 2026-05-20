@@ -19,9 +19,13 @@ import {
 
 function requestContext(req: FastifyRequest) {
   const ua = (req.headers["user-agent"] as string | undefined) ?? null;
-  const ip =
-    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.ip;
-  return { userAgent: ua, ip };
+  // SEV-V5 — the manual XFF parse trusted any client-supplied
+  // `X-Forwarded-For` header verbatim, letting an attacker pin their
+  // `ipHash` / rate-limit bucket to a value of their choice on the
+  // dev-login path. `req.ip` already reflects the validated upstream
+  // IP via Fastify's `trustProxy` machinery (configured to true in
+  // non-test envs), so we strip the redundant parsing in favour of it.
+  return { userAgent: ua, ip: req.ip ?? null };
 }
 
 // Runs the country gate, logs a SanctionsScreening row for the sanctions
@@ -275,6 +279,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   // Also accept GET so the magic-link in email works in a browser.
   app.get("/verify", { config: { rateLimit: AUTH_LIMITS.verify } }, async (req, reply) => {
+    // SEV-V14 — defence-in-depth Referrer-Policy on this specific
+    // route. helmet already sets a global `no-referrer` policy
+    // (server.ts), but this endpoint receives the magic-link token as
+    // a GET query parameter; locking the header at the route level
+    // means a future global change can't accidentally widen the
+    // policy and leak the token via Referer on the landing page.
+    reply.header("Referrer-Policy", "no-referrer");
     if (!(await enforceCountryGate(app, req, reply))) return;
     const params = verifySchema.parse(req.query);
     const inviteRequired = await app.flags.evaluate("invite_required");
@@ -358,10 +369,26 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // SEV-A9 — the previous implementation revoked the caller's own
+  // session along with every other session, locking the device out of
+  // the API on the next request. The body now accepts an optional
+  // `keepSessionId`; iOS surfaces this as "revoke other sessions" by
+  // passing the current session id from `GET /auth/sessions`.
+  const revokeAllSchema = z
+    .object({ keepSessionId: z.string().min(1).max(100).optional() })
+    .optional();
   app.post("/sessions/revoke-all", { preHandler: app.authenticate }, async (req, reply) => {
-    const result = await revokeAllUserSessions(app.prisma, req.userId!);
+    const body = revokeAllSchema.parse(req.body ?? {});
+    const result = await revokeAllUserSessions(app.prisma, req.userId!, {
+      keepSessionId: body?.keepSessionId,
+    });
     app.log.info(
-      { event: "auth.revoke_all_sessions", userId: req.userId, count: result.revokedCount },
+      {
+        event: "auth.revoke_all_sessions",
+        userId: req.userId,
+        count: result.revokedCount,
+        keptCurrent: Boolean(body?.keepSessionId),
+      },
       "all_sessions_revoked",
     );
     return reply.send(result);

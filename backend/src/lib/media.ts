@@ -68,6 +68,47 @@ function extForMime(mime: string): string {
   }
 }
 
+// SEV-V16 — sniff the upload bytes against the magic-byte signatures
+// we accept. The previous trust-the-client-MIME path let a polyglot
+// PDF / HTML payload be stored with `Content-Type: image/jpeg`; while
+// most modern browsers won't render mis-typed content, any consumer
+// that does (a future admin preview, an in-app webview, an image
+// resizer that decodes-and-re-encodes) would inherit the
+// misclassification. The stripExif dispatcher already detects format
+// via signature; we now reject when the claimed MIME doesn't match the
+// detected format instead of silently passing the original bytes
+// through.
+function detectImageFormat(buf: Buffer): "jpeg" | "png" | "webp" | "other" {
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xd8) return "jpeg";
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  ) {
+    return "png";
+  }
+  if (
+    buf.length >= 12 &&
+    buf.toString("ascii", 0, 4) === "RIFF" &&
+    buf.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "webp";
+  }
+  return "other";
+}
+
+const MIME_TO_FORMAT: Record<string, "jpeg" | "png" | "webp"> = {
+  "image/jpeg": "jpeg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
 export async function uploadProfilePhoto(args: {
   profileId: string;
   data: Buffer;
@@ -78,6 +119,16 @@ export async function uploadProfilePhoto(args: {
   }
   if (args.data.byteLength > MAX_PHOTO_BYTES) {
     throw Object.assign(new Error("payload_too_large"), { statusCode: 413 });
+  }
+
+  // SEV-V16 — reject when the bytes don't match the claimed
+  // content-type. Closes the "PNG / WebP labelled but actually a
+  // polyglot" upload primitive before we hand bytes to Vercel Blob's
+  // CDN with an attacker-controlled Content-Type.
+  const detected = detectImageFormat(args.data);
+  const expected = MIME_TO_FORMAT[args.contentType];
+  if (!expected || detected !== expected) {
+    throw Object.assign(new Error("content_type_mismatch"), { statusCode: 415 });
   }
 
   // Defence-in-depth: strip EXIF (incl. GPS) on the server even though

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { env } from "../env.js";
-import { hashIdentity, hashIp } from "../lib/hash.js";
+import { hashIdentity, hashIdentityCandidates, hashIp } from "../lib/hash.js";
 import { normalizeInviteCode } from "../lib/invite-codes.js";
 import { resolveSmtpTlsOptions } from "../lib/smtp.js";
 import { withSpan } from "../lib/spans.js";
@@ -50,11 +50,17 @@ async function startEmailLoginInner(
   prisma: PrismaClient,
   input: StartEmailLoginInput,
 ): Promise<{ challengeId: string; devToken?: string }> {
-  const emailHash = hashIdentity(input.email);
   const token = randomBytes(TOKEN_BYTES).toString("hex");
   const tokenHash = hashToken(token);
 
-  const existing = await prisma.user.findFirst({ where: { emailHash } });
+  // SEV-A11 — read fallback for the HMAC cutover. Existing rows are
+  // keyed under the legacy unsalted SHA-256; new writes use HMAC when
+  // IDENTITY_HASH_SECRET is set. `hashIdentityCandidates` returns both
+  // forms (preferred first) so a returning user is recognised under
+  // either algorithm during the migration window.
+  const existing = await prisma.user.findFirst({
+    where: { emailHash: { in: hashIdentityCandidates(input.email) } },
+  });
 
   // Opportunistic cleanup: delete this user's expired/consumed challenges so
   // the table doesn't bloat. Cheap because of the userId index. Safe to
@@ -136,6 +142,34 @@ export async function reserveInviteCode(
   return { id: row.id, cohortLabel: row.cohortLabel };
 }
 
+// SEV-A6 — magic-link re-entry cancels an in-grace deletion and
+// re-activates the user record. Out-of-grace requests are not
+// reactivated here (the erasure worker is about to physically delete
+// the row, and re-activating would race the worker).
+async function reactivateIfDeletionScheduled(prisma: PrismaClient, userId: string): Promise<void> {
+  const pending = await prisma.accountDeletionRequest
+    .findFirst({
+      where: { userId, status: "scheduled" },
+      select: { id: true, gracePeriodEndsAt: true },
+    })
+    .catch(() => null);
+  if (!pending) return;
+  if (pending.gracePeriodEndsAt.getTime() < Date.now()) return;
+  await prisma.$transaction(async (tx) => {
+    await tx.accountDeletionRequest.update({
+      where: { id: pending.id },
+      data: { status: "cancelled", cancelledAt: new Date() },
+    });
+    await tx.user.update({ where: { id: userId }, data: { status: "active" } });
+    await tx.profile
+      .updateMany({ where: { userId }, data: { visibilityStatus: "visible" } })
+      .catch(() => undefined);
+    await tx.preferences
+      .updateMany({ where: { userId }, data: { discoveryPaused: false } })
+      .catch(() => undefined);
+  });
+}
+
 export interface VerifyEmailLoginInput {
   challengeId: string;
   token: string;
@@ -164,8 +198,28 @@ async function verifyEmailLoginInner(
   if (challenge.consumedAt) throw Object.assign(new Error("challenge_used"), { statusCode: 400 });
   if (challenge.expiresAt.getTime() < Date.now())
     throw Object.assign(new Error("challenge_expired"), { statusCode: 400 });
-  if (challenge.tokenHash !== hashToken(input.token))
+  if (challenge.tokenHash !== hashToken(input.token)) {
+    // SEV-A14 — per-challenge attempt counter. The token itself is
+    // 256 bits so a direct brute-force needs the wall-clock budget of
+    // O(2^256), but a leaked challengeId (referer / log / MITM) lets
+    // an attacker burn arbitrary guesses against this specific row
+    // from a rotating proxy pool that bypasses the per-IP rate
+    // limit. After 5 wrong tokens we mark the challenge consumed so
+    // further guesses return `challenge_used` instead of remaining
+    // probable.
+    const ATTEMPT_CAP = 5;
+    const next = challenge.failedAttempts + 1;
+    await prisma.authChallenge
+      .update({
+        where: { id: challenge.id },
+        data: {
+          failedAttempts: next,
+          ...(next >= ATTEMPT_CAP ? { consumedAt: new Date() } : {}),
+        },
+      })
+      .catch(() => undefined);
     throw Object.assign(new Error("invalid_token"), { statusCode: 400 });
+  }
 
   await prisma.authChallenge.update({
     where: { id: challenge.id },
@@ -173,6 +227,13 @@ async function verifyEmailLoginInner(
   });
 
   if (challenge.userId) {
+    // SEV-A6 — if the user has a scheduled deletion still inside the
+    // grace window, magic-link sign-in cancels the deletion and
+    // reactivates the account so the cancel UX still works after
+    // sessions have been revoked. Out-of-grace deletions cannot be
+    // reactivated this way (the worker will physically delete the row
+    // shortly).
+    await reactivateIfDeletionScheduled(prisma, challenge.userId);
     return { userId: challenge.userId, isNewUser: false };
   }
 
@@ -180,8 +241,14 @@ async function verifyEmailLoginInner(
     throw Object.assign(new Error("invalid_challenge"), { statusCode: 400 });
   }
   const emailHash = hashIdentity(challenge.email);
-  const existing = await prisma.user.findFirst({ where: { emailHash } });
+  // SEV-A11: same read-fallback rationale as `startEmailLoginInner`.
+  const existing = await prisma.user.findFirst({
+    where: { emailHash: { in: hashIdentityCandidates(challenge.email) } },
+  });
   if (existing) {
+    // SEV-A6 — re-activate a paused account inside its deletion grace
+    // window when the owner signs in again.
+    await reactivateIfDeletionScheduled(prisma, existing.id);
     return { userId: existing.id, isNewUser: false };
   }
 
@@ -341,6 +408,16 @@ async function rotateRefreshTokenInner(
     return null;
   }
   if (session.expiresAt.getTime() < Date.now()) return null;
+
+  // SEV-A6 — refuse rotation when the underlying user is paused /
+  // banned / deleted, even though the refresh token itself is still
+  // chronologically valid. Without this gate a stolen refresh token
+  // could keep minting fresh access tokens for the deletion-grace
+  // window of a scheduled-deletion account.
+  const userStatus = await prisma.user
+    .findUnique({ where: { id: session.userId }, select: { status: true } })
+    .catch(() => null);
+  if (!userStatus || userStatus.status !== "active") return null;
 
   await prisma.session.update({
     where: { id: session.id },

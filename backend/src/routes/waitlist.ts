@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { hashIdentity } from "../lib/hash.js";
+import { hashIdentity, hashIdentityCandidates } from "../lib/hash.js";
 
 // BETA-3 — public waitlist endpoint. Captures out-of-cohort interest so
 // we have an audience when the metro expands.
@@ -29,10 +29,15 @@ export const waitlistRoutes: FastifyPluginAsync = async (app) => {
       // Upsert keeps the endpoint idempotent: re-submitting the same
       // email returns the original position. country/city are only
       // overwritten on update if the caller supplied them.
-      const existing = await app.prisma.waitlistEntry.findUnique({ where: { emailHash } });
+      // SEV-A11 — during the HMAC cutover legacy rows may still be
+      // keyed under the unsalted SHA-256. Look up under both forms so
+      // a returning user is not treated as a new signup.
+      const existing = await app.prisma.waitlistEntry.findFirst({
+        where: { emailHash: { in: hashIdentityCandidates(body.email) } },
+      });
       const row = existing
         ? await app.prisma.waitlistEntry.update({
-            where: { emailHash },
+            where: { emailHash: existing.emailHash },
             data: {
               country: body.country ?? existing.country,
               city: body.city ?? existing.city,
