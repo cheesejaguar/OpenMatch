@@ -55,6 +55,7 @@ export const ErrorCodes = {
   RECOVERY_CODE_INVALID: "recovery_code_invalid",
   INVALID_RECOVERY_CODE: "invalid_recovery_code",
   TOTP_NOT_ENROLLED: "totp_not_enrolled",
+  TOTP_ALREADY_ENROLLED: "totp_already_enrolled",
   SESSION_MISSING_SID: "session_missing_sid",
 
   // ---- Beta gates -----------------------------------------------------
@@ -330,6 +331,12 @@ export const ERROR_CODE_META: Record<ErrorCode, ErrorCodeMeta> = {
   [ErrorCodes.TOTP_NOT_ENROLLED]: {
     status: 409,
     description: "TOTP has not been enrolled for this admin yet.",
+    group: "Admin",
+  },
+  [ErrorCodes.TOTP_ALREADY_ENROLLED]: {
+    status: 409,
+    description:
+      "TOTP is already enrolled; use /admin/auth/totp/reset (2FA-elevated) to replace the device.",
     group: "Admin",
   },
   [ErrorCodes.SESSION_MISSING_SID]: {

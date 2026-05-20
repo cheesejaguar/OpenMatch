@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
 import { ErrorCodes } from "../../lib/error-codes.js";
 import { httpError, sendHttpError } from "../../lib/http-error.js";
+import { notifyAdminSecurityEvent } from "../../services/admin/notifications.js";
 import {
   consumeRecoveryCode,
   disableTotp,
@@ -30,16 +31,68 @@ export const adminTotpRoutes: FastifyPluginAsync = async (app) => {
     },
     async (req, reply) => {
       const principal = req.admin!;
-      // We deliberately allow re-enrolment: if an admin loses their
-      // device they may need to start over. Each enrol fully replaces
-      // the previous secret + recovery codes, so the old TOTP entry in
-      // their authenticator app stops working.
-      const result = await enrollTotp(app.prisma, principal.adminUserId);
+      // SEV-A1 / SEV-A7: the first-time enrol path only succeeds when
+      // the admin has no secret on file. Re-enrolment (replacing the
+      // device of an already-enrolled admin) must go through `/reset`,
+      // which is gated by `requireAdminTwoFactor` so the caller is
+      // already 2FA-elevated. The old silent-overwrite behaviour was a
+      // 2FA bypass for any party with magic-link-only access.
+      try {
+        const result = await enrollTotp(app.prisma, principal.adminUserId);
+        await writeAudit(
+          app.prisma,
+          auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
+          { eventType: "admin_totp_enrolled" },
+        );
+        // Fire out-of-band notification so a takeover always leaves a
+        // mail/Slack trail. Best-effort; never fail the response.
+        void notifyAdminSecurityEvent({
+          email: principal.email,
+          kind: "totp_enrolled",
+          context: { adminUserId: principal.adminUserId, ip: req.ip ?? null },
+        });
+        return reply.send({
+          otpauthUri: result.otpauthUri,
+          recoveryCodes: result.recoveryCodes,
+        });
+      } catch (err) {
+        const e = err as { statusCode?: number; message?: string };
+        if (e.statusCode === 409 && e.message === "totp_already_enrolled") {
+          return reply.code(409).send({ error: "totp_already_enrolled" });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // SEV-A1 / SEV-A7: explicit reset path for an admin who has lost
+  // their device. Gated by `requireAdminTwoFactor`, so the caller must
+  // either (a) still possess their authenticator and have elevated via
+  // /verify, OR (b) have presented a recovery code via /recover and
+  // elevated that way. Both paths require a second factor, closing the
+  // magic-link-only takeover primitive. We also notify out-of-band so
+  // any reset leaves a side-channel trail.
+  app.post(
+    "/reset",
+    {
+      preHandler: [app.authenticateAdmin, app.requireAdminTwoFactor],
+      config: { rateLimit: { max: 10, timeWindow: "5 minutes" } },
+    },
+    async (req, reply) => {
+      const principal = req.admin!;
+      const result = await enrollTotp(app.prisma, principal.adminUserId, {
+        allowOverwrite: true,
+      });
       await writeAudit(
         app.prisma,
         auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
-        { eventType: "admin_totp_enrolled" },
+        { eventType: "admin_totp_reset" },
       );
+      void notifyAdminSecurityEvent({
+        email: principal.email,
+        kind: "totp_reset_requested",
+        context: { adminUserId: principal.adminUserId, ip: req.ip ?? null },
+      });
       return reply.send({
         otpauthUri: result.otpauthUri,
         recoveryCodes: result.recoveryCodes,
@@ -102,6 +155,17 @@ export const adminTotpRoutes: FastifyPluginAsync = async (app) => {
           metadata: { remainingCodes: result.remainingCodes },
         },
       );
+      // SEV-A7: notify out-of-band on recovery-code consumption so a
+      // takeover via a leaked code leaves an alert trail.
+      void notifyAdminSecurityEvent({
+        email: principal.email,
+        kind: "totp_recovery_used",
+        context: {
+          adminUserId: principal.adminUserId,
+          ip: req.ip ?? null,
+          remainingCodes: result.remainingCodes,
+        },
+      });
       return reply.send({ ok: true, remainingCodes: result.remainingCodes });
     },
   );
@@ -119,6 +183,12 @@ export const adminTotpRoutes: FastifyPluginAsync = async (app) => {
         auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
         { eventType: "admin_totp_disabled" },
       );
+      // SEV-A7: notify out-of-band on any 2FA removal.
+      void notifyAdminSecurityEvent({
+        email: principal.email,
+        kind: "totp_disabled",
+        context: { adminUserId: principal.adminUserId, ip: req.ip ?? null },
+      });
       return reply.send({ ok: true });
     },
   );

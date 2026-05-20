@@ -171,7 +171,9 @@ enum AdminEventType {
   admin_totp_enrolled
   admin_totp_verified
   admin_totp_disabled
+  admin_totp_reset
   admin_recovery_code_used
+  admin_refresh_reuse
 }
 
 enum SensitiveEntityType {
