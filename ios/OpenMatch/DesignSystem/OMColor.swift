@@ -11,7 +11,7 @@ import UIKit
 enum OMColor {
     // MARK: - Brand (Aurora Dawn)
     static let plum = dual(light: 0x5B2B6E, dark: 0x8E4DA8)
-    static let magenta = dual(light: 0xE63D7C, dark: 0xFF5A95)
+    static let magenta = dual(light: 0xD88FA8, dark: 0xE0A4B8)
     static let marigold = dual(light: 0xFFB347, dark: 0xFFC76A)
     static let periwinkle = dual(light: 0xA6B4FF, dark: 0x7C8EE6)
     static let cinnabar = dual(light: 0xD43A3A, dark: 0xE66363)
