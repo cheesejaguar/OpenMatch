@@ -67,6 +67,24 @@ import { waitlistRoutes } from "./routes/waitlist.js";
 // throw). When SENTRY_DSN is absent this is a no-op.
 initSentry();
 
+// SEV-A8 / SEV-V9 / SEV-N22 — boot-time warning when any of the
+// dev-only login bypasses are reachable. The runtime gate is already
+// strict (development + ALLOW_DEV_LOGIN), but a single audible warning
+// at boot makes an accidental preview / staging misconfiguration
+// impossible to miss in deployment logs.
+if (env.NODE_ENV === "development" && env.ALLOW_DEV_LOGIN) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    "[security] ALLOW_DEV_LOGIN is enabled in NODE_ENV=development. " +
+      "Admin auto-provision and POST /auth/start method=dev are reachable. " +
+      "This MUST never appear in a production or preview deployment.",
+  );
+}
+// (The hard failure for ALLOW_DEV_LOGIN=true in production is enforced
+// in env.ts via a Zod superRefine; the import of `env` at the top of
+// this module is sufficient to surface that error before any route
+// handler can run.)
+
 // Round D — Pino mixin + redaction shared between the Fastify app logger
 // and any standalone log line emitted from a worker entry point. The
 // mixin reads from AsyncLocalStorage so every log line carries the
