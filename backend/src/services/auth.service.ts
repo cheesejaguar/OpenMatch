@@ -50,7 +50,6 @@ async function startEmailLoginInner(
   prisma: PrismaClient,
   input: StartEmailLoginInput,
 ): Promise<{ challengeId: string; devToken?: string }> {
-  const emailHash = hashIdentity(input.email);
   const token = randomBytes(TOKEN_BYTES).toString("hex");
   const tokenHash = hashToken(token);
 
@@ -147,10 +146,7 @@ export async function reserveInviteCode(
 // re-activates the user record. Out-of-grace requests are not
 // reactivated here (the erasure worker is about to physically delete
 // the row, and re-activating would race the worker).
-async function reactivateIfDeletionScheduled(
-  prisma: PrismaClient,
-  userId: string,
-): Promise<void> {
+async function reactivateIfDeletionScheduled(prisma: PrismaClient, userId: string): Promise<void> {
   const pending = await prisma.accountDeletionRequest
     .findFirst({
       where: { userId, status: "scheduled" },

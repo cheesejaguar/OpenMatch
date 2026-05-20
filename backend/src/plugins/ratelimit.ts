@@ -53,7 +53,24 @@ export default fp(async (app) => {
     global: false,
     max: 600,
     timeWindow: "1 minute",
-    keyGenerator: (req) => (req as { userId?: string }).userId ?? req.ip ?? "anon",
+    // SEV-N6 — composite key. The previous `userId ?? req.ip ?? "anon"`
+    // had two failure modes:
+    //   1. When `req.ip` was undefined (some Fluid Compute paths,
+    //      unit-test fakes), every anonymous caller shared a single
+    //      "anon" bucket, so a single misbehaving anon could starve
+    //      every other anon globally.
+    //   2. Once `userId` was set the IP fallback was dropped, so a
+    //      logged-in attacker could rotate sessions / userIds to
+    //      side-step a per-user limit.
+    // The composite `${userId ?? "anon"}:${ip ?? "noip"}` keeps the
+    // primary signal (user when known, IP otherwise) AND a fallback
+    // for the missing dimension so the "noip:anon" bucket can never
+    // become a single global counter.
+    keyGenerator: (req) => {
+      const userId = (req as { userId?: string }).userId;
+      const ip = req.ip;
+      return `${userId ?? "anon"}:${ip ?? "noip"}`;
+    },
     errorResponseBuilder: (_req, ctx) => ({
       error: "rate_limited",
       message:

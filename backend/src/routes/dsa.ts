@@ -14,15 +14,16 @@ import { openNotice } from "../services/dsa.service.js";
 function ctStringEqual(a: string, b: string): boolean {
   const ab = Buffer.from(a, "utf8");
   const bb = Buffer.from(b, "utf8");
-  // Always run timingSafeEqual against a same-length buffer so the
-  // length mismatch itself doesn't leak via early-exit. We compare
-  // `ab` against itself when the lengths differ; the boolean is then
-  // AND'd with the (false) length-check.
-  const same =
-    ab.length === bb.length
-      ? timingSafeEqual(ab, bb)
-      : (timingSafeEqual(ab, ab), false);
-  return same;
+  // Always do a constant-time compare against a same-length buffer so
+  // the length mismatch itself doesn't leak via early-exit. When the
+  // lengths differ we still run the compare (against `ab` vs `ab`)
+  // for the timing-equivalence, then return false.
+  if (ab.length !== bb.length) {
+    // Discard the result; this branch is purely for timing parity.
+    timingSafeEqual(ab, ab);
+    return false;
+  }
+  return timingSafeEqual(ab, bb);
 }
 
 // DSA notice-and-action intake — also fulfils:
