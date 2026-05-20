@@ -24,18 +24,21 @@ jobs:
         language: ["javascript-typescript"]
 
     steps:
-      - uses: actions/checkout@v4
+      # SEV-N11 — third-party actions pinned to immutable commit SHAs
+      # (not floating major tags) so a maintainer-account compromise can't
+      # transparently inject a new release into our workflows.
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@f411752efdf656cb71aa17b755b22c890960da1d # v3.35.5
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@f411752efdf656cb71aa17b755b22c890960da1d # v3.35.5
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@f411752efdf656cb71aa17b755b22c890960da1d # v3.35.5
         with:
           category: "/language:${{ matrix.language }}"

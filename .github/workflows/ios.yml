@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Show toolchain
         run: |
@@ -39,7 +39,7 @@ jobs:
         run: brew install xcodegen
 
       - name: Cache SwiftPM and DerivedData
-        uses: actions/cache@v4
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
@@ -97,7 +97,7 @@ jobs:
 
       - name: Upload full build log
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: xcodebuild-log
           path: /tmp/xcodebuild.log
@@ -111,7 +111,7 @@ jobs:
     if: ${{ success() }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -201,7 +201,7 @@ jobs:
 
       - name: Upload iOS coverage
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ios-coverage
           path: /tmp/xccov.json
@@ -233,7 +233,7 @@ jobs:
 
       - name: Upload full test log
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: xcodebuild-test-log
           path: /tmp/xcodebuild-test.log
