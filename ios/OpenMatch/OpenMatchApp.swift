@@ -18,14 +18,24 @@ struct OpenMatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(appState)
-                .environmentObject(appState.api)
-                .environmentObject(appState.handedness)
-                .preferredColorScheme(nil)
-                .onChange(of: scenePhase) { _, phase in
-                    AppLifecycle.handleScenePhase(phase, appState: appState)
+            ZStack {
+                RootView()
+                    .environmentObject(appState)
+                    .environmentObject(appState.api)
+                    .environmentObject(appState.handedness)
+                    .preferredColorScheme(nil)
+                // SEV-M3 — privacy veil drawn above all content whenever
+                // the scene is not active. Sits at the root of the
+                // WindowGroup so it covers tab bars, sheets, and full
+                // screen covers indiscriminately.
+                if OMPrivacyVeil.isVisible(for: scenePhase) {
+                    OMPrivacyVeil()
+                        .transition(.identity)
                 }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                AppLifecycle.handleScenePhase(phase, appState: appState)
+            }
         }
     }
 }
