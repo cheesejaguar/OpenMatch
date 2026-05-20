@@ -1,7 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
+import { CONVERSATION_PEER_SELECT } from "../lib/dto/peer-user.js";
 import { withSpan } from "../lib/spans.js";
 import { tryDispatchPush } from "./push.service.js";
 
+// SEV-A3: explicit allow-list select for peer-visible columns. The
+// previous include leaked emailHash / phoneHash / authSubject /
+// dateOfBirth from every match counterpart.
 export async function listConversations(prisma: PrismaClient, userId: string) {
   return prisma.conversation.findMany({
     where: {
@@ -11,15 +15,7 @@ export async function listConversations(prisma: PrismaClient, userId: string) {
       },
     },
     orderBy: { updatedAt: "desc" },
-    include: {
-      match: {
-        include: {
-          userA: { include: { profile: true } },
-          userB: { include: { profile: true } },
-        },
-      },
-      messages: { take: 1, orderBy: { createdAt: "desc" } },
-    },
+    select: CONVERSATION_PEER_SELECT,
   });
 }
 

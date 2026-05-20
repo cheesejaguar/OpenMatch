@@ -1,5 +1,12 @@
 import type { PrismaClient } from "@prisma/client";
+import { MATCH_PEER_SELECT } from "../lib/dto/peer-user.js";
 
+// SEV-A3: every read that crosses the trust boundary into another
+// user's data uses `select: MATCH_PEER_SELECT` (an explicit allow-list
+// in src/lib/dto/peer-user.ts). The previous `include` approach
+// returned every column on the included User and Profile rows,
+// leaking `emailHash`, `phoneHash`, `authSubject`, raw `dateOfBirth`,
+// and the PostGIS `location` geography.
 export async function listMatches(prisma: PrismaClient, userId: string) {
   return prisma.match.findMany({
     where: {
@@ -7,18 +14,7 @@ export async function listMatches(prisma: PrismaClient, userId: string) {
       status: "active",
     },
     orderBy: { createdAt: "desc" },
-    include: {
-      conversation: {
-        include: {
-          messages: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
-          },
-        },
-      },
-      userA: { include: { profile: { include: { photos: true } } } },
-      userB: { include: { profile: { include: { photos: true } } } },
-    },
+    select: MATCH_PEER_SELECT,
   });
 }
 
