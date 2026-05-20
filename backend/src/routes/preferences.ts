@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { ErrorCodes } from "../lib/error-codes.js";
@@ -48,10 +49,55 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
         return sendHttpError(reply, httpError(ErrorCodes.MIN_AGE_ABOVE_MAX));
       }
     }
+    // SEV-V1 — explicit allow-list. The previous `...(body as
+    // Record<string, unknown>)` / `update: body as never` cast escaped
+    // the Prisma type system and made every Zod-known field
+    // user-writable. Re-listing each field as a typed
+    // PreferencesUpdateInput re-introduces compile-time gating: a
+    // future column that lands on the Preferences model AND is added
+    // to the Zod schema by mistake will require a deliberate addition
+    // here before it becomes user-writable.
+    //
+    // Type assertions: the `interestedGenders` / `relationshipGoals`
+    // arrays accept `string[]` from the Zod parse but are typed as
+    // Prisma enum arrays. The Prisma client validates them at query
+    // time; the cast is the same invariant we'd need with any string-
+    // typed enum field.
+    const updateData: Prisma.PreferencesUpdateInput = {
+      ...(body.minAge !== undefined && { minAge: body.minAge }),
+      ...(body.maxAge !== undefined && { maxAge: body.maxAge }),
+      ...(body.maxDistanceKm !== undefined && { maxDistanceKm: body.maxDistanceKm }),
+      ...(body.interestedGenders !== undefined && {
+        interestedGenders: body.interestedGenders as never,
+      }),
+      ...(body.relationshipGoals !== undefined && {
+        relationshipGoals: body.relationshipGoals as never,
+      }),
+      ...(body.heightMinCm !== undefined && { heightMinCm: body.heightMinCm }),
+      ...(body.heightMaxCm !== undefined && { heightMaxCm: body.heightMaxCm }),
+      ...(body.educationLevels !== undefined && { educationLevels: body.educationLevels }),
+      ...(body.colleges !== undefined && { colleges: body.colleges }),
+      ...(body.lifestyleFilters !== undefined && {
+        lifestyleFilters: body.lifestyleFilters as never,
+      }),
+      ...(body.includeUnansweredOptionalFields !== undefined && {
+        includeUnansweredOptionalFields: body.includeUnansweredOptionalFields,
+      }),
+      ...(body.hardFilters !== undefined && { hardFilters: body.hardFilters as never }),
+      ...(body.softPreferences !== undefined && {
+        softPreferences: body.softPreferences as never,
+      }),
+      ...(body.excludeIncompatibleGoals !== undefined && {
+        excludeIncompatibleGoals: body.excludeIncompatibleGoals,
+      }),
+      ...(body.likesVisibility !== undefined && { likesVisibility: body.likesVisibility }),
+      ...(body.discoveryPaused !== undefined && { discoveryPaused: body.discoveryPaused }),
+      ...(body.handedness !== undefined && { handedness: body.handedness }),
+    };
     const prefs = await app.prisma.preferences.upsert({
       where: { userId: req.userId! },
-      create: { userId: req.userId!, ...(body as Record<string, unknown>) } as never,
-      update: body as never,
+      create: { userId: req.userId!, ...updateData } as Prisma.PreferencesCreateInput,
+      update: updateData,
     });
     return prefs;
   });
