@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { env } from "../../env.js";
+import { resolveSmtpTlsOptions } from "../../lib/smtp.js";
 
 const TOKEN_BYTES = 32;
 
@@ -13,19 +14,16 @@ let mailer: nodemailer.Transporter | null = null;
 function getMailer(): nodemailer.Transporter {
   if (!mailer) {
     const secure = env.SMTP_SECURE ?? env.SMTP_PORT === 465;
-    // SEV-N1: TLS certificate verification MUST be enforced in production
-    // so an active network attacker between this function and the SMTP
-    // relay cannot intercept the plaintext admin magic-link token. The
-    // dev / test mail catcher (MailHog at localhost:1025) presents a
-    // self-signed cert, so we only relax the check off-production.
-    const allowSelfSigned = env.NODE_ENV !== "production";
+    // SEV-N1 — strict cert verification in production via the shared
+    // `resolveSmtpTlsOptions` helper. Dev / test (MailHog self-signed)
+    // intentionally accepts self-signed certs.
     mailer = nodemailer.createTransport({
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       secure,
       auth:
         env.SMTP_USER && env.SMTP_PASS ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
-      ...(allowSelfSigned ? { tls: { rejectUnauthorized: false } } : {}),
+      tls: resolveSmtpTlsOptions(env.NODE_ENV),
     });
   }
   return mailer;
