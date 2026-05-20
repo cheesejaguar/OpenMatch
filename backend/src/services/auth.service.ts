@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { env } from "../env.js";
-import { hashIdentity, hashIp } from "../lib/hash.js";
+import { hashIdentity, hashIdentityCandidates, hashIp } from "../lib/hash.js";
 import { normalizeInviteCode } from "../lib/invite-codes.js";
 import { resolveSmtpTlsOptions } from "../lib/smtp.js";
 import { withSpan } from "../lib/spans.js";
@@ -54,7 +54,14 @@ async function startEmailLoginInner(
   const token = randomBytes(TOKEN_BYTES).toString("hex");
   const tokenHash = hashToken(token);
 
-  const existing = await prisma.user.findFirst({ where: { emailHash } });
+  // SEV-A11 — read fallback for the HMAC cutover. Existing rows are
+  // keyed under the legacy unsalted SHA-256; new writes use HMAC when
+  // IDENTITY_HASH_SECRET is set. `hashIdentityCandidates` returns both
+  // forms (preferred first) so a returning user is recognised under
+  // either algorithm during the migration window.
+  const existing = await prisma.user.findFirst({
+    where: { emailHash: { in: hashIdentityCandidates(input.email) } },
+  });
 
   // Opportunistic cleanup: delete this user's expired/consumed challenges so
   // the table doesn't bloat. Cheap because of the userId index. Safe to
@@ -180,7 +187,10 @@ async function verifyEmailLoginInner(
     throw Object.assign(new Error("invalid_challenge"), { statusCode: 400 });
   }
   const emailHash = hashIdentity(challenge.email);
-  const existing = await prisma.user.findFirst({ where: { emailHash } });
+  // SEV-A11: same read-fallback rationale as `startEmailLoginInner`.
+  const existing = await prisma.user.findFirst({
+    where: { emailHash: { in: hashIdentityCandidates(challenge.email) } },
+  });
   if (existing) {
     return { userId: existing.id, isNewUser: false };
   }
