@@ -58,7 +58,53 @@ const updateSchema = z.object({
 export const profileRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
+  // SEV-M8 — Explicit `select` instead of `include`. The previous shape
+  // returned the entire User row to the client including:
+  //   - `emailHash` / `phoneHash`  → hash + iOS keychain leak gives an
+  //     attacker confirmation of what the backend stores about the user
+  //   - `authSubject`              → Apple per-team stable id
+  //   - raw `dateOfBirth`          → only age is needed client-side
+  // Project to just what the iOS app actually displays / branches on.
+  // Raw `dateOfBirth` is still available through `/me/full` for surfaces
+  // (e.g. profile-edit) that need to render the date itself.
   app.get("/me", async (req, reply) => {
+    const user = await app.prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: {
+        id: true,
+        createdAt: true,
+        updatedAt: true,
+        status: true,
+        authProvider: true,
+        isAgeVerified: true,
+        isBanned: true,
+        dateOfBirth: true,
+        profile: {
+          include: { photos: { orderBy: { sortOrder: "asc" } } },
+        },
+      },
+    });
+    if (!user) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
+    // Derive age from DOB so callers don't need to do date math.
+    const dob = user.dateOfBirth;
+    const now = new Date();
+    let age: number | null = null;
+    if (dob) {
+      age = now.getFullYear() - dob.getFullYear();
+      const m = now.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age -= 1;
+    }
+    const { dateOfBirth: _dob, ...rest } = user;
+    return { ...rest, age };
+  });
+
+  // `/me/full` — internal surface for the rare client screen that needs
+  // the *raw* user row (e.g. an edit-profile flow that pre-fills the
+  // DOB date-picker). Still gated by `authenticate` so the caller can
+  // only ever read their own row. NOT exposed in the iOS API client
+  // today; if a future iOS screen needs it, add the call there
+  // explicitly so reviewers see the over-share.
+  app.get("/me/full", async (req, reply) => {
     const user = await app.prisma.user.findUnique({
       where: { id: req.userId! },
       include: {
