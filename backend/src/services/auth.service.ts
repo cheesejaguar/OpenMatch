@@ -88,9 +88,11 @@ async function startEmailLoginInner(
 
   return {
     challengeId: challenge.id,
-    // Dev convenience: the token is returned in non-production so the
-    // iOS simulator can complete the loop without checking MailHog.
-    devToken: env.NODE_ENV !== "production" ? token : undefined,
+    // Dev convenience: the token is returned ONLY in `development` and
+    // `test`. SEV-V13 noted that a previous `!== "production"` check
+    // would leak the token in Vercel preview deployments (NODE_ENV
+    // there is typically `preview`). Use a strict allow-list instead.
+    devToken: env.NODE_ENV === "development" || env.NODE_ENV === "test" ? token : undefined,
   };
 }
 
