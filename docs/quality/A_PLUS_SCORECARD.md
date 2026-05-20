@@ -115,3 +115,7 @@ The three parallel audits scored the repo at:
 ## Sign-off
 
 The OpenMatch repo is operating at **FAANG-grade engineering hygiene across the four audited axes**. Remaining gaps are scope-bound to scale (mutation/load testing, multi-locale, cost/status visibility). For a 100-user beta cohort and the 14/28-day go/no-go checkpoints, this scorecard supports the launch.
+
+## Change log
+
+- **2026-05-20** — Aesthetic V2 (Aurora Dawn) shipped across PRs #53–#58: plum/magenta/marigold/periwinkle palette + radius tokens (#53), expanded Fraunces+Geist weight scale + hero/microcaption tokens (#54), italic 'om' wordmark + asset regeneration (#57), dopamine match overlay with hero typography + 120-particle multi-color burst (#55), repo-wide RoundedRectangle + color-token sweep (#56), configurable right/left/center action-button thumb-reach (#58). FAANG score axes unchanged — this is an aesthetic refresh, not a quality-axis delta.
