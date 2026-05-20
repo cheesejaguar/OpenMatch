@@ -10,7 +10,7 @@ struct MainTabView: View {
         switch ProcessInfo.processInfo.environment["OPENMATCH_INITIAL_TAB"] ?? "" {
         case "likes": return .likes
         case "chat": return .chat
-        case "profile": return .profile
+        case "profile", "settings": return .profile
         default: return .swipe
         }
         #else
@@ -19,6 +19,19 @@ struct MainTabView: View {
     }()
 
     var body: some View {
+        #if DEBUG
+        // UX-review hook: SIMCTL_CHILD_OPENMATCH_INITIAL_TAB=settings lands
+        // directly on the Settings screen (full-screen) so the accessibility/
+        // handedness section can be captured without a navigation step.
+        if ProcessInfo.processInfo.environment["OPENMATCH_INITIAL_TAB"] == "settings" {
+            return AnyView(NavigationStack { SettingsView() })
+        }
+        #endif
+        return AnyView(tabView)
+    }
+
+    @ViewBuilder
+    private var tabView: some View {
         TabView(selection: $selection) {
             // IOS-6 — Swipe tab is replaced with a completion CTA
             // when the profile isn't ready. We *don't* show the
