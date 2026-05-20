@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
     "@fastify/jwt": "^10.0.0",
     "@fastify/multipart": "^10.0.0",
     "@fastify/rate-limit": "^10.3.0",
@@ -42,7 +43,7 @@
     "fastify": "^5.8.5",
     "fastify-type-provider-zod": "^6.1.0",
     "jose": "^6.2.3",
-    "nodemailer": "^6.9.13",
+    "nodemailer": "^8.0.7",
     "pino": "^9.5.0",
     "pino-pretty": "^11.0.0",
     "ws": "^8.17.0",
@@ -50,7 +51,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.2",
-    "@types/nodemailer": "^6.4.14",
+    "@types/nodemailer": "^8.0.0",
     "@types/ws": "^8.5.10",
     "@vitest/coverage-v8": "^1.6.1",
     "fast-check": "^3.23.2",

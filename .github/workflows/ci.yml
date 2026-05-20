@@ -18,9 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      # SEV-N11 — actions pinned to immutable commit SHAs.
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
 
@@ -47,9 +48,10 @@ jobs:
     name: Lint, typecheck, build (Node)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # SEV-N11 — actions pinned to immutable commit SHAs.
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
 
@@ -102,17 +104,21 @@ jobs:
           node scripts/sync-error-codes.mjs
           git diff --exit-code admin/lib/api/error-codes.ts
 
-      # Round C — npm audit gate. Fails the build on any critical
-      # vulnerability in production dependencies; dev-only deps are
-      # excluded because they don't ship to users. We start at
-      # `critical` rather than `high` because the current production
-      # tree (Vercel + Prisma + ws) carries known-tracked high-severity
-      # advisories that are pending upstream fixes; tightening to high
-      # is a follow-up once those are unblocked.
-      - name: Audit for critical-severity vulns
+      # SEV-N12 — npm audit gate covers high-severity vulnerabilities
+      # across BOTH production and dev dependency trees. The previous
+      # gate was `--audit-level=critical --omit=dev`, which missed
+      # (a) the critical happy-dom VM-escape RCE (devDep, ships in test
+      # fixtures), and (b) every high-severity prod-dep advisory
+      # (nodemailer, node-forge → @parse/node-apn, undici, etc.).
+      #
+      # Transitive issues are addressed via the npm `overrides` field in
+      # the root package.json so a single CI run pulls patched versions
+      # without waiting for upstream releases of @vercel/node / @parse/
+      # node-apn.
+      - name: Audit for high-severity vulns (prod + dev)
         run: |
           set +e
-          npm audit --audit-level=critical --omit=dev > /tmp/audit.txt 2>&1
+          npm audit --audit-level=high > /tmp/audit.txt 2>&1
           rc=$?
           set -e
           if [ "$rc" -ne 0 ]; then
@@ -146,9 +152,10 @@ jobs:
     name: Lint + typecheck admin dashboard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # SEV-N11 — actions pinned to immutable commit SHAs.
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
         with:
           node-version-file: .nvmrc
 
@@ -192,7 +199,7 @@ jobs:
 
       - name: Upload admin coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: admin-coverage
           path: admin/coverage/
@@ -202,9 +209,10 @@ jobs:
     name: Test @openmatch/matching
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # SEV-N11 — actions pinned to immutable commit SHAs.
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
 
@@ -238,7 +246,7 @@ jobs:
 
       - name: Upload matching coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: matching-coverage
           path: matching/coverage/
@@ -290,9 +298,10 @@ jobs:
       ALLOW_DEV_LOGIN: "false"
 
     steps:
-      - uses: actions/checkout@v4
+      # SEV-N11 — actions pinned to immutable commit SHAs.
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
 
@@ -363,7 +372,7 @@ jobs:
 
       - name: Upload backend coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: backend-coverage
           path: backend/coverage/

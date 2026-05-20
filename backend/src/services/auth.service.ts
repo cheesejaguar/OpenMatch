@@ -4,6 +4,7 @@ import nodemailer from "nodemailer";
 import { env } from "../env.js";
 import { hashIdentity, hashIp } from "../lib/hash.js";
 import { normalizeInviteCode } from "../lib/invite-codes.js";
+import { resolveSmtpTlsOptions } from "../lib/smtp.js";
 import { withSpan } from "../lib/spans.js";
 
 const TOKEN_BYTES = 32;
@@ -17,13 +18,16 @@ let mailer: nodemailer.Transporter | null = null;
 function getMailer(): nodemailer.Transporter {
   if (!mailer) {
     const secure = env.SMTP_SECURE ?? env.SMTP_PORT === 465;
+    // SEV-N1 — strict cert verification in production via the shared
+    // `resolveSmtpTlsOptions` helper. Dev / test (MailHog self-signed)
+    // intentionally accepts self-signed certs.
     mailer = nodemailer.createTransport({
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       secure,
       auth:
         env.SMTP_USER && env.SMTP_PASS ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
-      tls: { rejectUnauthorized: false },
+      tls: resolveSmtpTlsOptions(env.NODE_ENV),
     });
   }
   return mailer;
