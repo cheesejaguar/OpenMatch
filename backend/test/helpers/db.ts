@@ -58,6 +58,8 @@ export async function resetDb(): Promise<void> {
   await testPrisma.$executeRawUnsafe(
     `TRUNCATE TABLE ${TABLES.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE`,
   );
+  const { invalidateMetros } = await import("../../src/lib/metros-cache.js");
+  invalidateMetros();
 }
 
 interface CreateUserOptions {
