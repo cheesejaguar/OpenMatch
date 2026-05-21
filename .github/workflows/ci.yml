@@ -24,6 +24,10 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — use the built-in GitHub-hosted npm cache keyed on
+          # package-lock.json. Saves ~30-60 s on the install step when
+          # the cache is warm. See doc/performance/perf-audit-cross-cutting.md.
+          cache: "npm"
 
       - name: Install deps (cached)
         run: npm ci --foreground-scripts --prefer-offline --no-audit
@@ -54,6 +58,8 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — see fast-feedback job above.
+          cache: "npm"
 
       - name: Install deps (with debug capture)
         run: |
@@ -158,6 +164,8 @@ jobs:
       - uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — see fast-feedback job above.
+          cache: "npm"
 
       - name: Install deps (with debug capture)
         run: |
@@ -215,6 +223,8 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — see fast-feedback job above.
+          cache: "npm"
 
       - name: Install deps (with debug capture)
         run: |
@@ -304,6 +314,8 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — see fast-feedback job above.
+          cache: "npm"
 
       - name: Install deps (with debug capture)
         run: |
