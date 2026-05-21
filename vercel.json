@@ -18,7 +18,6 @@
     { "path": "/api/v1/internal/run-daily-digest", "schedule": "0 16 * * *" },
     { "path": "/api/v1/internal/run-synthetic-prune", "schedule": "0 4 * * *" },
     {
-      "_comment": "PERF-A11 — stagger the three */5 schedules so they fire on different minutes (0/5/10 vs 1/6/11 vs 2/7/12). Avoids three concurrent cron requests landing on the same Function instance pool at minute :00 :05 :10 (also when synthetic-check users hit /health most often).",
       "path": "/api/v1/internal/run-push-retry",
       "schedule": "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
     },

@@ -39,7 +39,15 @@ struct MainTabView: View {
             // matches" with "you can't be matched yet".
             Group {
                 if gate.isComplete {
-                    SwipeDeckView()
+                    // Platform-config branch. Dating + sports +
+                    // roommates ship `enableSwipeDeck = true`; the
+                    // mentorship variant flips it off and we render a
+                    // browse-style grid instead.
+                    if PlatformConfig.shared.enableSwipeDeck {
+                        SwipeDeckView()
+                    } else {
+                        DiscoveryGridView()
+                    }
                 } else {
                     ProfileIncompleteFullScreen(
                         dto: gate.dto,

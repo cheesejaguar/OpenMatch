@@ -23,8 +23,12 @@ struct MatchOverlayView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var titleAppeared = false
 
-    private static let titleString = "It's a match"
-    private static let titleCharacters: [Character] = Array("It's a match")
+    // Platform-config-driven title. Dating: "You matched!".
+    // Sports / roommates: "You paired!". Mentorship flips
+    // `enableMatchOverlay` to false so this view never renders for
+    // that variant; we still honour the verb for safety.
+    private static let titleString: String = "You \(PlatformConfig.shared.matchVerb)!"
+    private static let titleCharacters: [Character] = Array(MatchOverlayView.titleString)
 
     var body: some View {
         ZStack {
