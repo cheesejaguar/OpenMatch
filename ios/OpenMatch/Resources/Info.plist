@@ -30,6 +30,8 @@
 	<string>OpenMatch uses your photo library so you can add profile photos.</string>
 	<key>OMAPIBaseURL</key>
 	<string>https://openmatch-backend-cheesejaguar-cheesejaguar-2353s-projects.vercel.app</string>
+	<key>OMBackendSPKIPins</key>
+	<array/>
 	<key>SentryDSN</key>
 	<string></string>
 	<key>SentryEnvironment</key>
