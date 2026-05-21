@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Standalone output bundles only the files required at runtime into
+  // `.next/standalone/` so the production Docker image stays small.
+  // See admin/Dockerfile + docs/self-hosting.md. Vercel deployments
+  // ignore this and use their own server build.
+  output: "standalone",
   // PERF-A6 — strip `console.*` (except error/warn) from the prod bundle.
   // The admin codebase has informational `console.log` / `console.info` calls
   // in server actions + RSC fetches that pollute Vercel logs and ship to
