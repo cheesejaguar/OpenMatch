@@ -57,6 +57,12 @@ export interface UserDetailDTO extends UserSummaryDTO {
   handedness: "right" | "left" | "center" | null;
 }
 
+export interface PhotoScanReason {
+  source?: string;
+  code?: string;
+  score?: number;
+}
+
 export interface PhotoDTO {
   id: string;
   storageKey: string;
@@ -64,6 +70,57 @@ export interface PhotoDTO {
   sortOrder: number;
   moderationStatus: string;
   createdAt: string;
+  scanReasons: PhotoScanReason[] | null;
+  clientFlaggedAt: string | null;
+}
+
+// Trust & safety automation — heuristic moderator flag rows.
+export interface ModerationFlagDTO {
+  id: string;
+  targetUserId: string;
+  surface: "bio" | "message" | "display_name" | "photo_caption";
+  decision: "allow" | "flag" | "block";
+  reasonCode: string;
+  excerpt: string | null;
+  provider: string;
+  details: unknown;
+  targetMessageId: string | null;
+  targetProfileId: string | null;
+  resolvedAt: string | null;
+  resolvedByAdminUserId: string | null;
+  resolution: string | null;
+  createdAt: string;
+}
+
+export interface ModerationFlagListDTO {
+  flags: ModerationFlagDTO[];
+  nextCursor: string | null;
+}
+
+export interface ModerationSummaryDTO {
+  windowHours: number;
+  moderationFlagCount: number;
+  scamSignalCount: number;
+  topReasons: Array<{ reasonCode: string; count: number }>;
+}
+
+export interface VerificationRequestDTO {
+  id: string;
+  userId: string;
+  kind: "selfie_pose" | "phone" | "id_document";
+  status: "pending" | "approved" | "rejected" | "expired";
+  challengePrompt: string;
+  imageStorageKey: string | null;
+  imageContentType: string | null;
+  reviewerAdminUserId: string | null;
+  reviewedAt: string | null;
+  decisionNote: string | null;
+  createdAt: string;
+}
+
+export interface VerificationRequestListDTO {
+  requests: VerificationRequestDTO[];
+  nextCursor: string | null;
 }
 
 export interface ReportSummaryDTO {

@@ -181,6 +181,14 @@ final class EditProfileViewModel: ObservableObject {
             error = "You can have at most \(Self.maxPhotos) photos."
             return
         }
+
+        // Trust & safety automation — on-device pre-check.
+        let scan = await PhotoModerator.shared.scan(image)
+        if scan.decision == .block {
+            error = "This photo doesn't meet our community guidelines. Try a different one."
+            return
+        }
+
         guard let data = ImageUploader.compressForUpload(image) else {
             error = "Couldn't process that photo. Try a different one."
             return
@@ -188,7 +196,12 @@ final class EditProfileViewModel: ObservableObject {
         uploadingPhoto = true
         defer { uploadingPhoto = false }
         do {
-            let photo = try await api.uploadPhoto(data: data)
+            let flaggedAt: Date? = scan.decision == .flag ? Date() : nil
+            let photo = try await api.uploadPhoto(
+                data: data,
+                clientFlaggedAt: flaggedAt,
+                scanReasons: scan.signals
+            )
             photos.append(photo)
         } catch {
             self.error = error.localizedDescription

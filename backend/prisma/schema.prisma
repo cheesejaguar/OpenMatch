@@ -315,6 +315,38 @@ enum NcmecReportStatus {
   failed
 }
 
+// Trust & safety automation — verification request lifecycle. The
+// operator UI moves a request from `pending` to one of the terminal
+// statuses; only an admin can finalise.
+enum VerificationRequestStatus {
+  pending
+  approved
+  rejected
+  expired
+}
+
+enum VerificationRequestKind {
+  selfie_pose
+  phone
+  id_document
+}
+
+// Trust & safety automation — heuristic moderation surface.
+// `surface` says which user-supplied content fired the rule and
+// determines the response action (block / flag / observe).
+enum ModerationSurface {
+  bio
+  message
+  display_name
+  photo_caption
+}
+
+enum ModerationDecisionKind {
+  allow
+  flag
+  block
+}
+
 enum ScamSignalKind {
   rapid_offplatform_push
   geo_mismatch
@@ -402,6 +434,8 @@ model User {
   pushDeliveryLogs     PushDeliveryLog[]
   deckImpressionsMade  DeckImpression[]         @relation("DeckImpressionViewer")
   deckImpressionsAbout DeckImpression[]         @relation("DeckImpressionTarget")
+  verificationRequests VerificationRequest[]
+  moderationFlags      ModerationFlag[]         @relation("ModerationFlagTarget")
 
   @@index([status])
   // PERF-B14 — daily-digest counts new signups in a time window
@@ -443,6 +477,12 @@ model Profile {
   languages             String[]                               @default([])
   interests             String[]                               @default([])
   verificationStatus    String                                 @default("unverified")
+  // Trust & safety automation — set by an admin when they approve a
+  // selfie-pose verification request. The iOS deck renders a small
+  // "✓ verified" badge when this is true. Independent of
+  // `verificationStatus` (which is a free-form column used by older
+  // surfaces) so a single admin action can update both atomically.
+  isPhotoVerified       Boolean                                @default(false)
   visibilityStatus      VisibilityStatus                       @default(visible)
   moderationStatus      ModerationStatus                       @default(clean)
   prompts               Json?
@@ -467,6 +507,17 @@ model ProfilePhoto {
   width            Int?
   height           Int?
   blurhash         String?
+  // Trust & safety automation — set by the iOS on-device NSFW
+  // pre-check (Vision VNClassifyImageRequest) when the classifier
+  // produced an `flag` (not `block`) decision. The server still re-runs
+  // its own moderation pass; this is a hint that the upload is worth
+  // surfacing earlier in the admin queue.
+  clientFlaggedAt  DateTime?
+  // Free-form scan reasons attached by the client and/or the server
+  // moderator. Each entry is `{ source, code, score? }`. Surfaced in
+  // the admin queue so operators see *why* a photo is in the queue
+  // without opening it.
+  scanReasons      Json?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -1537,4 +1588,81 @@ model IncidentUpdate {
   @@index([incidentKey, postedAt])
   @@index([postedAt])
   @@index([status, postedAt])
+}
+
+// Trust & safety automation — user-initiated verification challenge.
+// The selfie-pose flow is the only kind implemented end-to-end today,
+// but the model accommodates phone + ID verification scaffolds so the
+// admin queue UI can grow into a single review surface.
+model VerificationRequest {
+  id                  String                    @id @default(cuid())
+  userId              String
+  user                User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind                VerificationRequestKind   @default(selfie_pose)
+  status              VerificationRequestStatus @default(pending)
+  // Free-form description of the challenge ("hold up 2 fingers and
+  // look right"). Stored verbatim so a reviewer can compare it against
+  // the captured image without trusting the iOS client.
+  challengePrompt     String
+  // Server-generated nonce that pins the (user, prompt) pair to the
+  // photo. Prevents replay of an older capture.
+  challengeNonce      String                    @unique
+  imageStorageKey     String?
+  imageContentType    String?
+  imageBytes          Int?
+  reviewerAdminUserId String?
+  reviewedAt          DateTime?
+  decisionNote        String?
+  // Provider hint for phone / id verification stubs. Always null for
+  // the selfie-pose path today.
+  provider            String?
+  providerExternalRef String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@index([kind, status])
+}
+
+// Trust & safety automation — every heuristic moderator output, even
+// the "allow" ones we don't act on, lands here so operators can see
+// false-positive rates and tune thresholds. A `decision` of `block`
+// indicates the content was rejected outright (the message / bio is
+// not persisted); `flag` means the content shipped but is queued for
+// admin review.
+model ModerationFlag {
+  id                    String                 @id @default(cuid())
+  targetUserId          String
+  targetUser            User                   @relation("ModerationFlagTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  surface               ModerationSurface
+  decision              ModerationDecisionKind
+  // Stable code emitted by the heuristic moderator
+  // (`url_in_message`, `phone_in_bio`, `crypto_keyword`, etc.). Tests
+  // and tuning queries select on this string.
+  reasonCode            String
+  // The actual text fragment that fired the rule, redacted to 240
+  // chars so an operator can adjudicate without storing arbitrary
+  // pasted secrets.
+  excerpt               String?
+  // Provider identifier — `heuristic` today; the interface is wired
+  // for `hive`, `sightengine`, `rekognition` etc. once an operator
+  // configures one.
+  provider              String                 @default("heuristic")
+  // Free-form details bag — e.g. the regex source, signal score,
+  // sample match offset.
+  details               Json?
+  // Foreign references — both nullable so a row can attach to whatever
+  // surface fired the rule.
+  targetMessageId       String?
+  targetProfileId       String?
+  // Set by the admin when they triage the flagged content.
+  resolvedAt            DateTime?
+  resolvedByAdminUserId String?
+  resolution            String?
+  createdAt             DateTime               @default(now())
+
+  @@index([targetUserId, createdAt])
+  @@index([surface, decision, createdAt])
+  @@index([resolvedAt])
 }

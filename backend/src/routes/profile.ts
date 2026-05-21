@@ -11,7 +11,7 @@ import {
   MAX_PHOTO_BYTES,
   uploadProfilePhoto,
 } from "../lib/media.js";
-import { getModerationProvider } from "../lib/moderation-provider.js";
+import { moderateText, recordModerationFlags } from "../services/moderation.service.js";
 
 const updateSchema = z.object({
   displayName: z.string().trim().min(1).max(50).optional(),
@@ -181,6 +181,41 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     void _declared;
     void _ignored;
 
+    // Trust & safety automation — run the heuristic moderator over any
+    // text field the user is editing. A `block` decision refuses the
+    // edit (422); `flag` continues but the rows are queued for review.
+    const textCandidates: Array<{ surface: "bio" | "display_name"; text: string }> = [];
+    if (data.bio !== undefined && data.bio.length > 0) {
+      textCandidates.push({ surface: "bio", text: data.bio });
+    }
+    if (data.displayName !== undefined && data.displayName.length > 0) {
+      textCandidates.push({ surface: "display_name", text: data.displayName });
+    }
+    const moderationResults = await Promise.all(
+      textCandidates.map(async (c) => ({
+        surface: c.surface,
+        result: await moderateText({ surface: c.surface, text: c.text }),
+      })),
+    );
+    for (const m of moderationResults) {
+      if (m.result.decision === "block") {
+        return sendHttpError(
+          reply,
+          httpError(ErrorCodes.VALIDATION_FAILED, {
+            message: `Content in ${m.surface} cannot be saved.`,
+            details: {
+              fields: [
+                {
+                  path: m.surface,
+                  message: m.result.signals[0]?.reasonCode ?? "moderation_blocked",
+                },
+              ],
+            },
+          }),
+        );
+      }
+    }
+
     // Platform-config gate. When the active variant requires photos at
     // signup AND the caller is trying to flip their profile to
     // `visible`, count photos before allowing it. Forks running the
@@ -291,6 +326,24 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       );
     }
 
+    // Persist any flag-level moderation signals after the row is
+    // saved. Best-effort: a failure here never blocks the user's edit.
+    for (const m of moderationResults) {
+      if (m.result.signals.length > 0) {
+        try {
+          await recordModerationFlags({
+            prisma: app.prisma,
+            userId: req.userId!,
+            result: m.result,
+            surface: m.surface,
+            targetProfileId: profile.id,
+          });
+        } catch {
+          // never fail the request because of an observability write
+        }
+      }
+    }
+
     return profile;
   });
 
@@ -332,50 +385,42 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         return sendHttpError(reply, httpError(ErrorCodes.PAYLOAD_TOO_LARGE));
       }
 
+      // Trust & safety automation — iOS may attach on-device scan hints
+      // via multipart fields. We tolerate either being absent (older
+      // clients) and never trust the verdict, only the metadata.
+      let clientFlaggedAt: Date | null = null;
+      let scanReasons: unknown = null;
+      const flaggedField = file.fields?.clientFlaggedAt as { value?: string } | undefined;
+      if (flaggedField && typeof flaggedField.value === "string" && flaggedField.value.length > 0) {
+        const d = new Date(flaggedField.value);
+        if (!Number.isNaN(d.getTime())) clientFlaggedAt = d;
+      }
+      const reasonsField = file.fields?.scanReasons as { value?: string } | undefined;
+      if (reasonsField && typeof reasonsField.value === "string" && reasonsField.value.length > 0) {
+        try {
+          const parsed = JSON.parse(reasonsField.value);
+          if (Array.isArray(parsed)) scanReasons = parsed.slice(0, 10);
+        } catch {
+          // Ignore malformed scan-reasons JSON.
+        }
+      }
+
       try {
         const uploaded = await uploadProfilePhoto({
           profileId: profile.id,
           data: buffer,
           contentType: file.mimetype,
         });
-
-        // PLATFORM-PLUGIN — run the active ModerationProvider against
-        // the just-uploaded image. The noop default returns `clean`,
-        // preserving current behaviour. We scan AFTER the blob put
-        // because some providers (e.g. Cloudflare Images AI) only
-        // accept a URL handle, not raw bytes — passing `data` is
-        // optional for providers that prefer to fetch via storageKey.
-        const moderation = await getModerationProvider().scanImage({
-          blobPathname: uploaded.storageKey,
-          mimeType: file.mimetype,
-          data: buffer,
-        });
-        if (moderation.decision === "block") {
-          // Best-effort cleanup of the orphaned blob. A failure here is
-          // tolerable (the cron purge worker will eventually reap it)
-          // but logged so on-call sees blob drift.
-          const cleanup = await deleteProfilePhoto(uploaded.storageKey, uploaded.cdnUrl);
-          if (!cleanup.ok) {
-            app.log.warn(
-              {
-                event: "media.blob_cleanup_after_moderation_failed",
-                storageKey: uploaded.storageKey,
-                error: cleanup.error,
-              },
-              "blob_cleanup_after_moderation_failed",
-            );
-          }
-          return sendHttpError(reply, httpError(ErrorCodes.PHOTO_REJECTED_BY_MODERATION));
-        }
-        const moderationStatus = moderation.decision === "flag" ? "under_review" : "clean";
-
+        const initialModerationStatus = clientFlaggedAt ? "under_review" : "clean";
         const photo = await app.prisma.profilePhoto.create({
           data: {
             profileId: profile.id,
             storageKey: uploaded.storageKey,
             cdnUrl: uploaded.cdnUrl,
             sortOrder: profile.photos.length,
-            moderationStatus,
+            clientFlaggedAt,
+            scanReasons: scanReasons as never,
+            moderationStatus: initialModerationStatus,
           },
         });
         return reply.code(201).send(photo);

@@ -99,7 +99,11 @@ async function OldestPhotos() {
                   <span className={slaBadgeClass(st)}>{slaLabel(st)}</span>
                 </td>
                 <td>
-                  <PhotoActions photoId={p.id} />
+                  <PhotoActions
+                    photoId={p.id}
+                    scanReasons={p.scanReasons}
+                    clientFlaggedAt={p.clientFlaggedAt}
+                  />
                 </td>
               </tr>
             );
@@ -184,7 +188,11 @@ async function PhotoGrid({
                   </div>
                 ) : null}
                 <div style={{ marginTop: 8 }}>
-                  <PhotoActions photoId={p.id} />
+                  <PhotoActions
+                    photoId={p.id}
+                    scanReasons={p.scanReasons}
+                    clientFlaggedAt={p.clientFlaggedAt}
+                  />
                 </div>
               </div>
             </div>

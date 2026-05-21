@@ -166,6 +166,17 @@ private struct StepPhotos: View {
 
     private func upload(_ image: UIImage) async {
         guard photos.count < Self.maxOnboardingPhotos else { return }
+
+        // Trust & safety automation — run the on-device moderator first
+        // so we can refuse obviously-NSFW uploads without burning a
+        // round-trip, and flag borderline cases for the admin queue.
+        let scan = await PhotoModerator.shared.scan(image)
+        if scan.decision == .block {
+            error = "This photo doesn't meet our community guidelines. Try a different one."
+            await Analytics.shared.record("onboarding.photo_blocked_client")
+            return
+        }
+
         guard let data = ImageUploader.compressForUpload(image) else {
             error = "Couldn't process that photo. Try a different one."
             return
@@ -174,7 +185,12 @@ private struct StepPhotos: View {
         defer { isUploading = false }
         error = nil
         do {
-            let photo = try await appState.api.uploadPhoto(data: data)
+            let flaggedAt: Date? = scan.decision == .flag ? Date() : nil
+            let photo = try await appState.api.uploadPhoto(
+                data: data,
+                clientFlaggedAt: flaggedAt,
+                scanReasons: scan.signals
+            )
             photos.append(photo)
             await Analytics.shared.record("onboarding.photo_uploaded")
         } catch {

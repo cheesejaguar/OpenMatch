@@ -64,6 +64,9 @@ export const PEER_VISIBLE_PROFILE_SELECT = {
   prompts: true,
   visibilityStatus: true,
   verificationStatus: true,
+  // Trust & safety automation — admin-confirmed selfie-pose
+  // verification. Shown as a badge on cards / detail sheets.
+  isPhotoVerified: true,
   // Pulled in via the include below; the photo select is its own
   // explicit allow-list.
 } as const satisfies Prisma.ProfileSelect;

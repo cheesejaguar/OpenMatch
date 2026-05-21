@@ -21,6 +21,8 @@ struct ProfileCardModel: Identifiable, Equatable {
     // active in the last 24h. We surface a small green dot + "Active
     // today" label on the swipe card when this is true.
     let recentlyActive: Bool
+    /// Trust & safety automation — admin-confirmed selfie-pose verification.
+    let isPhotoVerified: Bool
 
     var id: String { profileId }
 
@@ -37,6 +39,7 @@ struct ProfileCardModel: Identifiable, Equatable {
         self.city = card.city
         self.explanation = card.explanation
         self.recentlyActive = card.recentlyActive ?? false
+        self.isPhotoVerified = card.isPhotoVerified ?? false
     }
 
     // Test / preview helper.
@@ -52,7 +55,8 @@ struct ProfileCardModel: Identifiable, Equatable {
         relationshipGoal: String?,
         city: String?,
         explanation: ExplanationDTO,
-        recentlyActive: Bool = false
+        recentlyActive: Bool = false,
+        isPhotoVerified: Bool = false
     ) {
         self.profileId = profileId
         self.userId = userId
@@ -66,6 +70,7 @@ struct ProfileCardModel: Identifiable, Equatable {
         self.city = city
         self.explanation = explanation
         self.recentlyActive = recentlyActive
+        self.isPhotoVerified = isPhotoVerified
     }
 
     static func == (lhs: ProfileCardModel, rhs: ProfileCardModel) -> Bool {

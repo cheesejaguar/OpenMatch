@@ -117,6 +117,10 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
               prompts: profile?.prompts ?? null,
               explanation: card.explanation,
               recentlyActive,
+              // Trust & safety automation — surfaced so iOS can render
+              // the verified badge. False by default until an admin
+              // approves the user's selfie-pose verification request.
+              isPhotoVerified: profile?.isPhotoVerified ?? false,
             };
           }),
         });

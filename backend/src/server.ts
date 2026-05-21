@@ -40,11 +40,13 @@ import { adminGeographyRoutes } from "./routes/admin/geography.js";
 import { adminInvitesRoutes } from "./routes/admin/invites.js";
 import { adminMetricsRoutes, adminSyntheticRoutes } from "./routes/admin/metrics.js";
 import { adminMetrosRoutes } from "./routes/admin/metros.js";
+import { adminModerationRoutes } from "./routes/admin/moderation.js";
 import { adminPhotoRoutes } from "./routes/admin/photos.js";
 import { adminReportRoutes } from "./routes/admin/reports.js";
 import { adminRoleRoutes } from "./routes/admin/roles.js";
 import { adminTotpRoutes } from "./routes/admin/totp.js";
 import { adminUserRoutes } from "./routes/admin/users.js";
+import { adminVerificationRoutes } from "./routes/admin/verification.js";
 import { adminWaitlistRoutes } from "./routes/admin/waitlist.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { authRoutes } from "./routes/auth.js";
@@ -70,6 +72,7 @@ import { safetyRoutes } from "./routes/safety.js";
 import { statusRoutes } from "./routes/status.js";
 import { swipesRoutes } from "./routes/swipes.js";
 import { transparencyRoutes } from "./routes/transparency.js";
+import { verificationRoutes } from "./routes/verification.js";
 import { waitlistRoutes } from "./routes/waitlist.js";
 
 // OPS-3 — initialise Sentry at module load (before any route handler can
@@ -425,6 +428,7 @@ export async function buildServer() {
   await app.register(messagesRoutes, { prefix: "/api/v1/messages" });
   await app.register(realtimeRoutes, { prefix: "/api/v1/realtime" });
   await app.register(safetyRoutes, { prefix: "/api/v1/safety" });
+  await app.register(verificationRoutes, { prefix: "/api/v1/verification" });
   await app.register(transparencyRoutes, { prefix: "/api/v1/transparency" });
   await app.register(privacyRoutes, { prefix: "/api/v1/privacy" });
   await app.register(dsaRoutes, { prefix: "/api/v1/dsa" });
@@ -439,6 +443,8 @@ export async function buildServer() {
   await app.register(adminReportRoutes, { prefix: "/api/v1/admin/reports" });
   await app.register(adminConversationRoutes, { prefix: "/api/v1/admin" });
   await app.register(adminPhotoRoutes, { prefix: "/api/v1/admin/photos" });
+  await app.register(adminModerationRoutes, { prefix: "/api/v1/admin/moderation" });
+  await app.register(adminVerificationRoutes, { prefix: "/api/v1/admin/verification" });
   await app.register(adminAuditRoutes, { prefix: "/api/v1/admin/audit" });
   await app.register(adminMetricsRoutes, { prefix: "/api/v1/admin/metrics" });
   await app.register(adminSyntheticRoutes, { prefix: "/api/v1/admin" });

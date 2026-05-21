@@ -142,6 +142,13 @@ export interface PhotoDTO {
   height: number | null;
   blurhash: string | null;
   createdAt: string;
+  /**
+   * Trust & safety automation — present when the iOS on-device scanner
+   * or a server-side heuristic moderator left a hint about *why* the
+   * photo entered the queue. Each entry: `{ source, code, score? }`.
+   */
+  scanReasons: Array<{ source?: string; code?: string; score?: number }> | null;
+  clientFlaggedAt: string | null;
 }
 
 export function ageFromDob(dob: Date | null | undefined): number | null {
@@ -242,6 +249,9 @@ export function serializeUserDetail(
 }
 
 export function serializePhoto(p: ProfilePhoto, signedUrl: string | null): PhotoDTO {
+  const reasons = Array.isArray(p.scanReasons)
+    ? (p.scanReasons as Array<{ source?: string; code?: string; score?: number }>)
+    : null;
   return {
     id: p.id,
     storageKey: p.storageKey,
@@ -252,5 +262,7 @@ export function serializePhoto(p: ProfilePhoto, signedUrl: string | null): Photo
     height: p.height,
     blurhash: p.blurhash,
     createdAt: p.createdAt.toISOString(),
+    scanReasons: reasons,
+    clientFlaggedAt: p.clientFlaggedAt ? p.clientFlaggedAt.toISOString() : null,
   };
 }

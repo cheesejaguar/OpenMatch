@@ -15,6 +15,8 @@ export const testPrisma = new PrismaClient({ adapter });
 const TABLES = [
   "AdminAuditLog",
   "Appeal",
+  "ModerationFlag",
+  "VerificationRequest",
   "ModerationAction",
   "AdminNote",
   "SensitiveAccessGrant",
