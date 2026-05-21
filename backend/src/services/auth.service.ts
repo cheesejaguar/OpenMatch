@@ -388,8 +388,12 @@ async function rotateRefreshTokenInner(
   ctx: IssueSessionContext & { logReuse?: (userId: string) => void } = {},
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date } | null> {
   const tokenHash = hashToken(refreshToken);
+  // PERF-B5 — combined session+user fetch via the existing Session→User
+  // relation so the SEV-A6 active-status gate doesn't cost a second RTT
+  // on this hot path. One round-trip instead of two.
   const session = await prisma.session.findUnique({
     where: { refreshToken: tokenHash },
+    include: { user: { select: { status: true } } },
   });
   if (!session) return null;
 
@@ -414,29 +418,32 @@ async function rotateRefreshTokenInner(
   // chronologically valid. Without this gate a stolen refresh token
   // could keep minting fresh access tokens for the deletion-grace
   // window of a scheduled-deletion account.
-  const userStatus = await prisma.user
-    .findUnique({ where: { id: session.userId }, select: { status: true } })
-    .catch(() => null);
-  if (!userStatus || userStatus.status !== "active") return null;
+  if (session.user.status !== "active") return null;
 
   await prisma.session.update({
     where: { id: session.id },
     data: { revokedAt: new Date() },
   });
 
-  // Opportunistic cleanup of this user's already-expired or long-revoked
-  // sessions so the table doesn't grow unbounded. Cheap with the userId
-  // index. Keeps very recent revocations around for forensics — those
-  // are exactly the rows that detect reuse above.
+  // PERF-B5 — Opportunistic cleanup of this user's already-expired or
+  // long-revoked sessions kicked off background. It's a bonus delete that
+  // has nothing to do with serving the refresh; moving it off the request
+  // critical path means the client gets its new access token immediately
+  // while cleanup completes asynchronously. Failure is swallowed — the
+  // worst case is the row sticks around until the next refresh.
   const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
-  await prisma.session.deleteMany({
-    where: {
-      userId: session.userId,
-      OR: [
-        { expiresAt: { lt: new Date() } },
-        { revokedAt: { lt: new Date(Date.now() - SEVEN_DAYS) } },
-      ],
-    },
+  setImmediate(() => {
+    void prisma.session
+      .deleteMany({
+        where: {
+          userId: session.userId,
+          OR: [
+            { expiresAt: { lt: new Date() } },
+            { revokedAt: { lt: new Date(Date.now() - SEVEN_DAYS) } },
+          ],
+        },
+      })
+      .catch(() => {});
   });
 
   return issueSession(prisma, session.userId, signAccess, ctx);
