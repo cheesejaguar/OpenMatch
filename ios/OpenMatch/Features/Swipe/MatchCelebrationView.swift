@@ -1,4 +1,109 @@
 import SwiftUI
+import UIKit
+
+// PERF-I7 — Device-class gating for the particle burst.
+//
+// `MatchCelebrationConfig` parameterizes the burst by device capability:
+//   - `.full`    — 120 particles, blur on pulse, 1.8s (A15+, nominal thermal)
+//   - `.reduced` — 60 particles, no blur, 1.2s (A14, or `.fair` thermal)
+//   - `.skip`    — no burst at all (`.serious` / `.critical` thermal)
+//
+// `MatchCelebrationConfig.current()` reads `ProcessInfo.thermalState`
+// and `UIDevice.current.modelIdentifier` to pick a tier. The result is
+// captured once when the overlay appears — we don't reactively
+// downgrade mid-burst (which would look glitchy).
+struct MatchCelebrationConfig {
+    enum Tier { case full, reduced, skip }
+
+    let tier: Tier
+    let particleCount: Int
+    let firstStageCount: Int
+    let secondStageCount: Int
+    let duration: TimeInterval
+    let applyBlur: Bool
+
+    static let full = MatchCelebrationConfig(
+        tier: .full,
+        particleCount: 120,
+        firstStageCount: 40,
+        secondStageCount: 80,
+        duration: 1.8,
+        applyBlur: true
+    )
+
+    static let reduced = MatchCelebrationConfig(
+        tier: .reduced,
+        particleCount: 60,
+        firstStageCount: 20,
+        secondStageCount: 40,
+        duration: 1.2,
+        applyBlur: false
+    )
+
+    static let skip = MatchCelebrationConfig(
+        tier: .skip,
+        particleCount: 0,
+        firstStageCount: 0,
+        secondStageCount: 0,
+        duration: 0,
+        applyBlur: false
+    )
+
+    // Pick a tier based on thermal state + device generation.
+    // Thermal state takes precedence — a hot device on any chip should
+    // skip the burst. Below `.serious`, A14-and-older devices step down
+    // to `.reduced`.
+    static func current() -> MatchCelebrationConfig {
+        switch ProcessInfo.processInfo.thermalState {
+        case .serious, .critical:
+            return .skip
+        case .fair:
+            return .reduced
+        case .nominal:
+            return isPreA15Device() ? .reduced : .full
+        @unknown default:
+            return .reduced
+        }
+    }
+
+    // Identify A14 (iPhone 12/12 mini/12 Pro/12 Pro Max + iPhone SE 3rd gen
+    // uses A15, so this is purely the iPhone 12 family on the iPhone side)
+    // and older as "step-down" devices. Anything newer (A15 / M-series)
+    // and the simulator both get the full burst. The simulator runs on
+    // the host's GPU and is essentially uncapped.
+    private static func isPreA15Device() -> Bool {
+        let id = modelIdentifier()
+        #if targetEnvironment(simulator)
+        return false
+        #else
+        // iPhone 12 family: iPhone13,1 … iPhone13,4.
+        // Anything older is iPhone12,x or below. We treat iPhone13,*
+        // and below as pre-A15.
+        if id.hasPrefix("iPhone") {
+            let stripped = id.dropFirst("iPhone".count)
+            if let major = stripped.split(separator: ",").first.flatMap({ Int($0) }) {
+                return major <= 13
+            }
+        }
+        // iPad — assume full tier; the iPad lineup runs cooler.
+        return false
+        #endif
+    }
+
+    private static func modelIdentifier() -> String {
+        #if targetEnvironment(simulator)
+        return ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? "simulator"
+        #else
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let mirror = Mirror(reflecting: systemInfo.machine)
+        return mirror.children.reduce(into: "") { acc, element in
+            guard let value = element.value as? Int8, value != 0 else { return }
+            acc.append(Character(UnicodeScalar(UInt8(value))))
+        }
+        #endif
+    }
+}
 
 // Aurora Dawn Phase D — denser, more colorful particle burst.
 //
@@ -16,17 +121,24 @@ struct MatchCelebrationView: View {
     @State private var startDate = Date()
     @State private var particles: [Particle] = []
 
-    private let duration: TimeInterval = 1.8
+    // PERF-I7 — Device-class gating. The full burst stays full on A15+;
+    // older devices step down. Captured at view-creation time so the
+    // burst doesn't visibly degrade mid-flight.
+    let config: MatchCelebrationConfig
+
+    init(config: MatchCelebrationConfig = .current()) {
+        self.config = config
+    }
+
     private let pulseDuration: TimeInterval = 0.5
     private let secondStageDelay: TimeInterval = 0.30
-    private let firstStageCount = 40
-    private let secondStageCount = 80
-    private var particleCount: Int { firstStageCount + secondStageCount }
 
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                if reduceMotion {
+                if reduceMotion || config.tier == .skip {
+                    // No motion: a single static radial pulse keeps the
+                    // moment celebratory without animation.
                     pulse(progress: 0.5, size: proxy.size)
                 } else {
                     TimelineView(.animation(minimumInterval: 1.0 / 60, paused: false)) { context in
@@ -39,9 +151,9 @@ struct MatchCelebrationView: View {
                 }
             }
             .onAppear {
-                if particles.isEmpty {
-                    particles = (0..<particleCount).map { i in
-                        Particle.random(stage: i < firstStageCount ? .first : .second)
+                if particles.isEmpty && config.tier != .skip {
+                    particles = (0..<config.particleCount).map { i in
+                        Particle.random(stage: i < config.firstStageCount ? .first : .second)
                     }
                 }
                 startDate = Date()
@@ -75,7 +187,11 @@ struct MatchCelebrationView: View {
         let maxR = min(size.width, size.height) * 0.78 * scale
         let center = CGPoint(x: size.width / 2, y: size.height * 0.42)
         var gradient = ctx
-        gradient.addFilter(.blur(radius: 8))
+        // PERF-I7 — `Canvas` filters are CPU-side. Skip on the reduced
+        // tier; the radial gradient still reads as a pulse without it.
+        if config.applyBlur {
+            gradient.addFilter(.blur(radius: 8))
+        }
         let shading = GraphicsContext.Shading.radialGradient(
             Gradient(colors: [
                 OMColor.marigold.opacity(0.55 * (1 - p)),
@@ -92,7 +208,7 @@ struct MatchCelebrationView: View {
     // MARK: - Particles
 
     private func drawParticles(in ctx: GraphicsContext, size: CGSize, t: TimeInterval) {
-        if t > duration { return }
+        if t > config.duration { return }
         let center = CGPoint(x: size.width / 2, y: size.height * 0.42)
         let gravity: CGFloat = 380
         for p in particles {
@@ -106,7 +222,7 @@ struct MatchCelebrationView: View {
             let y = center.y + vy * elapsed + 0.5 * gravity * elapsed * elapsed
 
             // Each particle's lifetime starts at its own emission time.
-            let lifeRemaining = duration - p.emissionDelay
+            let lifeRemaining = config.duration - p.emissionDelay
             let fadeIn: Double = min(1.0, max(0.0, localT / 0.10))
             let fadeOut = 1 - smoothstep(lifeRemaining * 0.5, lifeRemaining, localT)
             let fade = fadeIn * fadeOut
