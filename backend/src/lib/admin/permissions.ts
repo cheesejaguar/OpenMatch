@@ -50,6 +50,11 @@ export const PERMISSIONS = {
   METRO_MANAGE: "metro.manage",
   FEEDBACK_READ: "feedback.read",
   FEEDBACK_RESOLVE: "feedback.resolve",
+  // Status page operations: posting / editing incident updates that
+  // appear on the public /status page. Granted to ops + senior admin
+  // roles. Read access to the public status data is unauthenticated
+  // (the page anyone can hit) so there is no matching READ permission.
+  INCIDENT_MANAGE: "incident.manage",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

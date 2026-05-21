@@ -52,6 +52,7 @@ const TABLES = [
   "AlertFired",
   "WaitlistEntry",
   "SyntheticCheckRun",
+  "IncidentUpdate",
 ];
 
 export async function resetDb(): Promise<void> {

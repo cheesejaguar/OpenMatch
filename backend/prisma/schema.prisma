@@ -174,6 +174,7 @@ enum AdminEventType {
   admin_totp_reset
   admin_recovery_code_used
   admin_refresh_reuse
+  incident_update_posted
 }
 
 enum SensitiveEntityType {
@@ -1462,4 +1463,47 @@ model SyntheticCheckRun {
   steps      Json // [{ name, passed, error? }]
 
   @@index([ranAt])
+}
+
+// Status-page incident timeline. Admin operators post updates from the
+// admin dashboard; the public /status page renders the active update
+// (if any) plus the last 7 days of resolved updates. Each update is
+// append-only — to "resolve" an incident, post a new update with
+// status=resolved. The most recent row per `incidentKey` is the
+// authoritative current state; older rows form the human-readable
+// timeline ("Identified" → "Monitoring" → "Resolved").
+enum IncidentStatus {
+  investigating
+  identified
+  monitoring
+  resolved
+}
+
+enum IncidentSeverity {
+  none // informational / maintenance notice
+  minor // degraded but most users unaffected
+  major // significant user-visible impact
+  critical // platform unavailable for most users
+}
+
+model IncidentUpdate {
+  id          String           @id @default(cuid())
+  // Logical incident grouping. Multiple updates share an incidentKey
+  // as they progress through investigating → identified → monitoring →
+  // resolved. The first update of a new incident generates a fresh
+  // cuid() that subsequent updates reuse.
+  incidentKey String
+  title       String
+  body        String           @db.Text
+  status      IncidentStatus
+  severity    IncidentSeverity @default(minor)
+  // Which service this update pertains to. Free-form string so we can
+  // add new services (e.g. "search" later) without a migration.
+  service     String           @default("backend")
+  postedAt    DateTime         @default(now())
+  postedBy    String? // AdminUser.id; nullable for system-posted updates
+
+  @@index([incidentKey, postedAt])
+  @@index([postedAt])
+  @@index([status, postedAt])
 }
