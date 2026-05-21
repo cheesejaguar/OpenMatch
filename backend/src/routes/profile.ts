@@ -10,6 +10,7 @@ import {
   MAX_PHOTO_BYTES,
   uploadProfilePhoto,
 } from "../lib/media.js";
+import { getModerationProvider } from "../lib/moderation-provider.js";
 
 const updateSchema = z.object({
   displayName: z.string().trim().min(1).max(50).optional(),
@@ -315,12 +316,44 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
           data: buffer,
           contentType: file.mimetype,
         });
+
+        // PLATFORM-PLUGIN — run the active ModerationProvider against
+        // the just-uploaded image. The noop default returns `clean`,
+        // preserving current behaviour. We scan AFTER the blob put
+        // because some providers (e.g. Cloudflare Images AI) only
+        // accept a URL handle, not raw bytes — passing `data` is
+        // optional for providers that prefer to fetch via storageKey.
+        const moderation = await getModerationProvider().scanImage({
+          blobPathname: uploaded.storageKey,
+          mimeType: file.mimetype,
+          data: buffer,
+        });
+        if (moderation.decision === "block") {
+          // Best-effort cleanup of the orphaned blob. A failure here is
+          // tolerable (the cron purge worker will eventually reap it)
+          // but logged so on-call sees blob drift.
+          const cleanup = await deleteProfilePhoto(uploaded.storageKey, uploaded.cdnUrl);
+          if (!cleanup.ok) {
+            app.log.warn(
+              {
+                event: "media.blob_cleanup_after_moderation_failed",
+                storageKey: uploaded.storageKey,
+                error: cleanup.error,
+              },
+              "blob_cleanup_after_moderation_failed",
+            );
+          }
+          return sendHttpError(reply, httpError(ErrorCodes.PHOTO_REJECTED_BY_MODERATION));
+        }
+        const moderationStatus = moderation.decision === "flag" ? "under_review" : "clean";
+
         const photo = await app.prisma.profilePhoto.create({
           data: {
             profileId: profile.id,
             storageKey: uploaded.storageKey,
             cdnUrl: uploaded.cdnUrl,
             sortOrder: profile.photos.length,
+            moderationStatus,
           },
         });
         return reply.code(201).send(photo);
