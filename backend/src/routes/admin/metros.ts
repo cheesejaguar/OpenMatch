@@ -5,6 +5,7 @@ import { auditContextFromRequest, writeAudit } from "../../lib/admin/audit.js";
 import { PERMISSIONS } from "../../lib/admin/permissions.js";
 import { ErrorCodes } from "../../lib/error-codes.js";
 import { httpError, sendHttpError } from "../../lib/http-error.js";
+import { invalidateMetros } from "../../lib/metros-cache.js";
 
 // MetroBoundary CRUD for the beta geo-fence. The plugin
 // `metro-gate.ts` consumes this table at request time.
@@ -52,6 +53,7 @@ export const adminMetrosRoutes: FastifyPluginAsync = async (app) => {
       active: body.active,
     };
     const row = await app.prisma.metroBoundary.create({ data: createData });
+    invalidateMetros(); // PERF-B12 — drop the LRU so new metro propagates immediately
     await writeAudit(
       app.prisma,
       auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
@@ -84,6 +86,7 @@ export const adminMetrosRoutes: FastifyPluginAsync = async (app) => {
       where: { id: req.params.id },
       data: updateData,
     });
+    invalidateMetros(); // PERF-B12 — drop the LRU so updates propagate immediately
     await writeAudit(
       app.prisma,
       auditContextFromRequest(req, principal.adminUserId, principal.roleNames),
