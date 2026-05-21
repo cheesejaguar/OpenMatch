@@ -327,13 +327,32 @@ final class APIClient: ObservableObject {
     @Published private(set) var hasSession: Bool
     private(set) var cachedUserId: String?
 
+    // PERF — Shared coders. The previous design allocated a new
+    // JSONDecoder + JSONEncoder per APIClient instance (and we
+    // instantiate APIClient from several SwiftUI surfaces — root
+    // AppState, AlgorithmView, LikesView, tests). The decoders carry
+    // their own internal date-parsing caches and configuration objects
+    // that are pointless to rebuild; making them static lets every
+    // request reuse the same warmed-up instances. They're immutable
+    // after first access so concurrent use is safe.
+    fileprivate static let sharedDecoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
+    fileprivate static let sharedEncoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
+
     private let session: URLSession
     // SEV-M2 — Strong-held reference to the pinning delegate. URLSession
     // also retains it, but keeping a property makes the lifetime explicit
     // and lets tests reach in to verify the delegate was installed.
     private let pinningDelegate: PinningSessionDelegate
-    private let decoder: JSONDecoder
-    private let encoder: JSONEncoder
+    private var decoder: JSONDecoder { APIClient.sharedDecoder }
+    private var encoder: JSONEncoder { APIClient.sharedEncoder }
     private var accessToken: String?
     private var refreshToken: String?
 
@@ -344,7 +363,22 @@ final class APIClient: ObservableObject {
     init(baseURL: URL) {
         self.baseURL = baseURL
         let cfg = URLSessionConfiguration.default
+        // PERF — explicit network tuning that previously relied on
+        // defaults.
+        //   * `waitsForConnectivity` keeps tasks queued through a brief
+        //     flap instead of failing fast — a UX win for spotty
+        //     networks and a no-op on stable ones.
+        //   * `httpMaximumConnectionsPerHost` is set explicitly to the
+        //     iOS default (6) so future tuning is local to this file.
+        //   * `requestCachePolicy = .useProtocolCachePolicy` honours
+        //     the backend's `Cache-Control` directives end-to-end.
+        //   * `urlCache` is a dedicated 16MB / 128MB cache so cacheable
+        //     GETs (e.g. `/profile/:id`) actually land in a private
+        //     URLCache instead of fighting with WebKit's shared one.
         cfg.waitsForConnectivity = true
+        cfg.httpMaximumConnectionsPerHost = 6
+        cfg.requestCachePolicy = .useProtocolCachePolicy
+        cfg.urlCache = APIClient.sharedURLCache
         #if DEBUG
         // Local dev runs the simulator against the country gate without
         // any edge headers. Announce a supported country so /auth/start
@@ -360,16 +394,23 @@ final class APIClient: ObservableObject {
         let delegate = PinningSessionDelegate()
         self.pinningDelegate = delegate
         self.session = URLSession(configuration: cfg, delegate: delegate, delegateQueue: nil)
-        self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
         let keychain = Keychain.shared
         self.accessToken = keychain.read(.accessToken)
         self.refreshToken = keychain.read(.refreshToken)
         self.cachedUserId = keychain.read(.userId)
         self.hasSession = self.accessToken != nil
     }
+
+    // PERF — single process-wide URLCache shared across every APIClient
+    // instance so cacheable GETs survive view recreations. Sized
+    // conservatively: 16MB in memory, 128MB on disk — enough for a few
+    // hundred photos + a few hundred small JSON responses without
+    // blowing the device's NSURLCache budget.
+    private static let sharedURLCache: URLCache = {
+        return URLCache(memoryCapacity: 16 * 1024 * 1024,
+                        diskCapacity: 128 * 1024 * 1024,
+                        directory: nil)
+    }()
 
     func setSession(_ s: SessionResponse) {
         accessToken = s.accessToken
