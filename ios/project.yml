@@ -6,6 +6,18 @@ options:
   developmentLanguage: en
   createIntermediateGroups: true
   generateEmptyDirectories: true
+  # I18N — known regions surface in Xcode's localization picker and
+  # gate the .lproj directories that ship in the .app bundle. Stub
+  # locales (es / fr / de / ja) are declared so contributors can run
+  # the app in those languages even before translation values land;
+  # missing keys fall back to Base / English per Apple's resolution.
+  knownRegions:
+    - en
+    - es
+    - fr
+    - de
+    - ja
+    - Base
 
 settings:
   base:

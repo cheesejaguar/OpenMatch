@@ -40,16 +40,16 @@ struct WelcomeView: View {
                         botanicMark
                             .opacity(reveal(at: 0))
                             .scaleEffect(reveal(at: 0) > 0 ? 1.0 : 0.96)
-                        Text("OpenMatch")
+                        Text("welcome.title")
                             .font(OMFont.display(48, weight: .bold, italic: true))
                             .tracking(-1)
                             .foregroundStyle(OMColor.plum)
                             .opacity(reveal(at: 1))
                             .offset(y: reveal(at: 1) > 0 ? 0 : 6)
                         VStack(spacing: 4) {
-                            Text("Open-source dating.")
-                            Text("Free core features. Always.")
-                            Text("Auditable matching.")
+                            Text("welcome.kicker.line1")
+                            Text("welcome.kicker.line2")
+                            Text("welcome.kicker.line3")
                         }
                         .multilineTextAlignment(.center)
                         .font(OMFont.callout)
@@ -57,16 +57,18 @@ struct WelcomeView: View {
                         .opacity(reveal(at: 2))
 
                         VStack(spacing: 12) {
-                            TextField("Invite code", text: $inviteCode)
+                            TextField(String(localized: "welcome.invite.placeholder"), text: $inviteCode)
                                 .textInputAutocapitalization(.characters)
                                 .autocorrectionDisabled(true)
                                 .textFieldStyle(.roundedBorder)
-                                .accessibilityHint("Required during the beta. Tap your invite link or paste your code.")
-                            TextField("Email", text: $email)
+                                .accessibilityHint(Text("welcome.invite.hint"))
+                            TextField(String(localized: "welcome.email.placeholder"), text: $email)
                                 .keyboardType(.emailAddress)
                                 .textInputAutocapitalization(.never)
                                 .textFieldStyle(.roundedBorder)
-                            Button("Continue with email") { Task { await startEmail() } }
+                            Button { Task { await startEmail() } } label: {
+                                Text("welcome.continue.button")
+                            }
                                 .buttonStyle(OMPrimaryButtonStyle())
                                 .disabled(email.isEmpty || loading)
 
@@ -78,16 +80,18 @@ struct WelcomeView: View {
                                 // users still tap-paste the 6-digit
                                 // code; SecureField hides the glyphs
                                 // either way.
-                                SecureField("6-digit code from email", text: $token)
+                                SecureField(String(localized: "welcome.verify.placeholder"), text: $token)
                                     .textFieldStyle(.roundedBorder)
-                                Button("Verify") { Task { await verify() } }
+                                Button { Task { await verify() } } label: {
+                                    Text("welcome.verify.button")
+                                }
                                     .buttonStyle(OMPrimaryButtonStyle())
                                     .disabled(token.isEmpty)
                             }
 
                             HStack(spacing: 10) {
                                 Rectangle().fill(OMColor.divider).frame(height: 1)
-                                Text("or")
+                                Text("welcome.separator")
                                     .font(OMFont.caption)
                                     .foregroundStyle(OMColor.inkMuted)
                                 Rectangle().fill(OMColor.divider).frame(height: 1)
@@ -97,7 +101,11 @@ struct WelcomeView: View {
                             Button {
                                 Task { await appleLogin() }
                             } label: {
-                                Label("Continue with Apple", systemImage: "applelogo")
+                                Label {
+                                    Text("welcome.apple.button")
+                                } icon: {
+                                    Image(systemName: "applelogo")
+                                }
                             }
                             .buttonStyle(OMSecondaryButtonStyle())
                             .disabled(loading)
@@ -112,11 +120,13 @@ struct WelcomeView: View {
                         // gated so the strings are not present in
                         // Release-binary stringification.
                         #if DEBUG
-                        DisclosureGroup("Developer login (local dev only)") {
+                        DisclosureGroup(String(localized: "welcome.dev.disclosure")) {
                             VStack(spacing: 8) {
-                                TextField("User id", text: $devUserId)
+                                TextField(String(localized: "welcome.dev.user_id.placeholder"), text: $devUserId)
                                     .textFieldStyle(.roundedBorder)
-                                Button("Dev sign in") { Task { await devLogin() } }
+                                Button { Task { await devLogin() } } label: {
+                                    Text("welcome.dev.button")
+                                }
                                     .buttonStyle(OMGhostButtonStyle())
                             }
                             .padding(.top, 8)
@@ -128,9 +138,9 @@ struct WelcomeView: View {
                         #endif
 
                         HStack(spacing: 16) {
-                            Link("Privacy", destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/privacy/principles.md")!)
-                            Link("Safety", destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/safety/community-guidelines.md")!)
-                            Link("Source", destination: URL(string: "https://github.com/cheesejaguar/openmatch")!)
+                            Link(String(localized: "welcome.footer.privacy"), destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/privacy/principles.md")!)
+                            Link(String(localized: "welcome.footer.safety"), destination: URL(string: "https://github.com/cheesejaguar/openmatch/blob/main/docs/safety/community-guidelines.md")!)
+                            Link(String(localized: "welcome.footer.source"), destination: URL(string: "https://github.com/cheesejaguar/openmatch")!)
                         }
                         .font(OMFont.caption)
                         .foregroundStyle(OMColor.plum)
@@ -153,11 +163,11 @@ struct WelcomeView: View {
                     inviteCode = parsed
                 }
             }
-            .alert("Sign-in error", isPresented: .init(
+            .alert(Text("welcome.signin_error.alert.title"), isPresented: .init(
                 get: { error != nil },
                 set: { _ in error = nil }
             )) {
-                Button("OK", role: .cancel) {}
+                Button(role: .cancel) {} label: { Text("common.ok") }
             } message: {
                 Text(error ?? "")
             }
@@ -287,24 +297,27 @@ struct WelcomeView: View {
     // to the localised description that APIError.errorDescription
     // produces from the .strings bundle.
     private func mapInviteError(from error: Error) -> String {
+        // Copy mirrors backend invite-gate codes. Keys live in
+        // Localizable.strings under welcome.invite.* so they're
+        // localizable per the i18n scaffolding doc.
         if let apiError = error as? APIError {
             switch apiError {
             case .inviteRequired:
-                return "An invite code is required during the beta. Tap your invite link or paste your code above."
+                return String(localized: "welcome.invite.required")
             case .inviteInvalid:
-                return "That invite code doesn't look right. Double-check the link in your invite email."
+                return String(localized: "welcome.invite.invalid")
             case .inviteExhausted:
-                return "That invite code has already been used up. Ask the sender for a fresh one."
+                return String(localized: "welcome.invite.exhausted")
             case .inviteExpired:
-                return "That invite code has expired."
+                return String(localized: "welcome.invite.expired")
             case .inviteRevoked:
-                return "That invite code has been revoked. Reach out to support if you think this is a mistake."
+                return String(localized: "welcome.invite.revoked")
             case .signupsPaused:
-                return "Signups are temporarily paused. Try again later."
+                return String(localized: "welcome.signups_paused")
             case .outsideMetro:
-                return apiError.errorDescription ?? "OpenMatch isn't live in your area yet."
+                return apiError.errorDescription ?? String(localized: "welcome.outside_metro")
             case .countryNotSupported:
-                return apiError.errorDescription ?? "OpenMatch isn't available in your region yet."
+                return apiError.errorDescription ?? String(localized: "welcome.country_not_supported")
             default:
                 break
             }

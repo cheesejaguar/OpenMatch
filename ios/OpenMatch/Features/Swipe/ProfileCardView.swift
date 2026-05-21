@@ -43,14 +43,14 @@ struct ProfileCardView: View {
                 edgeGlow
 
                 HStack {
-                    CornerBadge(text: "LIKE", color: OMColor.magenta)
+                    CornerBadge(text: String(localized: "swipe.stamp.like"), color: OMColor.magenta)
                         .scaleEffect(1 + max(0, intent) * 0.18)
                         .opacity(max(0, intent))
                         .rotationEffect(.degrees(-12))
                         .padding(.top, 30)
                         .padding(.leading, 24)
                     Spacer()
-                    CornerBadge(text: "PASS", color: OMColor.periwinkle)
+                    CornerBadge(text: String(localized: "swipe.stamp.pass"), color: OMColor.periwinkle)
                         .scaleEffect(1 + max(0, -intent) * 0.18)
                         .opacity(max(0, -intent))
                         .rotationEffect(.degrees(12))
@@ -112,7 +112,7 @@ struct ProfileCardView: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Why am I seeing this profile?")
+                .accessibilityLabel(Text("swipe.profile.why_seeing.a11y_label"))
             }
             HStack(spacing: 8) {
                 Image(systemName: "location.fill").imageScale(.small)
@@ -181,21 +181,21 @@ struct ProfileCardView: View {
             .buttonStyle(OMCircleActionStyle(color: OMColor.marigold, size: 52))
             .disabled(!canUndo)
             .opacity(canUndo ? 1 : 0.4)
-            .accessibilityLabel("Undo last decision")
+            .accessibilityLabel(Text("swipe.action.undo.a11y_label"))
 
             Button(action: { Haptics.threshold(); onReject() }) {
                 Image(systemName: "xmark")
                     .font(.title.weight(.semibold))
             }
             .buttonStyle(OMCircleActionStyle(color: OMColor.periwinkle, size: 62))
-            .accessibilityLabel("Reject profile")
+            .accessibilityLabel(Text("swipe.action.reject.a11y_label"))
 
             Button(action: { Haptics.threshold(); onLike() }) {
                 Image(systemName: "heart.fill")
                     .font(.title.weight(.semibold))
             }
             .buttonStyle(OMCircleActionStyle(color: OMColor.magenta, size: 62))
-            .accessibilityLabel("Like profile")
+            .accessibilityLabel(Text("swipe.action.like.a11y_label"))
         }
     }
 }

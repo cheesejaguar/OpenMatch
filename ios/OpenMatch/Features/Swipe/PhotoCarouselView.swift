@@ -3,6 +3,11 @@ import SwiftUI
 struct PhotoCarouselView: View {
     let photos: [PhotoDTO]
     @Binding var index: Int
+    // A11Y — honor system Reduce Motion preference. We don't currently
+    // animate carousel transitions (it's a hard cut between photos),
+    // but the environment is captured here so any future cross-fade
+    // can branch on it without re-plumbing.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -16,6 +21,11 @@ struct PhotoCarouselView: View {
                 // worst case without paying for 1600px source bytes.
                 OMImage(url: url, thumbnailMaxPixelSize: 1200)
                     .scaledToFill()
+                    // Hard cut for reduce-motion users; a subtle cross-fade
+                    // otherwise. The transition is bound to the clamped
+                    // index so .id() forces a re-render at each change.
+                    .id(clampedIndex)
+                    .transition(reduceMotion ? .identity : .opacity)
             }
             HStack(spacing: 0) {
                 Color.clear
@@ -26,7 +36,7 @@ struct PhotoCarouselView: View {
                         Haptics.tick()
                         index -= 1
                     }
-                    .accessibilityLabel("Previous photo")
+                    .accessibilityLabel(Text("swipe.photo.previous.a11y_label"))
                 Color.clear
                     .contentShape(Rectangle())
                     .frame(maxWidth: .infinity)
@@ -42,7 +52,7 @@ struct PhotoCarouselView: View {
                         Haptics.tick()
                         index += 1
                     }
-                    .accessibilityLabel("Next photo")
+                    .accessibilityLabel(Text("swipe.photo.next.a11y_label"))
             }
             VStack {
                 if photos.count > 1 {
