@@ -75,23 +75,30 @@ export async function blockUser(
       create: { blockerUserId, blockedUserId },
       update: {},
     });
-    // Close any active match in either direction.
+    // Close any active match in either direction. PERF-B7: collapse the
+    // prior findMany+updateMany (two index scans over the same predicate)
+    // into a single UPDATE ... RETURNING with a LEFT JOIN onto Conversation
+    // so we get conversation ids in one round-trip.
     const [a, b] = [blockerUserId, blockedUserId].sort();
-    const affected = await tx.match.findMany({
-      where: { userAId: a, userBId: b, status: "active" },
-      select: { id: true, conversation: { select: { id: true } } },
-    });
-    for (const m of affected) {
-      if (m.conversation?.id) closedConversationIds.push(m.conversation.id);
+    const now = new Date();
+    const closed = await tx.$queryRaw<Array<{ conversationId: string | null }>>`
+      WITH updated AS (
+        UPDATE "Match"
+           SET "status" = 'unmatched',
+               "unmatchedAt" = ${now},
+               "unmatchedByUserId" = ${blockerUserId}
+         WHERE "userAId" = ${a}
+           AND "userBId" = ${b}
+           AND "status" = 'active'
+        RETURNING "id"
+      )
+      SELECT c."id" AS "conversationId"
+        FROM updated u
+        LEFT JOIN "Conversation" c ON c."matchId" = u."id"
+    `;
+    for (const row of closed) {
+      if (row.conversationId) closedConversationIds.push(row.conversationId);
     }
-    await tx.match.updateMany({
-      where: { userAId: a, userBId: b, status: "active" },
-      data: {
-        status: "unmatched",
-        unmatchedAt: new Date(),
-        unmatchedByUserId: blockerUserId,
-      },
-    });
   });
   // SEV-M11 — Out-of-band channel teardown for each closed conversation.
   // Best-effort; failures are swallowed (the application-layer check
