@@ -33,12 +33,16 @@ const updatePrefs = z.object({
 export const preferencesRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  app.get("/me", async (req) => {
+  app.get("/me", async (req, reply) => {
     const prefs = await app.prisma.preferences.upsert({
       where: { userId: req.userId! },
       create: { userId: req.userId! },
       update: {},
     });
+    // PERF — preferences are user-private and frequently mutated by
+    // settings edits; force private caches to revalidate on every
+    // request rather than serving stale rows.
+    reply.header("cache-control", "private, max-age=0, must-revalidate");
     return prefs;
   });
 

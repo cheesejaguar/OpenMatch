@@ -119,7 +119,12 @@ export const photosRoutes: FastifyPluginAsync = async (app) => {
         }
         // Short browser cache (5 min) — keeps the image hot across a list
         // refresh but limits how long a revoked URL keeps rendering.
-        reply.header("cache-control", "private, max-age=300");
+        // PERF — the signed URL itself expires in 5 min (see
+        // PHOTO_URL_TTL_SECONDS above) so the underlying blob bytes
+        // can be cached for that full window with `immutable` — every
+        // refresh issues a fresh signed URL anyway, so no client will
+        // need to revalidate within that lifetime.
+        reply.header("cache-control", "private, max-age=300, immutable");
         reply.header("content-type", bytes.contentType);
         return reply.send(bytes.bytes);
       }
