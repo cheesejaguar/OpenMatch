@@ -210,13 +210,121 @@ export async function readLocal(storageKey: string): Promise<Buffer | null> {
 // Server-side fetch of the blob bytes for the proxy endpoint. Used by
 // `GET /api/v1/photos/:id/serve` after the JWT has been validated.
 // Returns null when the blob is missing or the fetch fails so the route
-// can render a 404. Streams are deliberately bypassed in favour of the
-// existing buffer-based contract — these are profile thumbnails (~1.5MB
-// each), and the proxy is invoked over the function execution model
-// where streaming responses would force a different runtime config.
+// can render a 404.
+//
+// PERF-X2 — historically this awaited the full `arrayBuffer()` before
+// returning. For our 4MB photo cap that was a full per-request memcpy
+// + an event-loop pause while the whole body landed in the function's
+// heap. Fluid Compute (Node 24) handles Web ReadableStream natively;
+// the previous comment blaming Edge runtime constraints is obsolete.
+//
+// The streaming variant `fetchPhotoStream` returns the upstream
+// WHATWG `ReadableStream` + content metadata; the route hands it to
+// `reply.send` which pipes it through to the client. The buffer-based
+// `fetchPhotoBytes` is retained for callers that need the bytes
+// in-process (currently none — kept for backward compat).
 export interface PhotoBytes {
   bytes: Buffer;
   contentType: string;
+}
+
+export interface PhotoStream {
+  body: ReadableStream<Uint8Array>;
+  contentType: string;
+  contentLength: number | null;
+  // For PERF-X3 we may want the upstream ETag forwarded directly.
+  etag: string | null;
+  lastModified: string | null;
+  // Vercel Blob supports Range requests natively; preserved here so the
+  // route can propagate 206 Partial Content for resumable downloads.
+  acceptRanges: string | null;
+  status: number;
+}
+
+export async function fetchPhotoStream(
+  storageKey: string,
+  cdnUrl: string,
+  init?: { range?: string; ifNoneMatch?: string },
+): Promise<PhotoStream | null> {
+  if (env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const headers: Record<string, string> = {};
+      if (init?.range) headers["range"] = init.range;
+      if (init?.ifNoneMatch) headers["if-none-match"] = init.ifNoneMatch;
+      const res = await fetch(cdnUrl, { headers });
+      // 304/206 are non-200 statuses we still want to surface so the
+      // route can pass them through. 4xx/5xx upstream → null → route
+      // renders PHOTO_NOT_FOUND.
+      if (res.status >= 400) return null;
+      const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+      const contentLengthRaw = res.headers.get("content-length");
+      const contentLength = contentLengthRaw === null ? null : Number(contentLengthRaw);
+      // Some upstreams (esp. CDN edges) return a body of `null` on 304;
+      // the route handles that by emitting an empty 304 reply.
+      const body = res.body;
+      if (!body) {
+        // 304 with no body is a legitimate response — surface it so the
+        // route can short-circuit. Otherwise treat as fetch failure.
+        if (res.status === 304) {
+          return {
+            body: new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.close();
+              },
+            }),
+            contentType,
+            contentLength,
+            etag: res.headers.get("etag"),
+            lastModified: res.headers.get("last-modified"),
+            acceptRanges: res.headers.get("accept-ranges"),
+            status: 304,
+          };
+        }
+        return null;
+      }
+      return {
+        body,
+        contentType,
+        contentLength: Number.isFinite(contentLength) ? contentLength : null,
+        etag: res.headers.get("etag"),
+        lastModified: res.headers.get("last-modified"),
+        acceptRanges: res.headers.get("accept-ranges"),
+        status: res.status,
+      };
+    } catch {
+      return null;
+    }
+  }
+  const buf = await readLocal(storageKey);
+  if (!buf) return null;
+  // Best-effort content-type from extension.
+  const ext = path.extname(storageKey).toLowerCase();
+  const contentType =
+    ext === ".jpg" || ext === ".jpeg"
+      ? "image/jpeg"
+      : ext === ".png"
+        ? "image/png"
+        : ext === ".webp"
+          ? "image/webp"
+          : "application/octet-stream";
+  // Wrap the local buffer as a ReadableStream for shape parity. The
+  // dev path doesn't need streaming for performance but we keep the
+  // return type uniform so the route logic stays single-branched.
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(buf));
+      controller.close();
+    },
+  });
+  return {
+    body: stream,
+    contentType,
+    contentLength: buf.byteLength,
+    etag: null,
+    lastModified: null,
+    acceptRanges: null,
+    status: 200,
+  };
 }
 
 export async function fetchPhotoBytes(
