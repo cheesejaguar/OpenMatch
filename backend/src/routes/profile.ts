@@ -96,6 +96,11 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age -= 1;
     }
     const { dateOfBirth: _dob, ...rest } = user;
+    // PERF — `/profile/me` must always reflect fresh state (the user
+    // just edited their bio, uploaded a photo, etc.) but private
+    // intermediary caches must revalidate every request rather than
+    // serving stale bytes.
+    reply.header("cache-control", "private, max-age=0, must-revalidate");
     return { ...rest, age };
   });
 
@@ -444,6 +449,11 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     if (profile.visibilityStatus === "hidden") {
       return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
     }
+    // PERF — peer profile pages are fetched repeatedly while a user
+    // reads them, but they DO mutate (display name edit, new photo).
+    // A short 60s freshness with 2 minutes of stale-while-revalidate
+    // keeps repeated taps on the same profile from re-hitting Prisma.
+    reply.header("cache-control", "private, max-age=60, stale-while-revalidate=120");
     return profile;
   });
 };

@@ -24,6 +24,10 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
     async (req, reply) => {
       const { limit } = deckQuerySchema.parse(req.query);
       const deckSessionId = randomUUID();
+      // PERF — the deck mutates on every call (swipes filter the next
+      // page) so it must never be cached by an intermediary, the user
+      // agent, or a service worker. Explicitly opt out.
+      reply.header("cache-control", "no-store");
       try {
         const deck = await buildDeck({
           prisma: app.prisma,

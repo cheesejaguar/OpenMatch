@@ -93,7 +93,14 @@ async function openapiPluginImpl(app: FastifyInstance) {
   });
 
   // Machine-readable spec for client-code generators / docs site.
-  app.get("/openapi.json", async () => app.swagger());
+  // PERF — the spec is stable per deploy. Cache for 5 minutes with a
+  // 10-minute stale-while-revalidate window so client-code generators
+  // and the docs site don't re-fetch the (~hundreds of KB) document
+  // on every CI build.
+  app.get("/openapi.json", async (_req, reply) => {
+    reply.header("cache-control", "public, max-age=300, stale-while-revalidate=600");
+    return app.swagger();
+  });
 }
 
 export const openapiPlugin = fp(openapiPluginImpl, { name: "openapi" });

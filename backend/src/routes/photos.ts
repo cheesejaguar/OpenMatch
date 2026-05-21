@@ -39,7 +39,12 @@ async function streamPhotoResponse(
   // stable photo ETag. Saves the full upstream blob round-trip.
   if (args.ifNoneMatch && args.ifNoneMatch === args.etag) {
     reply.header("etag", args.etag);
-    reply.header("cache-control", "private, max-age=300");
+    // PERF — the signed URL itself expires in 5 min (see
+    // PHOTO_URL_TTL_SECONDS below) so the underlying blob bytes can be
+    // cached for that full window with `immutable` — every refresh
+    // issues a fresh signed URL anyway, so no client will need to
+    // revalidate within that lifetime.
+    reply.header("cache-control", "private, max-age=300, immutable");
     return reply.code(304).send();
   }
 

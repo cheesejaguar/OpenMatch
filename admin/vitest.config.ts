@@ -17,6 +17,14 @@ export default defineConfig({
     environment: "happy-dom",
     globals: true,
     setupFiles: ["./test/setup.ts"],
+    // PERF — admin tests render components in isolation with no shared
+    // backend, DB, or filesystem state. Threads beat the default forks
+    // pool for this CPU-bound workload; cap at four workers so CI
+    // runners with limited cores don't oversubscribe.
+    pool: "threads",
+    poolOptions: {
+      threads: { singleThread: false, minThreads: 1, maxThreads: 4 },
+    },
     // `server-only` is a Next.js-provided marker module that has no
     // implementation outside the Next.js bundler. Tests that import
     // server-only modules (e.g. admin-client) need a stub so the import
