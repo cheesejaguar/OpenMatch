@@ -191,21 +191,12 @@ private struct OnboardingPhotoTile: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            AsyncImage(url: URL(string: photo.cdnUrl)) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                case .empty:
-                    ProgressView().tint(OMColor.plum)
-                case .failure:
-                    BotanicPlaceholder(.large)
-                @unknown default:
-                    EmptyView()
-                }
-            }
-            .frame(width: 100, height: 100)
-            .clipShape(OMShape.card(OMRadius.md))
-            .background(OMColor.surfaceSunken, in: OMShape.card(OMRadius.md))
+            // PERF-I4 — small onboarding tile; thumbnail at ≤ 300px.
+            OMImage(url: URL(string: photo.cdnUrl), thumbnailMaxPixelSize: 300)
+                .scaledToFill()
+                .frame(width: 100, height: 100)
+                .clipShape(OMShape.card(OMRadius.md))
+                .background(OMColor.surfaceSunken, in: OMShape.card(OMRadius.md))
 
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "xmark.circle.fill")

@@ -10,20 +10,12 @@ struct PhotoCarouselView: View {
                 BotanicPlaceholder(.large)
             } else {
                 let url = URL(string: photos[clampedIndex].cdnUrl, relativeTo: APIConfig.defaultBaseURL)
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        BotanicPlaceholder(.large).overlay(
-                            ProgressView().tint(OMColor.plum)
-                        )
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    case .failure:
-                        BotanicPlaceholder(.large)
-                    @unknown default:
-                        BotanicPlaceholder(.large)
-                    }
-                }
+                // PERF-I4 — swipe-card photo. The card occupies roughly
+                // the full screen width; on a 3x device that's ≤ 1200px,
+                // and on 2x it's ≤ 800px. 1200px covers the longest-edge
+                // worst case without paying for 1600px source bytes.
+                OMImage(url: url, thumbnailMaxPixelSize: 1200)
+                    .scaledToFill()
             }
             HStack(spacing: 0) {
                 Color.clear
