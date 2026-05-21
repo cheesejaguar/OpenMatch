@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
-import type { FastifyReply } from "fastify";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { z } from "zod";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
@@ -170,7 +169,7 @@ export const photosRoutes: FastifyPluginAsync = async (app) => {
       // user who got blocked / unmatched within the 5-minute window
       // loses access at the next image fetch.
       const ifNoneMatch = req.headers["if-none-match"];
-      const rangeHeader = req.headers["range"];
+      const rangeHeader = req.headers.range;
       if (audienceUserId) {
         const access = await authorizePhotoAccess(app.prisma, {
           photoId,

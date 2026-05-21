@@ -249,7 +249,7 @@ export async function fetchPhotoStream(
   if (env.BLOB_READ_WRITE_TOKEN) {
     try {
       const headers: Record<string, string> = {};
-      if (init?.range) headers["range"] = init.range;
+      if (init?.range) headers.range = init.range;
       if (init?.ifNoneMatch) headers["if-none-match"] = init.ifNoneMatch;
       const res = await fetch(cdnUrl, { headers });
       // 304/206 are non-200 statuses we still want to surface so the

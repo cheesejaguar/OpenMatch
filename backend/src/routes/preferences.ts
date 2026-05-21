@@ -64,18 +64,14 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
 
   const r = app.withTypeProvider<ZodTypeProvider>();
 
-  r.get(
-    "/me",
-    { schema: { response: { 200: preferencesResponseSchema } } },
-    async (req) => {
-      const prefs = await app.prisma.preferences.upsert({
-        where: { userId: req.userId! },
-        create: { userId: req.userId! },
-        update: {},
-      });
-      return prefs;
-    },
-  );
+  r.get("/me", { schema: { response: { 200: preferencesResponseSchema } } }, async (req) => {
+    const prefs = await app.prisma.preferences.upsert({
+      where: { userId: req.userId! },
+      create: { userId: req.userId! },
+      update: {},
+    });
+    return prefs;
+  });
 
   app.patch("/me", async (req, reply) => {
     const body = updatePrefs.parse(req.body);
