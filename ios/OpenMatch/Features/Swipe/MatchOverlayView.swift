@@ -23,12 +23,21 @@ struct MatchOverlayView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var titleAppeared = false
 
-    // Platform-config-driven title. Dating: "You matched!".
-    // Sports / roommates: "You paired!". Mentorship flips
-    // `enableMatchOverlay` to false so this view never renders for
-    // that variant; we still honour the verb for safety.
-    private static let titleString: String = "You \(PlatformConfig.shared.matchVerb)!"
-    private static let titleCharacters: [Character] = Array(MatchOverlayView.titleString)
+    // I18N + platform verb — pull the title format from Localizable.strings
+    // (so translations work) and interpolate the platform-config verb
+    // ("matched" for dating, "paired" for sports/roommates). Mentorship
+    // flips `enableMatchOverlay` off so this view never renders for that
+    // variant; we still honour the verb for safety. VoiceOver label below
+    // uses the same string.
+    private static let titleString: String = String(
+        format: NSLocalizedString(
+            "match.title",
+            value: "You %@!",
+            comment: "Match overlay headline, %@ is the platform verb (matched/paired)"
+        ),
+        PlatformConfig.shared.matchVerb
+    )
+    private static var titleCharacters: [Character] { Array(titleString) }
 
     var body: some View {
         ZStack {
@@ -51,14 +60,20 @@ struct MatchOverlayView: View {
                 titleView
                     .padding(.top, 4)
 
-                Text("You and \(card.displayName)")
+                // String(format:) reads "%@" from the localized bundle and
+                // inserts the peer's name. The fallback keeps the UI sane
+                // if a stub locale ever ships with the placeholder value.
+                Text(String(format: NSLocalizedString("match.subtitle",
+                                                     value: "You and %@",
+                                                     comment: "Match overlay subtitle, %@ is peer display name"),
+                            card.displayName))
                     .font(OMFont.body(17, weight: .medium))
                     .foregroundStyle(OMColor.ink)
                     .multilineTextAlignment(.center)
 
                 VStack(spacing: 12) {
                     Button(action: onDismiss) {
-                        Text("Send a message")
+                        Text("match.send_message.button")
                             .font(OMFont.body(17, weight: .semibold))
                             .foregroundStyle(OMColor.paper)
                             .frame(maxWidth: .infinity)
@@ -68,7 +83,7 @@ struct MatchOverlayView: View {
                     .buttonStyle(.plain)
 
                     Button(action: onDismiss) {
-                        Text("Keep swiping")
+                        Text("match.keep_swiping.button")
                             .font(OMFont.body(17, weight: .semibold))
                             .foregroundStyle(OMColor.plum)
                             .frame(maxWidth: .infinity)
@@ -93,6 +108,13 @@ struct MatchOverlayView: View {
             )
             .shadow(color: OMColor.ink.opacity(0.30), radius: 40, x: 0, y: 20)
             .padding(24)
+            // A11Y — entire card is one VO element so screen readers
+            // get a single coherent label ("It's a match — send a
+            // message, or keep swiping") instead of walking each glyph
+            // + button separately. The CTAs remain individually
+            // tappable; VO falls through to them on the explore gesture.
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Text("match.overlay.a11y_label"))
         }
         .onAppear {
             // Brief delay so the modal can finish its presentation

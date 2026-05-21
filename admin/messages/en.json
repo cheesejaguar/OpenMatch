@@ -1,0 +1,75 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "back": "Back",
+    "loading": "Loading…",
+    "error_generic": "Something went wrong. Please try again."
+  },
+  "nav": {
+    "overview": "Overview",
+    "users": "Users",
+    "reports": "Reports",
+    "photos": "Photos",
+    "conversations": "Conversations",
+    "audit": "Audit log",
+    "analytics": "Analytics",
+    "geography": "Geography",
+    "feedback": "Feedback",
+    "flags": "Feature flags",
+    "invites": "Invites",
+    "health": "System health",
+    "status": "Status page",
+    "settings": "Settings"
+  },
+  "status": {
+    "headline": {
+      "normal": "All systems normal",
+      "degraded": "Degraded performance",
+      "incident": "Active incident",
+      "unknown": "Status unknown"
+    },
+    "page_title": "OpenMatch status",
+    "page_subtitle": "Current operating status of OpenMatch services.",
+    "service": {
+      "backend": "Backend API",
+      "admin": "Admin dashboard",
+      "push": "Push notifications",
+      "realtime": "Realtime messaging"
+    },
+    "uptime": {
+      "90_day": "Last 90 days uptime",
+      "pass_rate": "Pass rate"
+    },
+    "incidents": {
+      "title": "Recent incidents",
+      "active": "Active",
+      "resolved": "Resolved",
+      "none": "No incidents in the last 7 days."
+    }
+  },
+  "login": {
+    "title": "Admin sign-in",
+    "email": "Work email",
+    "submit": "Send sign-in link",
+    "totp": "2FA code",
+    "totp_submit": "Verify",
+    "totp_hint": "6-digit code from your authenticator app."
+  },
+  "users": {
+    "title": "Users",
+    "search": "Search by email, id, display name",
+    "filter": {
+      "status": "Status",
+      "metro": "Metro"
+    },
+    "actions": {
+      "view": "View",
+      "suspend": "Suspend",
+      "ban": "Ban",
+      "unban": "Unban",
+      "redact": "Redact PII"
+    }
+  }
+}

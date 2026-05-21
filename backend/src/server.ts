@@ -35,6 +35,7 @@ import { adminConversationRoutes } from "./routes/admin/conversations.js";
 import { adminDsaRoutes } from "./routes/admin/dsa.js";
 import { adminFeedbackRoutes } from "./routes/admin/feedback.js";
 import { adminFlagsRoutes } from "./routes/admin/flags.js";
+import { adminIncidentsRoutes } from "./routes/admin/incidents.js";
 import { adminGeographyRoutes } from "./routes/admin/geography.js";
 import { adminInvitesRoutes } from "./routes/admin/invites.js";
 import { adminMetricsRoutes, adminSyntheticRoutes } from "./routes/admin/metrics.js";
@@ -66,6 +67,7 @@ import { privacyRoutes } from "./routes/privacy.js";
 import { profileRoutes } from "./routes/profile.js";
 import { realtimeRoutes } from "./routes/realtime.js";
 import { safetyRoutes } from "./routes/safety.js";
+import { statusRoutes } from "./routes/status.js";
 import { swipesRoutes } from "./routes/swipes.js";
 import { transparencyRoutes } from "./routes/transparency.js";
 import { waitlistRoutes } from "./routes/waitlist.js";
@@ -428,6 +430,8 @@ export async function buildServer() {
   await app.register(dsaRoutes, { prefix: "/api/v1/dsa" });
   await app.register(waitlistRoutes, { prefix: "/api/v1/waitlist" });
   await app.register(iapRoutes, { prefix: "/api/v1/iap" });
+  // Public, unauthenticated status-page feed.
+  await app.register(statusRoutes, { prefix: "/api/v1/status" });
 
   await app.register(adminAuthRoutes, { prefix: "/api/v1/admin/auth" });
   await app.register(adminTotpRoutes, { prefix: "/api/v1/admin/auth/totp" });
@@ -441,6 +445,7 @@ export async function buildServer() {
   await app.register(adminRoleRoutes, { prefix: "/api/v1/admin" });
   await app.register(adminInvitesRoutes, { prefix: "/api/v1/admin/invites" });
   await app.register(adminFlagsRoutes, { prefix: "/api/v1/admin/flags" });
+  await app.register(adminIncidentsRoutes, { prefix: "/api/v1/admin/incidents" });
   await app.register(adminMetrosRoutes, { prefix: "/api/v1/admin/metros" });
   await app.register(adminFeedbackRoutes, { prefix: "/api/v1/admin/feedback" });
   await app.register(adminAnalyticsRoutes, { prefix: "/api/v1/admin/analytics" });

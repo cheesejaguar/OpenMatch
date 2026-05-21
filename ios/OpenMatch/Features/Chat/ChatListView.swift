@@ -28,7 +28,7 @@ struct ChatListView: View {
                             .padding(.top, 60)
                     } else {
                         LazyVStack(spacing: OMSpacing.lg) {
-                            OMSection("Matches") {
+                            OMSection(String(localized: "chat.section.matches")) {
                                 ForEach(Array(vm.matches.enumerated()), id: \.element.id) { idx, match in
                                     NavigationLink {
                                         if let conv = match.conversation {
@@ -50,16 +50,16 @@ struct ChatListView: View {
                 }
                 .refreshable { await vm.load() }
             }
-            .omNavTitle("Chat")
+            .omNavTitle(String(localized: "chat.title"))
             .task {
                 vm.api = api
                 await vm.load()
             }
-            .alert("Couldn't load matches", isPresented: .init(
+            .alert(Text("chat.list_error.alert.title"), isPresented: .init(
                 get: { vm.error != nil },
                 set: { _ in vm.error = nil }
             )) {
-                Button("OK", role: .cancel) {}
+                Button(role: .cancel) {} label: { Text("common.ok") }
             } message: {
                 Text(vm.error ?? "")
             }
@@ -69,10 +69,10 @@ struct ChatListView: View {
     private var emptyState: some View {
         VStack(spacing: OMSpacing.md) {
             BotanicPlaceholder(.avatar(96))
-            Text("No conversations yet")
+            Text("chat.empty_state.title")
                 .font(OMFont.display(22, weight: .semibold, italic: true))
                 .foregroundStyle(OMColor.ink)
-            Text("Match with someone in the Swipe tab to start a chat.")
+            Text("chat.empty_state.body")
                 .font(OMFont.callout)
                 .foregroundStyle(OMColor.inkMuted)
                 .multilineTextAlignment(.center)
@@ -82,11 +82,12 @@ struct ChatListView: View {
     }
 
     private func peerName(_ match: MatchDTO) -> String {
+        let fallback = String(localized: "chat.row.fallback_name")
         let me = api.cachedUserId
         if match.userA.id == me {
-            return match.userB.profile?.displayName ?? "Match"
+            return match.userB.profile?.displayName ?? fallback
         }
-        return match.userA.profile?.displayName ?? "Match"
+        return match.userA.profile?.displayName ?? fallback
     }
 }
 
@@ -100,7 +101,8 @@ private struct MatchRow: View {
                 Text(peerName)
                     .font(OMFont.body(16, weight: .semibold))
                     .foregroundStyle(OMColor.ink)
-                Text(match.conversation?.messages?.first?.body ?? "Say hi!")
+                Text(match.conversation?.messages?.first?.body
+                     ?? String(localized: "chat.row.placeholder_message"))
                     .font(OMFont.callout)
                     .foregroundStyle(OMColor.inkMuted)
                     .lineLimit(1)
@@ -109,6 +111,7 @@ private struct MatchRow: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(OMColor.inkMuted)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, OMSpacing.lg)
         .padding(.vertical, 14)

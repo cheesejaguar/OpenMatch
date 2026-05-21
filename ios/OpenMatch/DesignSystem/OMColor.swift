@@ -12,6 +12,14 @@ enum OMColor {
     // MARK: - Brand (Aurora Dawn)
     static let plum = dual(light: 0x5B2B6E, dark: 0x8E4DA8)
     static let magenta = dual(light: 0xD88FA8, dark: 0xE0A4B8)
+    // A11Y — `magenta` (#D88FA8 on #FAF6F2 paper) clocks ~2.1:1 contrast,
+    // well under WCAG 2.1 AA's 4.5:1 floor for body text. It's still safe
+    // for large display text (3:1 threshold) and for color fills with a
+    // separate icon/label signal (e.g. the "Like" stamp). For any body-
+    // weight text on a paper surface, use `magentaText` instead — it's
+    // darkened to #9B3B5E light / #E5B0C0 dark and clears 4.5:1 in both
+    // modes.
+    static let magentaText = dual(light: 0x9B3B5E, dark: 0xE5B0C0)
     static let marigold = dual(light: 0xFFB347, dark: 0xFFC76A)
     static let periwinkle = dual(light: 0xA6B4FF, dark: 0x7C8EE6)
     static let cinnabar = dual(light: 0xD43A3A, dark: 0xE66363)

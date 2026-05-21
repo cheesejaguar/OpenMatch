@@ -107,6 +107,9 @@ export const ADMIN_ROLE_DEFINITIONS: RoleDefinition[] = [
       P.METRO_MANAGE,
       P.FEEDBACK_READ,
       P.FEEDBACK_RESOLVE,
+      // system_admin posts status-page incident updates. Ops-on-call
+      // typically holds this role.
+      P.INCIDENT_MANAGE,
     ],
   },
   {

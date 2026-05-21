@@ -1,0 +1,222 @@
+/* Localizable.strings — master English bundle for OpenMatch iOS.
+ *
+ * This is the source of truth for every user-facing string the app
+ * renders outside the error registry. Backend error copy lives in
+ * ErrorMessages.strings (mirrors `backend/src/lib/error-codes.ts`).
+ *
+ * Naming: <feature>.<section>.<element>
+ *   - feature: onboarding | welcome | swipe | match | profile | chat |
+ *              likes | settings | common
+ *   - section: optional — empty_state, action_row, toolbar, alert, etc.
+ *   - element: title | subtitle | body | button | label | hint | a11y_label
+ *
+ * Format specifiers:
+ *   - %@   string (e.g. display name)
+ *   - %lld integer (e.g. age, count)
+ *   - %.1f one-decimal float (e.g. distance in km)
+ *   - %1$@ / %2$@ positional when order varies per language
+ *
+ * Translation workflow:
+ *   1. Copy this file to <lang>.lproj/Localizable.strings.
+ *   2. Replace each `"value"` with the translated string, preserving
+ *      all `%@` / `%lld` / `%.1f` specifiers and their order via the
+ *      positional `%1$@` form when the target language reorders them.
+ *   3. Run `genstrings` against the SwiftUI sources to verify no new
+ *      keys are missing.
+ *   4. Open a PR; CI flags any stub `???key???` value still in the
+ *      shipped locale bundle.
+ *
+ * Stub locales (es / fr / de / ja) intentionally carry `???key???` as
+ * their value so a contributor can locate what still needs translation.
+ * We do NOT ship machine-translations.
+ */
+
+// MARK: - Common
+
+"common.ok"                                = "OK";
+"common.cancel"                            = "Cancel";
+"common.save"                              = "Save";
+"common.continue"                          = "Continue";
+"common.retry"                             = "Try again";
+"common.done"                              = "Done";
+"common.back"                              = "Back";
+"common.next"                              = "Next";
+"common.skip"                              = "Skip";
+"common.loading"                           = "Loading…";
+"common.error_generic"                     = "Something went wrong. Please try again.";
+
+// MARK: - Welcome / sign-in
+
+"welcome.title"                            = "OpenMatch";
+"welcome.kicker.line1"                     = "Open-source dating.";
+"welcome.kicker.line2"                     = "Free core features. Always.";
+"welcome.kicker.line3"                     = "Auditable matching.";
+"welcome.invite.placeholder"               = "Invite code";
+"welcome.invite.hint"                      = "Required during the beta. Tap your invite link or paste your code.";
+"welcome.email.placeholder"                = "Email";
+"welcome.continue.button"                  = "Continue with email";
+"welcome.verify.placeholder"               = "6-digit code from email";
+"welcome.verify.button"                    = "Verify";
+"welcome.separator"                        = "or";
+"welcome.apple.button"                     = "Continue with Apple";
+"welcome.dev.disclosure"                   = "Developer login (local dev only)";
+"welcome.dev.user_id.placeholder"          = "User id";
+"welcome.dev.button"                       = "Dev sign in";
+"welcome.footer.privacy"                   = "Privacy";
+"welcome.footer.safety"                    = "Safety";
+"welcome.footer.source"                    = "Source";
+"welcome.signin_error.alert.title"         = "Sign-in error";
+
+"welcome.invite.required"                  = "An invite code is required during the beta. Tap your invite link or paste your code above.";
+"welcome.invite.invalid"                   = "That invite code doesn't look right. Double-check the link in your invite email.";
+"welcome.invite.exhausted"                 = "That invite code has already been used up. Ask the sender for a fresh one.";
+"welcome.invite.expired"                   = "That invite code has expired.";
+"welcome.invite.revoked"                   = "That invite code has been revoked. Reach out to support if you think this is a mistake.";
+"welcome.signups_paused"                   = "Signups are temporarily paused. Try again later.";
+"welcome.outside_metro"                    = "OpenMatch isn't live in your area yet.";
+"welcome.country_not_supported"            = "OpenMatch isn't available in your region yet.";
+
+// MARK: - Onboarding
+
+"onboarding.basics.title"                  = "About you";
+"onboarding.photos.title"                  = "Your photos";
+"onboarding.preferences.title"             = "Who you're looking for";
+"onboarding.review.title"                  = "Review";
+"onboarding.finish.button"                 = "Finish setup";
+
+// MARK: - Swipe deck
+
+"swipe.toolbar.filters.a11y_label"         = "Filters";
+"swipe.toolbar.why.a11y_label"             = "Why these profiles?";
+"swipe.empty_state.title"                  = "Nobody matches your filters right now.";
+"swipe.empty_state.body"                   = "Try broadening your distance or age range. This is free — you'll never be asked to pay.";
+"swipe.empty_state.adjust_filters.button"  = "Adjust filters";
+"swipe.deck_error.alert.title"             = "Couldn't load deck";
+"swipe.stamp.like"                         = "LIKE";
+"swipe.stamp.pass"                         = "PASS";
+"swipe.profile.why_seeing.a11y_label"      = "Why am I seeing this profile?";
+"swipe.action.undo.a11y_label"             = "Undo last decision";
+"swipe.action.reject.a11y_label"           = "Reject profile";
+"swipe.action.like.a11y_label"             = "Like profile";
+"swipe.photo.previous.a11y_label"          = "Previous photo";
+"swipe.photo.next.a11y_label"              = "Next photo";
+// VoiceOver: combined card label. %1$@ name, %2$lld age, %3$@ distance.
+"swipe.card.a11y_label"                    = "%1$@, %2$lld, %3$@ away";
+"swipe.card.a11y_hint"                     = "Double tap to view profile details. Swipe right to like, left to pass.";
+
+// MARK: - Match overlay
+
+"match.title"                              = "It's a match";
+// %@ = peer display name.
+"match.subtitle"                           = "You and %@";
+"match.send_message.button"                = "Send a message";
+"match.keep_swiping.button"                = "Keep swiping";
+"match.overlay.a11y_label"                 = "It's a match — send a message, or keep swiping.";
+
+// MARK: - Profile (own)
+
+"profile.home.title"                       = "Profile";
+"profile.edit.button"                      = "Edit profile";
+"profile.photos.section"                   = "Photos";
+"profile.add_photo.button"                 = "Add photo";
+"profile.add_photo.a11y_label"             = "Add a photo to your profile";
+"profile.bio.section"                      = "Bio";
+"profile.basics.section"                   = "About you";
+"profile.preferences.section"              = "Preferences";
+
+// MARK: - Looking-for filters
+
+"looking_for.title"                        = "Looking for";
+"looking_for.age_range.label"              = "Age range";
+"looking_for.distance.label"               = "Maximum distance";
+"looking_for.gender.label"                 = "Show me";
+"looking_for.save.button"                  = "Save filters";
+
+// MARK: - Chat list
+
+"chat.title"                               = "Chat";
+"chat.section.matches"                     = "Matches";
+"chat.list_error.alert.title"              = "Couldn't load matches";
+"chat.empty_state.title"                   = "No conversations yet";
+"chat.empty_state.body"                    = "Match with someone in the Swipe tab to start a chat.";
+"chat.row.placeholder_message"             = "Say hi!";
+"chat.row.fallback_name"                   = "Match";
+"chat.row.chevron.a11y_label"              = "Open conversation";
+
+// MARK: - Conversation
+
+"conversation.placeholder"                 = "Type a message";
+"conversation.send.button"                 = "Send";
+"conversation.send.a11y_label"             = "Send message";
+"conversation.menu.a11y_label"             = "Conversation menu";
+"conversation.unblock.button"              = "Unblock";
+"conversation.block.button"                = "Block";
+"conversation.report.button"               = "Report";
+"conversation.delete.button"               = "Delete conversation";
+"conversation.empty_state.title"           = "Start the conversation";
+"conversation.empty_state.body"            = "Say hi! A short opener works best.";
+"conversation.delivered"                   = "Delivered";
+"conversation.read"                        = "Read";
+
+// MARK: - Likes
+
+"likes.title"                              = "Likes";
+"likes.tab.received"                       = "Liked you";
+"likes.tab.sent"                           = "You liked";
+"likes.empty.received.title"               = "No likes yet";
+"likes.empty.received.body"                = "Keep swiping. People who like you will show up here.";
+"likes.empty.sent.title"                   = "You haven't liked anyone yet";
+"likes.empty.sent.body"                    = "Swipe right on profiles in the Swipe tab.";
+
+// MARK: - Settings
+
+"settings.title"                           = "Settings";
+"settings.section.account"                 = "Account";
+"settings.section.privacy"                 = "Privacy";
+"settings.section.safety"                  = "Safety";
+"settings.section.about"                   = "About";
+"settings.handedness.label"                = "Action button placement";
+"settings.handedness.right"                = "Right";
+"settings.handedness.left"                 = "Left";
+"settings.handedness.center"               = "Center";
+"settings.likes_visibility.label"          = "Likes visibility";
+"settings.likes_visibility.visible"        = "Visible to others";
+"settings.likes_visibility.count_only"     = "Count only";
+"settings.likes_visibility.hidden"         = "Hidden";
+"settings.export_data.button"              = "Export my data";
+"settings.delete_account.button"           = "Delete account";
+"settings.delete_account.confirm.title"    = "Delete your account?";
+"settings.delete_account.confirm.body"     = "This permanently deletes your profile, photos, matches, and conversations. This can't be undone.";
+"settings.sign_out.button"                 = "Sign out";
+"settings.feedback.button"                 = "Send feedback";
+"settings.licenses.button"                 = "Open-source licenses";
+"settings.version.label"                   = "Version";
+
+// MARK: - Feedback
+
+"feedback.title"                           = "Send feedback";
+"feedback.body.placeholder"                = "Tell us what's working, what isn't, what you wish existed.";
+"feedback.send.button"                     = "Send";
+"feedback.thanks.title"                    = "Thanks!";
+"feedback.thanks.body"                     = "We read every note. We can't always reply individually, but it helps shape what we build next.";
+
+// MARK: - Safety / reporting
+
+"safety.report.title"                      = "Report this profile";
+"safety.report.reason.label"               = "Reason";
+"safety.report.context.label"              = "Anything else we should know? (optional)";
+"safety.report.submit.button"              = "Submit report";
+"safety.block.confirm.title"               = "Block %@?";
+"safety.block.confirm.body"                = "They won't be able to see your profile or message you, and you won't see them in the deck.";
+
+// MARK: - Formatters (not user-facing strings but format keys)
+//
+// We never compose these manually — use `MeasurementFormatter`,
+// `Date.formatted(date:time:)`, and `NumberFormatter` so locale picks
+// the right pattern. Keys here are only for tests that assert on
+// formatted output (e.g. "1.2 km" vs "1.2 km" with locale-correct
+// separators).
+
+"format.distance.km"                       = "%.1f km";
+"format.distance.mi"                       = "%.1f mi";
+"format.age"                               = "%lld";

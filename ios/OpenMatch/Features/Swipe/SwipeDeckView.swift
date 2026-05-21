@@ -46,7 +46,7 @@ struct SwipeDeckView: View {
                     } label: {
                         Image(systemName: "slider.horizontal.3")
                     }
-                    .accessibilityLabel("Filters")
+                    .accessibilityLabel(Text("swipe.toolbar.filters.a11y_label"))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
@@ -54,7 +54,7 @@ struct SwipeDeckView: View {
                     } label: {
                         Image(systemName: "doc.text.magnifyingglass")
                     }
-                    .accessibilityLabel("Why these profiles?")
+                    .accessibilityLabel(Text("swipe.toolbar.why.a11y_label"))
                 }
             }
             .task {
@@ -73,11 +73,11 @@ struct SwipeDeckView: View {
                     }
                 }
             }
-            .alert("Couldn't load deck", isPresented: .init(
+            .alert(Text("swipe.deck_error.alert.title"), isPresented: .init(
                 get: { vm.error != nil },
                 set: { _ in vm.error = nil }
             )) {
-                Button("OK", role: .cancel) {}
+                Button(role: .cancel) {} label: { Text("common.ok") }
             } message: {
                 Text(vm.error ?? "")
             }
@@ -89,16 +89,18 @@ struct SwipeDeckView: View {
             Image(systemName: "leaf.fill")
                 .font(.system(size: 56))
                 .foregroundStyle(OMColor.plum.opacity(0.7))
-            Text("Nobody matches your filters right now.")
+            Text("swipe.empty_state.title")
                 .font(OMFont.subhead)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(OMColor.ink)
-            Text("Try broadening your distance or age range. This is free — you'll never be asked to pay.")
+            Text("swipe.empty_state.body")
                 .font(OMFont.callout)
                 .foregroundStyle(OMColor.inkMuted)
                 .multilineTextAlignment(.center)
-            NavigationLink("Adjust filters") {
+            NavigationLink {
                 LookingForView()
+            } label: {
+                Text("swipe.empty_state.adjust_filters.button")
             }
             .buttonStyle(OMPrimaryButtonStyle())
             .padding(.horizontal, 24)
