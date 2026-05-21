@@ -250,7 +250,10 @@ export async function buildPublicStatus(app: FastifyInstance): Promise<PublicSta
     });
     if (mostSevere.severity === "critical" || mostSevere.severity === "major") {
       headline = "incident";
-    } else if (headline === "normal") {
+    } else if (headline === "normal" || headline === "unknown") {
+      // Any active incident (even "minor") must surface as at least
+      // "degraded" — never leave the headline as "unknown" when we
+      // know there's an incident in flight.
       headline = "degraded";
     }
     headlineMessage = `${mostSevere.title}`;
