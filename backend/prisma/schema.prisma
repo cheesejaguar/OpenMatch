@@ -401,6 +401,8 @@ model User {
   pushDeliveryLogs    PushDeliveryLog[]
 
   @@index([status])
+  // PERF-B14 — daily-digest counts new signups in a time window
+  @@index([createdAt])
 }
 
 model Profile {
@@ -466,6 +468,8 @@ model ProfilePhoto {
   updatedAt        DateTime         @updatedAt
 
   @@index([profileId, sortOrder])
+  // PERF-B14 — daily-digest counts photo uploads in a time window
+  @@index([createdAt])
 }
 
 model Preferences {
@@ -555,6 +559,8 @@ model Match {
   // listMatches orders by createdAt DESC — composite lets PG skip sort
   @@index([userAId, status, createdAt(sort: Desc)])
   @@index([userBId, status, createdAt(sort: Desc)])
+  // PERF-B14 — daily-digest counts new matches in a time window
+  @@index([createdAt])
 }
 
 model Conversation {
@@ -624,6 +630,8 @@ model Report {
   // Admin investigation: "all reports against this user" / "user's report history"
   @@index([reportedUserId])
   @@index([reporterUserId])
+  // PERF-B14 — daily-digest counts new reports in a time window with no status filter
+  @@index([createdAt])
 }
 
 // -------- Auth --------
@@ -994,6 +1002,8 @@ model AccountDeletionRequest {
 
   @@unique([userId, status])
   @@index([status, gracePeriodEndsAt])
+  // PERF-B14 — daily-digest counts new deletion requests in a time window
+  @@index([requestedAt])
 }
 
 model NotificationPreference {
@@ -1333,6 +1343,8 @@ model AnalyticsEvent {
 
   @@index([eventName, serverTs])
   @@index([userId, serverTs])
+  // PERF-B15 — alerter counts total events in a window (no eventName prefix)
+  @@index([serverTs])
 }
 
 model BetaFeedback {
