@@ -1,0 +1,77 @@
+name: Feature request
+description: Propose a new feature or behavior change for OpenMatch.
+title: "feat: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [ROADMAP.md](../ROADMAP.md) — in particular the **"Won't do"** section — before opening this. Proposals that fall under "Won't do" will be closed.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checklist
+      options:
+        - label: I have read the "Won't do" section of ROADMAP.md and this proposal is not on it.
+          required: true
+        - label: I have searched existing issues and confirmed this is not already requested.
+          required: true
+        - label: This does not introduce a paid dating advantage, a hidden ranking factor, ad/tracking SDKs, or exact-location disclosure.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Whose problem is it, and how do they hit it today? Skip the solution for now.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should change? UI, API, algorithm, or admin tool. Be concrete.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What else did you think about? Why isn't it the right answer?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      multiple: true
+      options:
+        - iOS app
+        - Backend API
+        - Admin dashboard
+        - Matching package
+        - Docs
+        - Self-host / Docker
+        - Fork-and-rebrand tooling
+    validations:
+      required: true
+
+  - type: textarea
+    id: algorithm
+    attributes:
+      label: Does this touch the matching algorithm?
+      description: If yes, link the relevant section of `docs/algorithm/spec.md` and note expected fairness impact. See `docs/algorithm/versioning.md` for the full review process.
+    validations:
+      required: false
+
+  - type: textarea
+    id: privacy-safety
+    attributes:
+      label: Privacy / safety impact
+      description: Does this touch location, photos, messages, identity, moderation, or auth? If so, describe the impact.
+    validations:
+      required: false

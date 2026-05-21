@@ -167,12 +167,24 @@ Every PR runs:
 
 🤖 Dependabot opens grouped PRs weekly for npm and GitHub Actions.
 
+## 🐳 Self-hosting
+
+Want to run OpenMatch yourself? `make up` brings up Postgres+PostGIS, Redis, MailHog, the backend, and the admin dashboard in Docker. See [`docs/self-hosting.md`](docs/self-hosting.md) for the walkthrough.
+
+## 🎨 Forking and rebranding
+
+OpenMatch is Apache 2.0 and designed to be forked. See [`docs/forking.md`](docs/forking.md) for the rebrand walkthrough — bundle id, palette, fonts, logo, Apple SIWA, email templates, privacy/ToS. Run `npm run rebrand` for an interactive diff preview.
+
+## 🛠️ TypeScript SDK
+
+A typed `fetch` client generated from the live OpenAPI schema lives in [`sdk/typescript/`](sdk/). Regenerate with `npm run gen:sdk`. The drift workflow ([`.github/workflows/sdk-drift.yml`](.github/workflows/sdk-drift.yml)) fails CI if the spec changes without a matching regeneration.
+
 ## 🤝 Contributing
 
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-purple.svg)](CODE_OF_CONDUCT.md)
 [![Security Policy](https://img.shields.io/badge/Security-Responsible%20Disclosure-red.svg)](SECURITY.md)
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Security issues: [`SECURITY.md`](SECURITY.md). Algorithm changes follow the process in [`docs/algorithm/versioning.md`](docs/algorithm/versioning.md).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), [`GOVERNANCE.md`](GOVERNANCE.md), and the public [`ROADMAP.md`](ROADMAP.md). Security issues: [`SECURITY.md`](SECURITY.md). Algorithm changes follow the process in [`docs/algorithm/versioning.md`](docs/algorithm/versioning.md).
 
 ## 📜 License
 

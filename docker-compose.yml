@@ -1,14 +1,20 @@
 version: "3.9"
 
-# Local-development services for OpenMatch.
-# In production these are replaced by Neon (Postgres + PostGIS),
-# Upstash Redis (REST), and a real SMTP provider (or Resend).
-# Redis is optional in dev — without UPSTASH_REDIS_REST_URL the rate-limit
-# plugin falls back to its in-memory store.
+# OpenMatch one-command self-host.
+#
+# Bring up Postgres+PostGIS, Redis, MailHog, the Fastify backend, and
+# the Next.js admin dashboard with `make up` (or `docker compose up -d`).
+# See docs/self-hosting.md for the full walkthrough.
+#
+# In production the storage services are usually replaced by Neon
+# (Postgres+PostGIS), Upstash Redis (REST), and a real SMTP provider —
+# but this compose file is sufficient for development, demos, and small
+# self-hosted forks.
 
 services:
   postgres:
     image: postgis/postgis:16-3.4
+    container_name: openmatch-postgres
     environment:
       POSTGRES_USER: openmatch
       POSTGRES_PASSWORD: openmatch
@@ -23,11 +29,87 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: openmatch-redis
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - openmatch_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   mailhog:
     image: mailhog/mailhog:latest
+    container_name: openmatch-mailhog
     ports:
       - "1025:1025" # SMTP
       - "8025:8025" # Web UI
 
+  backend:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: openmatch-backend
+    environment:
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://openmatch:openmatch@postgres:5432/openmatch?schema=public
+      REDIS_URL: redis://redis:6379
+      # All *_SECRET / *_TOKEN values are dev-only placeholders that meet
+      # the >=32-byte minimum enforced by backend/src/env.ts. ROTATE
+      # before exposing the backend to the public internet.
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-in-production-please-replace-32b}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-dev-admin-only-secret-change-me-in-production-32b}
+      INTERNAL_WORKER_TOKEN: ${INTERNAL_WORKER_TOKEN:-dev-internal-worker-only-token-change-in-prod-32b}
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      SMTP_FROM: noreply@openmatch.local
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:8081}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      ALLOW_DEV_LOGIN: ${ALLOW_DEV_LOGIN:-true}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  admin:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: admin/Dockerfile
+    container_name: openmatch-admin
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      ADMIN_API_BASE_URL: http://backend:8080
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-replace-with-32-byte-random-string-in-prod-please}
+      ADMIN_ALLOW_PREVIEW_PROD: "false"
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
 volumes:
   openmatch_pg:
+  openmatch_redis:
