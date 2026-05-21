@@ -360,3 +360,173 @@ export async function fetchPhotoBytes(
 // hashIdentity has moved to lib/hash.ts; re-export so any out-of-tree
 // import paths continue to resolve.
 export { hashIdentity } from "./hash.js";
+
+// -------- Audio (voice notes) --------
+//
+// Voice notes piggyback on the same photo upload pipeline: server-mediated
+// `put()` to Vercel Blob (or local fs in dev), the cdnUrl is held by the
+// server only, and iOS fetches a signed URL via the same proxy pattern.
+// We intentionally keep audio strictly server-mediated — no signed-URL
+// uploads from the client — so the duration / size / MIME bounds can't
+// be bypassed.
+
+export const ALLOWED_AUDIO_MIME_TYPES = new Set([
+  "audio/m4a",
+  // Some recorders emit the canonical MP4-container MIME for m4a.
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/wav",
+  "audio/wave",
+  "audio/x-wav",
+]);
+
+// 60 seconds at ~96kbps AAC ≈ 720KB; we cap at 500KB which is the
+// upper bound for the duration we accept. Keeps a single voice note
+// comfortably inside the Vercel function body window without forcing
+// streaming.
+export const MAX_AUDIO_BYTES = 500 * 1024;
+export const MAX_AUDIO_DURATION_MS = 60_000;
+
+export interface UploadedAudio {
+  storageKey: string;
+  cdnUrl: string;
+}
+
+function extForAudioMime(mime: string): string {
+  switch (mime) {
+    case "audio/wav":
+    case "audio/wave":
+    case "audio/x-wav":
+      return "wav";
+    case "audio/m4a":
+    case "audio/x-m4a":
+    case "audio/mp4":
+      return "m4a";
+    default:
+      return "bin";
+  }
+}
+
+// Detect WAV vs M4A from the file header so a polyglot upload can't
+// masquerade as audio. WAV: "RIFF....WAVE". M4A/MP4: an ISO-BMFF box
+// header where the first sized box's type is "ftyp" and the major brand
+// is one of M4A / mp42 / isom — we accept any ftyp box because the
+// brand list is too broad to enumerate (Apple Voice Memos uses M4A,
+// AVFoundation uses mp42, etc.).
+function detectAudioFormat(buf: Buffer): "wav" | "m4a" | "other" {
+  if (
+    buf.length >= 12 &&
+    buf.toString("ascii", 0, 4) === "RIFF" &&
+    buf.toString("ascii", 8, 12) === "WAVE"
+  ) {
+    return "wav";
+  }
+  // ISO BMFF: [size:4][type:4]... — first box must be `ftyp`.
+  if (buf.length >= 12 && buf.toString("ascii", 4, 8) === "ftyp") {
+    return "m4a";
+  }
+  return "other";
+}
+
+const AUDIO_MIME_TO_FORMAT: Record<string, "wav" | "m4a"> = {
+  "audio/wav": "wav",
+  "audio/wave": "wav",
+  "audio/x-wav": "wav",
+  "audio/m4a": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/mp4": "m4a",
+};
+
+export async function uploadVoiceNote(args: {
+  conversationId: string;
+  data: Buffer;
+  contentType: string;
+}): Promise<UploadedAudio> {
+  if (!ALLOWED_AUDIO_MIME_TYPES.has(args.contentType)) {
+    throw Object.assign(new Error("unsupported_media_type"), { statusCode: 415 });
+  }
+  if (args.data.byteLength > MAX_AUDIO_BYTES) {
+    throw Object.assign(new Error("payload_too_large"), { statusCode: 413 });
+  }
+  const detected = detectAudioFormat(args.data);
+  const expected = AUDIO_MIME_TO_FORMAT[args.contentType];
+  if (!expected || detected !== expected) {
+    throw Object.assign(new Error("content_type_mismatch"), { statusCode: 415 });
+  }
+
+  const storageKey = `conversations/${args.conversationId}/audio/${randomUUID()}.${extForAudioMime(
+    args.contentType,
+  )}`;
+
+  if (env.BLOB_READ_WRITE_TOKEN) {
+    const blob = await put(storageKey, args.data, {
+      access: "public",
+      contentType: args.contentType,
+      token: env.BLOB_READ_WRITE_TOKEN,
+    });
+    return { storageKey: blob.pathname, cdnUrl: blob.url };
+  }
+
+  const full = path.join(LOCAL_DIR, storageKey);
+  await fs.mkdir(path.dirname(full), { recursive: true });
+  await fs.writeFile(full, args.data);
+  return {
+    storageKey,
+    cdnUrl: `/media/${encodeURIComponent(storageKey)}`,
+  };
+}
+
+export interface AudioStream {
+  body: ReadableStream<Uint8Array>;
+  contentType: string;
+  contentLength: number | null;
+  acceptRanges: string | null;
+  status: number;
+}
+
+export async function fetchAudioStream(
+  storageKey: string,
+  cdnUrl: string,
+  init?: { range?: string },
+): Promise<AudioStream | null> {
+  if (env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const headers: Record<string, string> = {};
+      if (init?.range) headers.range = init.range;
+      const res = await fetch(cdnUrl, { headers });
+      if (res.status >= 400) return null;
+      const body = res.body;
+      if (!body) return null;
+      const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+      const contentLengthRaw = res.headers.get("content-length");
+      const contentLength = contentLengthRaw === null ? null : Number(contentLengthRaw);
+      return {
+        body,
+        contentType,
+        contentLength: Number.isFinite(contentLength) ? contentLength : null,
+        acceptRanges: res.headers.get("accept-ranges"),
+        status: res.status,
+      };
+    } catch {
+      return null;
+    }
+  }
+  const buf = await readLocal(storageKey);
+  if (!buf) return null;
+  const ext = path.extname(storageKey).toLowerCase();
+  const contentType =
+    ext === ".wav" ? "audio/wav" : ext === ".m4a" ? "audio/m4a" : "application/octet-stream";
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(buf));
+      controller.close();
+    },
+  });
+  return {
+    body: stream,
+    contentType,
+    contentLength: buf.byteLength,
+    acceptRanges: null,
+    status: 200,
+  };
+}

@@ -32,7 +32,14 @@ export const realtimeRoutes: FastifyPluginAsync = async (app) => {
 
     const capability: Record<string, string[]> = {};
     for (const c of conversations) {
-      capability[conversationChannel(c.id)] = ["subscribe", "presence"];
+      // Typing-indicator events are published directly from the iOS
+      // client (server-side persistence would add a round-trip for an
+      // ephemeral signal that's worthless 4s later). Grant `publish`
+      // alongside subscribe/presence so the SDK can fan-out typing /
+      // reaction events without forging the channel name — the capability
+      // is scoped to active conversations only, so a closed match's
+      // channel remains unreachable.
+      capability[conversationChannel(c.id)] = ["subscribe", "presence", "publish"];
     }
 
     const tokenRequest = await ably.auth.createTokenRequest({

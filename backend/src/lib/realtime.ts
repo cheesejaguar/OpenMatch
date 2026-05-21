@@ -37,3 +37,20 @@ export async function publishMessage(conversationId: string, payload: unknown): 
     }
   });
 }
+
+// Generic publisher used by the typing-indicator + read-receipt + reaction
+// fan-out. Wrapped in a try/catch + null-check so callers don't have to
+// branch on ABLY_API_KEY being unset (local dev) and a transient Ably
+// error never fails the underlying REST request.
+export async function publishConversationEvent(
+  conversationId: string,
+  eventName: string,
+  payload: unknown,
+): Promise<void> {
+  if (!ably) return;
+  try {
+    await ably.channels.get(conversationChannel(conversationId)).publish(eventName, payload);
+  } catch {
+    // best-effort — see publishMessage rationale.
+  }
+}
