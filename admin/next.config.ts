@@ -3,6 +3,20 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // PERF-A6 — strip `console.*` (except error/warn) from the prod bundle.
+  // The admin codebase has informational `console.log` / `console.info` calls
+  // in server actions + RSC fetches that pollute Vercel logs and ship to
+  // every client bundle as dead weight.
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
+  // PERF-A6 — tree-shake barrel imports from heavyweight packages. Free
+  // win whenever an `import { X } from 'lucide-react'` (or similar) lands.
+  // Listed pre-emptively so accidental barrel imports never balloon the
+  // bundle.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "date-fns", "react-hook-form", "zod"],
+  },
   images: {
     // Vercel Blob CDN host pattern. The admin photo grids reference
     // `@vercel/blob` public URLs (see backend/src/lib/media.ts) which
