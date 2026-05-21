@@ -48,6 +48,7 @@ import { adminWaitlistRoutes } from "./routes/admin/waitlist.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { authRoutes } from "./routes/auth.js";
 import { chatRoutes } from "./routes/chat.js";
+import { messagesRoutes } from "./routes/messages.js";
 import { discoveryRoutes } from "./routes/discovery.js";
 import { dsaRoutes } from "./routes/dsa.js";
 import { feedbackRoutes } from "./routes/feedback.js";
@@ -419,6 +420,7 @@ export async function buildServer() {
   await app.register(likesRoutes, { prefix: "/api/v1/likes" });
   await app.register(matchesRoutes, { prefix: "/api/v1/matches" });
   await app.register(chatRoutes, { prefix: "/api/v1/conversations" });
+  await app.register(messagesRoutes, { prefix: "/api/v1/messages" });
   await app.register(realtimeRoutes, { prefix: "/api/v1/realtime" });
   await app.register(safetyRoutes, { prefix: "/api/v1/safety" });
   await app.register(transparencyRoutes, { prefix: "/api/v1/transparency" });

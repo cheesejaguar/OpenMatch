@@ -1,9 +1,14 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  addReaction,
   authorizedForConversation,
   listConversations,
   listMessages,
+  markConversationAsRead,
+  markMessageAsRead,
+  postAudioMessage,
   postMessage,
+  removeReaction,
 } from "../src/services/chat.service.js";
 import { createUser, resetDb, testPrisma } from "./helpers/db.js";
 
@@ -239,6 +244,192 @@ describe("chat service", () => {
       await postMessage(testPrisma, convo.id, a.id, "only one");
       const rows = await listMessages(testPrisma, convo.id, a.id, { cursor: "does-not-exist" });
       expect(rows!.map((m) => m.body)).toEqual(["only one"]);
+    });
+  });
+
+  describe("markConversationAsRead", () => {
+    it("marks every message NOT from the reader as read", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      const m1 = await postMessage(testPrisma, convo.id, a.id, "from a");
+      const m2 = await postMessage(testPrisma, convo.id, b.id, "from b");
+
+      const res = await markConversationAsRead(testPrisma, {
+        conversationId: convo.id,
+        readerUserId: b.id,
+      });
+      expect(res.ok).toBe(true);
+      expect(res.updated).toBe(1);
+
+      const reloadedA = await testPrisma.message.findUnique({ where: { id: m1.id } });
+      const reloadedB = await testPrisma.message.findUnique({ where: { id: m2.id } });
+      // A's message (sent to B, now read by B) gets readAt set.
+      expect(reloadedA?.readAt).not.toBeNull();
+      // B's own message must not be touched — readAt is "the OTHER side
+      // saw this", not self-acks.
+      expect(reloadedB?.readAt).toBeNull();
+    });
+
+    it("returns ok:false for a non-participant", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const c = await createUser({ displayName: "C" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      await postMessage(testPrisma, convo.id, a.id, "secret");
+
+      const res = await markConversationAsRead(testPrisma, {
+        conversationId: convo.id,
+        readerUserId: c.id,
+      });
+      expect(res.ok).toBe(false);
+      expect(res.updated).toBe(0);
+    });
+  });
+
+  describe("markMessageAsRead", () => {
+    it("marks a single message as read and keeps readAt stable on repeat calls", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      const m = await postMessage(testPrisma, convo.id, a.id, "hi");
+
+      const first = await markMessageAsRead(testPrisma, {
+        messageId: m.id,
+        readerUserId: b.id,
+      });
+      expect(first.ok).toBe(true);
+      expect(first.readAt).toBeInstanceOf(Date);
+
+      // Second call must return the SAME readAt — the iOS UI uses this
+      // to render "Read at HH:mm" and a churning timestamp would be a
+      // jarring re-render.
+      const second = await markMessageAsRead(testPrisma, {
+        messageId: m.id,
+        readerUserId: b.id,
+      });
+      expect(second.ok).toBe(true);
+      expect(second.readAt?.getTime()).toBe(first.readAt?.getTime());
+    });
+
+    it("rejects the sender attempting to mark their own message read", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      const m = await postMessage(testPrisma, convo.id, a.id, "hi");
+      const r = await markMessageAsRead(testPrisma, {
+        messageId: m.id,
+        readerUserId: a.id,
+      });
+      expect(r.ok).toBe(false);
+    });
+  });
+
+  describe("postAudioMessage", () => {
+    it("persists audioPath + duration on the new message row", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+
+      const msg = await postAudioMessage(testPrisma, convo.id, a.id, {
+        audioPath: "conversations/convo/audio/abc.m4a",
+        audioCdnUrl: "/media/conversations/convo/audio/abc.m4a",
+        audioDurationMs: 4_321,
+      });
+      expect(msg.body).toBe("");
+      expect(msg.audioPath).toBe("conversations/convo/audio/abc.m4a");
+      expect(msg.audioDurationMs).toBe(4_321);
+    });
+
+    it("rejects a non-participant with 403", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const c = await createUser({ displayName: "C" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      await expect(
+        postAudioMessage(testPrisma, convo.id, c.id, {
+          audioPath: "x",
+          audioCdnUrl: "y",
+          audioDurationMs: 100,
+        }),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    });
+  });
+
+  describe("reactions", () => {
+    it("addReaction is idempotent on the (message, user, emoji) triple", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      const m = await postMessage(testPrisma, convo.id, a.id, "react me");
+
+      const r1 = await addReaction(testPrisma, {
+        messageId: m.id,
+        userId: b.id,
+        emoji: "🔥",
+      });
+      const r2 = await addReaction(testPrisma, {
+        messageId: m.id,
+        userId: b.id,
+        emoji: "🔥",
+      });
+      expect(r1.ok && r2.ok).toBe(true);
+      const rows = await testPrisma.messageReaction.findMany({
+        where: { messageId: m.id },
+      });
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.emoji).toBe("🔥");
+    });
+
+    it("allows distinct emojis from the same user", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      const m = await postMessage(testPrisma, convo.id, a.id, "multi");
+      await addReaction(testPrisma, { messageId: m.id, userId: b.id, emoji: "🔥" });
+      await addReaction(testPrisma, { messageId: m.id, userId: b.id, emoji: "❤️" });
+      const rows = await testPrisma.messageReaction.findMany({
+        where: { messageId: m.id },
+      });
+      expect(rows).toHaveLength(2);
+    });
+
+    it("forbids a third party from reacting to a message they can't see", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const c = await createUser({ displayName: "C" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      const m = await postMessage(testPrisma, convo.id, a.id, "private");
+      const r = await addReaction(testPrisma, {
+        messageId: m.id,
+        userId: c.id,
+        emoji: "🔥",
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe("forbidden");
+    });
+
+    it("removeReaction deletes the row and is idempotent", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      const m = await postMessage(testPrisma, convo.id, a.id, "x");
+      await addReaction(testPrisma, { messageId: m.id, userId: b.id, emoji: "🔥" });
+      const r1 = await removeReaction(testPrisma, {
+        messageId: m.id,
+        userId: b.id,
+        emoji: "🔥",
+      });
+      const r2 = await removeReaction(testPrisma, {
+        messageId: m.id,
+        userId: b.id,
+        emoji: "🔥",
+      });
+      expect(r1.ok && r2.ok).toBe(true);
+      const rows = await testPrisma.messageReaction.findMany({
+        where: { messageId: m.id },
+      });
+      expect(rows).toHaveLength(0);
     });
   });
 });

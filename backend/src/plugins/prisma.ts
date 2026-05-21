@@ -64,24 +64,24 @@ export default fp(async (app) => {
   // Pino logger when available so the slow-query record carries the
   // requestId / userId of the request that triggered it. The query
   // event itself is parameterised — no PII appears in `e.query`.
-  // biome-ignore lint/suspicious/noExplicitAny: Prisma's event types
-  // are not surfaced uniformly across versions; we narrow at use site.
-  (prisma as unknown as { $on: (e: string, cb: (event: any) => void) => void }).$on(
-    "query",
-    (e: { query: string; duration: number; params: string }) => {
-      if (e.duration < SLOW_QUERY_MS) return;
-      app.log.warn(
-        {
-          event: "prisma.slow_query",
-          durationMs: e.duration,
-          // The parameter array is stringified by Prisma — we redact
-          // the values and keep only the placeholder count so logs
-          // never carry user-provided data (emails, ids, etc.).
-          paramCount: (e.params.match(/\$\d+/g) ?? []).length,
-          query: e.query.slice(0, 500),
-        },
-        "prisma_slow_query",
-      );
-    },
-  );
+  type PrismaQueryEvent = { query: string; duration: number; params: string };
+  (
+    prisma as unknown as {
+      $on: (e: string, cb: (event: PrismaQueryEvent) => void) => void;
+    }
+  ).$on("query", (e: { query: string; duration: number; params: string }) => {
+    if (e.duration < SLOW_QUERY_MS) return;
+    app.log.warn(
+      {
+        event: "prisma.slow_query",
+        durationMs: e.duration,
+        // The parameter array is stringified by Prisma — we redact
+        // the values and keep only the placeholder count so logs
+        // never carry user-provided data (emails, ids, etc.).
+        paramCount: (e.params.match(/\$\d+/g) ?? []).length,
+        query: e.query.slice(0, 500),
+      },
+      "prisma_slow_query",
+    );
+  });
 });

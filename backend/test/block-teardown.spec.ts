@@ -18,6 +18,8 @@ vi.mock("../src/lib/realtime.js", () => {
   return {
     ably: { channels: { get: vi.fn() } },
     conversationChannel: (id: string) => `conversation:${id}`,
+    publishMessage: vi.fn(),
+    publishConversationEvent: vi.fn(),
   };
 });
 

@@ -73,26 +73,101 @@ final class RealtimeService: ObservableObject {
     @discardableResult
     func subscribe(
         conversationId: String,
-        onMessage: @escaping (MessageDTO) -> Void
+        onMessage: @escaping (MessageDTO) -> Void,
+        onTyping: ((TypingEvent) -> Void)? = nil,
+        onRead: ((ReadEvent) -> Void)? = nil,
+        onReaction: ((ReactionEvent) -> Void)? = nil
     ) -> RealtimeSubscription {
         guard let channel = realtime?.channels.get("conversation:\(conversationId)") else {
-            return RealtimeSubscription(channel: nil, listener: nil)
+            return RealtimeSubscription(channel: nil, listeners: [])
         }
-        let listener = channel.subscribe("message") { artMessage in
+        var listeners: [ARTEventListener] = []
+        let messageListener = channel.subscribe("message") { artMessage in
             guard let payload = artMessage.data as? [String: Any],
                   let inner = payload["payload"] as? [String: Any] else {
                 return
             }
-            // Re-serialize through JSONSerialization → Data so we can let
-            // JSONDecoder do the work (Ably hands us [String: Any], not Data).
             guard let data = try? JSONSerialization.data(withJSONObject: inner),
                   let dto = try? Self.jsonDecoder.decode(MessageDTO.self, from: data) else {
                 return
             }
             Task { @MainActor in onMessage(dto) }
         }
-        return RealtimeSubscription(channel: channel, listener: listener)
+        if let messageListener { listeners.append(messageListener) }
+
+        if let onTyping {
+            let typingListener = channel.subscribe("typing") { artMessage in
+                guard let payload = artMessage.data as? [String: Any],
+                      let userId = payload["userId"] as? String else {
+                    return
+                }
+                let ts = (payload["ts"] as? Double) ?? Date().timeIntervalSince1970 * 1000
+                let event = TypingEvent(userId: userId, timestamp: ts / 1000.0)
+                Task { @MainActor in onTyping(event) }
+            }
+            if let typingListener { listeners.append(typingListener) }
+        }
+
+        if let onRead {
+            let readListener = channel.subscribe("read") { artMessage in
+                guard let payload = artMessage.data as? [String: Any],
+                      let readerUserId = payload["readerUserId"] as? String else {
+                    return
+                }
+                let isoString = payload["readAt"] as? String
+                let readAt = isoString.flatMap { Self.iso8601.date(from: $0) } ?? Date()
+                let event = ReadEvent(
+                    readerUserId: readerUserId,
+                    readAt: readAt,
+                    messageId: payload["messageId"] as? String
+                )
+                Task { @MainActor in onRead(event) }
+            }
+            if let readListener { listeners.append(readListener) }
+        }
+
+        if let onReaction {
+            for name in ["reaction.added", "reaction.removed"] {
+                let removed = name == "reaction.removed"
+                let listener = channel.subscribe(name) { artMessage in
+                    guard let payload = artMessage.data as? [String: Any],
+                          let messageId = payload["messageId"] as? String,
+                          let userId = payload["userId"] as? String,
+                          let emoji = payload["emoji"] as? String else {
+                        return
+                    }
+                    let evt = ReactionEvent(
+                        messageId: messageId,
+                        userId: userId,
+                        emoji: emoji,
+                        removed: removed
+                    )
+                    Task { @MainActor in onReaction(evt) }
+                }
+                if let listener { listeners.append(listener) }
+            }
+        }
+
+        return RealtimeSubscription(channel: channel, listeners: listeners)
     }
+
+    // Best-effort typing-event publisher. Drops silently if Ably isn't
+    // connected — typing events are ephemeral; a missed publish has no
+    // user-visible consequence beyond a momentarily-missing indicator.
+    func publishTyping(conversationId: String, userId: String) {
+        guard let channel = realtime?.channels.get("conversation:\(conversationId)") else { return }
+        let payload: [String: Any] = [
+            "userId": userId,
+            "ts": Date().timeIntervalSince1970 * 1000,
+        ]
+        channel.publish("typing", data: payload)
+    }
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
 
     // MARK: - Helpers
 
@@ -119,22 +194,46 @@ final class RealtimeService: ObservableObject {
 }
 
 // Returned from `subscribe`. Drop it (or call `cancel()`) to detach the
-// channel listener and stop receiving events. Cancellation is idempotent.
+// channel listeners and stop receiving events. Cancellation is idempotent.
+//
+// Multi-listener now: subscribing a single conversation can attach
+// listeners for "message" + "typing" + "read" + "reaction.*" — we
+// bundle them under one Subscription so the view can cancel atomically.
 final class RealtimeSubscription {
     private weak var channel: ARTRealtimeChannel?
-    private var listener: ARTEventListener?
+    private var listeners: [ARTEventListener]
 
-    init(channel: ARTRealtimeChannel?, listener: ARTEventListener?) {
+    init(channel: ARTRealtimeChannel?, listeners: [ARTEventListener]) {
         self.channel = channel
-        self.listener = listener
+        self.listeners = listeners
     }
 
     func cancel() {
-        if let listener {
+        for listener in listeners {
             channel?.unsubscribe(listener)
         }
-        listener = nil
+        listeners = []
     }
 
     deinit { cancel() }
+}
+
+// Typed payloads handed to the view-model subscribers.
+
+struct TypingEvent {
+    let userId: String
+    let timestamp: TimeInterval
+}
+
+struct ReadEvent {
+    let readerUserId: String
+    let readAt: Date
+    let messageId: String?
+}
+
+struct ReactionEvent {
+    let messageId: String
+    let userId: String
+    let emoji: String
+    let removed: Bool
 }

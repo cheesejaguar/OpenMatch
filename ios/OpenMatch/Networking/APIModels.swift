@@ -195,12 +195,79 @@ struct ConversationDTO: Codable, Identifiable {
     let messages: [MessageDTO]?
 }
 
-struct MessageDTO: Codable, Identifiable {
+struct MessageDTO: Codable, Identifiable, Equatable {
     let id: String
     let conversationId: String
     let senderUserId: String
     let body: String
     let createdAt: Date
+    // Server-known timestamps used by the read-receipt UI under the
+    // latest message FROM the current user. Both are optional because a
+    // message that hasn't reached the recipient yet has neither set.
+    let deliveredAt: Date?
+    let readAt: Date?
+    // Voice-note payload. When `audioPath` is present, the bubble renders
+    // a play button + duration instead of the text body. Bytes are
+    // fetched lazily via /audio/:id/url -> /audio/serve.
+    let audioPath: String?
+    let audioDurationMs: Int?
+    // Emoji reactions attached to this message. Defaulted via custom init
+    // so older server builds that haven't shipped the field can still
+    // decode without breaking the chat UI.
+    let reactions: [MessageReactionDTO]
+
+    enum CodingKeys: String, CodingKey {
+        case id, conversationId, senderUserId, body, createdAt
+        case deliveredAt, readAt
+        case audioPath, audioDurationMs
+        case reactions
+    }
+
+    init(
+        id: String,
+        conversationId: String,
+        senderUserId: String,
+        body: String,
+        createdAt: Date,
+        deliveredAt: Date? = nil,
+        readAt: Date? = nil,
+        audioPath: String? = nil,
+        audioDurationMs: Int? = nil,
+        reactions: [MessageReactionDTO] = []
+    ) {
+        self.id = id
+        self.conversationId = conversationId
+        self.senderUserId = senderUserId
+        self.body = body
+        self.createdAt = createdAt
+        self.deliveredAt = deliveredAt
+        self.readAt = readAt
+        self.audioPath = audioPath
+        self.audioDurationMs = audioDurationMs
+        self.reactions = reactions
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(String.self, forKey: .id)
+        self.conversationId = try c.decode(String.self, forKey: .conversationId)
+        self.senderUserId = try c.decode(String.self, forKey: .senderUserId)
+        self.body = try c.decode(String.self, forKey: .body)
+        self.createdAt = try c.decode(Date.self, forKey: .createdAt)
+        self.deliveredAt = try c.decodeIfPresent(Date.self, forKey: .deliveredAt)
+        self.readAt = try c.decodeIfPresent(Date.self, forKey: .readAt)
+        self.audioPath = try c.decodeIfPresent(String.self, forKey: .audioPath)
+        self.audioDurationMs = try c.decodeIfPresent(Int.self, forKey: .audioDurationMs)
+        self.reactions = (try c.decodeIfPresent([MessageReactionDTO].self, forKey: .reactions)) ?? []
+    }
+}
+
+struct MessageReactionDTO: Codable, Hashable {
+    let userId: String
+    let emoji: String
+    // The server includes a timestamp; the iOS UI doesn't need it today
+    // but we decode it for symmetry with the wire shape.
+    let createdAt: Date?
 }
 
 struct PreferencesDTO: Codable {
