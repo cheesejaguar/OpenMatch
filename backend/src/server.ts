@@ -12,8 +12,10 @@ import { env } from "./env.js";
 import { parseCorsAllowlist } from "./lib/cors-allowlist.js";
 import { ErrorCodes } from "./lib/error-codes.js";
 import { HttpError, httpError, zodErrorToHttp } from "./lib/http-error.js";
+import { initConfig } from "./lib/config.js";
 import { requestContext } from "./lib/request-context.js";
 import { initSentry, sentryFastifyErrorHook, sentryUserHook } from "./lib/sentry.js";
+import tenantPlugin from "./lib/tenant.js";
 import adminAuthPlugin from "./plugins/admin-auth.js";
 import adminRbacPlugin from "./plugins/admin-rbac.js";
 import authPlugin from "./plugins/auth.js";
@@ -133,6 +135,7 @@ function buildLogger() {
         requestId: ctx.requestId,
         ...(ctx.userId ? { userId: ctx.userId } : {}),
         ...(ctx.adminUserId ? { adminUserId: ctx.adminUserId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
       };
     },
     transport:
@@ -143,6 +146,11 @@ function buildLogger() {
 }
 
 export async function buildServer() {
+  // Resolve the platform-config variant before any plugin that might
+  // read `config` is registered. With no OPENMATCH_CONFIG_PATH set this
+  // is a no-op that just re-validates the baked-in default through the
+  // Zod schema.
+  await initConfig();
   const app = Fastify({
     // We sit behind Vercel's edge in production, which always sets
     // X-Forwarded-For. Trusting it makes `req.ip` and the rate-limit
@@ -160,6 +168,12 @@ export async function buildServer() {
   app.addHook("onRequest", (req, _reply, done) => {
     requestContext.run({ requestId: req.id }, done);
   });
+
+  // Tenant resolution. Registered immediately after the
+  // request-context frame so the resolver's `requestContext.set` call
+  // lands inside the active ALS frame; every log line on the request
+  // then carries `tenantId`. Default deploys see `tenantId='default'`.
+  await app.register(tenantPlugin);
 
   app.addHook("preHandler", (req, _reply, done) => {
     const u = req as typeof req & { userId?: string; adminUserId?: string };

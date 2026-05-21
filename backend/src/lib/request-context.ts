@@ -18,6 +18,11 @@ export interface RequestContext {
   userId?: string;
   adminUserId?: string;
   cohortLabel?: string;
+  // Populated by the tenant-resolution plugin (backend/src/lib/tenant.ts).
+  // For single-tenant deploys this is always `'default'`; for the
+  // experimental subdomain-routing branch it carries the resolved
+  // tenant slug so log lines and Sentry events can filter by tenant.
+  tenantId?: string;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
