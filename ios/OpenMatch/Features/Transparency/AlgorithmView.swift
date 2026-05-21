@@ -1,13 +1,17 @@
 import SwiftUI
 
 
+// PERF-I3 — Uses the env-injected shared APIClient instead of allocating
+// a private one inside the `@StateObject` default value (which would
+// build a second URLSession + pinning delegate + 3 Keychain reads).
 final class AlgorithmViewModel: ObservableObject {
     @Published var data: AlgorithmTransparencyDTO?
     @Published var error: String?
-    private let api: APIClient
-    init(api: APIClient) { self.api = api }
+
+    var api: APIClient?
 
     func load() async {
+        guard let api else { return }
         do { data = try await api.algorithm() }
         catch { self.error = error.localizedDescription }
     }
@@ -15,7 +19,7 @@ final class AlgorithmViewModel: ObservableObject {
 
 struct AlgorithmView: View {
     @EnvironmentObject private var api: APIClient
-    @StateObject private var vm = AlgorithmViewModel(api: APIClient(baseURL: APIConfig.defaultBaseURL))
+    @StateObject private var vm = AlgorithmViewModel()
 
     var body: some View {
         OMScreen {
@@ -81,7 +85,10 @@ struct AlgorithmView: View {
             }
         }
         .omNavTitle("Algorithm")
-        .task { await vm.load() }
+        .task {
+            vm.api = api
+            await vm.load()
+        }
     }
 }
 
