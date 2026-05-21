@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { CONVERSATION_PEER_SELECT } from "../lib/dto/peer-user.js";
+import { getModerationProvider } from "../lib/moderation-provider.js";
 import { withSpan } from "../lib/spans.js";
 import { tryDispatchPush } from "./push.service.js";
 
@@ -159,9 +160,25 @@ async function postMessageInner(
   if (!(await authorizedForConversation(prisma, conversationId, senderUserId))) {
     throw Object.assign(new Error("not_authorized"), { statusCode: 403 });
   }
+
+  // PLATFORM-PLUGIN — run the active ModerationProvider over every
+  // outbound message body. The noop default is unconditional `clean`
+  // so existing behaviour is preserved when no provider is wired.
+  // `block` rejects the send; `flag` lets the row through with
+  // moderationStatus = under_review so the recipient still sees the
+  // message and the safety queue can audit.
+  const moderation = await getModerationProvider().scanText({
+    text: body,
+    context: "message",
+  });
+  if (moderation.decision === "block") {
+    throw Object.assign(new Error("message_rejected_by_moderation"), { statusCode: 422 });
+  }
+  const moderationStatus = moderation.decision === "flag" ? "under_review" : "clean";
+
   const message = await prisma.$transaction(async (tx) => {
     const m = await tx.message.create({
-      data: { conversationId, senderUserId, body },
+      data: { conversationId, senderUserId, body, moderationStatus },
     });
     await tx.conversation.update({
       where: { id: conversationId },

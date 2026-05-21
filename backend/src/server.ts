@@ -9,9 +9,11 @@ import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod
 import pino from "pino";
 import { ZodError } from "zod";
 import { env } from "./env.js";
+import { configureBillingProviderFromEnv } from "./lib/billing-provider.js";
 import { parseCorsAllowlist } from "./lib/cors-allowlist.js";
 import { ErrorCodes } from "./lib/error-codes.js";
 import { HttpError, httpError, zodErrorToHttp } from "./lib/http-error.js";
+import { configureModerationProviderFromEnv } from "./lib/moderation-provider.js";
 import { requestContext } from "./lib/request-context.js";
 import { initSentry, sentryFastifyErrorHook, sentryUserHook } from "./lib/sentry.js";
 import adminAuthPlugin from "./plugins/admin-auth.js";
@@ -48,6 +50,7 @@ import { discoveryRoutes } from "./routes/discovery.js";
 import { dsaRoutes } from "./routes/dsa.js";
 import { feedbackRoutes } from "./routes/feedback.js";
 import { healthRoutes } from "./routes/health.js";
+import { iapRoutes } from "./routes/iap.js";
 import { internalSyntheticRoutes } from "./routes/internal/synthetic.js";
 import { internalRoutes } from "./routes/internal.js";
 import { invitesRoutes } from "./routes/invites.js";
@@ -143,6 +146,14 @@ function buildLogger() {
 }
 
 export async function buildServer() {
+  // PLATFORM-PLUGIN — select moderation + billing providers from env
+  // before any route is registered. The RankingProvider registry is
+  // self-bootstrapping (Builtin registers in its module top-level) so
+  // a fork that wants to register a custom ranker should import the
+  // registry and call `.register()` *before* calling `buildServer()`.
+  await configureModerationProviderFromEnv(env.MODERATION_PROVIDER);
+  configureBillingProviderFromEnv(env.BILLING_PROVIDER);
+
   const app = Fastify({
     // We sit behind Vercel's edge in production, which always sets
     // X-Forwarded-For. Trusting it makes `req.ip` and the rate-limit
@@ -399,6 +410,7 @@ export async function buildServer() {
   await app.register(privacyRoutes, { prefix: "/api/v1/privacy" });
   await app.register(dsaRoutes, { prefix: "/api/v1/dsa" });
   await app.register(waitlistRoutes, { prefix: "/api/v1/waitlist" });
+  await app.register(iapRoutes, { prefix: "/api/v1/iap" });
 
   await app.register(adminAuthRoutes, { prefix: "/api/v1/admin/auth" });
   await app.register(adminTotpRoutes, { prefix: "/api/v1/admin/auth/totp" });

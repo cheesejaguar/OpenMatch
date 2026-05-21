@@ -64,22 +64,18 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
 
   const r = app.withTypeProvider<ZodTypeProvider>();
 
-  r.get(
-    "/me",
-    { schema: { response: { 200: preferencesResponseSchema } } },
-    async (req, reply) => {
-      const prefs = await app.prisma.preferences.upsert({
-        where: { userId: req.userId! },
-        create: { userId: req.userId! },
-        update: {},
-      });
-      // PERF — preferences are user-private and frequently mutated by
-      // settings edits; force private caches to revalidate on every
-      // request rather than serving stale rows.
-      reply.header("cache-control", "private, max-age=0, must-revalidate");
-      return prefs;
-    },
-  );
+  r.get("/me", { schema: { response: { 200: preferencesResponseSchema } } }, async (req, reply) => {
+    const prefs = await app.prisma.preferences.upsert({
+      where: { userId: req.userId! },
+      create: { userId: req.userId! },
+      update: {},
+    });
+    // PERF — preferences are user-private and frequently mutated by
+    // settings edits; force private caches to revalidate on every
+    // request rather than serving stale rows.
+    reply.header("cache-control", "private, max-age=0, must-revalidate");
+    return prefs;
+  });
 
   app.patch("/me", async (req, reply) => {
     const body = updatePrefs.parse(req.body);

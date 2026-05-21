@@ -6,8 +6,9 @@ import type {
   RelationshipGoal as MatchingRelationshipGoal,
   Viewer,
 } from "@openmatch/matching";
-import { currentConfig, getDiscoveryDeck } from "@openmatch/matching";
+import { currentConfig, RankingProviderRegistry } from "@openmatch/matching";
 import type { PrismaClient } from "@prisma/client";
+import { env } from "../env.js";
 import { haversineKm } from "../lib/location.js";
 import { getActiveMetros } from "../lib/metros-cache.js";
 import { withSpan } from "../lib/spans.js";
@@ -353,7 +354,12 @@ async function buildDeckInner(input: BuildDeckInput) {
     if (dob) c.profile.age = ageFromDob(dob, now);
   }
 
-  return getDiscoveryDeck({
+  // PLATFORM-PLUGIN — route through the configured RankingProvider.
+  // The default `builtin` provider re-uses `getDiscoveryDeck()` so the
+  // wire shape and behaviour are unchanged. Forks select an alternative
+  // ranker via the `RANKING_PROVIDER` env var.
+  const provider = RankingProviderRegistry.resolve(env.RANKING_PROVIDER);
+  const ranked = await provider.rank({
     viewer,
     candidates,
     blocks: blocks.map((b) => ({
@@ -361,9 +367,6 @@ async function buildDeckInner(input: BuildDeckInput) {
       blockedId: b.blockedUserId,
     })),
     priorSwipes: priorSwipes.map((s) => ({
-      // All rows are scoped to the viewer via the `where` clause above;
-      // matching's notRecentlyActedUpon still filters on viewerId so we
-      // pass the known viewerUserId rather than re-selecting it per row.
       viewerId: input.viewerUserId,
       targetUserId: s.targetUserId,
       decision: s.decision === "like" ? "like" : "reject",
@@ -373,6 +376,21 @@ async function buildDeckInner(input: BuildDeckInput) {
     now,
     limit: input.limit,
     deckSessionId: input.deckSessionId,
-    config: currentConfig,
+    config: {
+      algorithmVersion: currentConfig.algorithmVersion,
+      rankingConfigVersion: currentConfig.rankingConfigVersion,
+    },
   });
+
+  return {
+    algorithmVersion: currentConfig.algorithmVersion,
+    rankingConfigVersion: currentConfig.rankingConfigVersion,
+    deckSessionId: input.deckSessionId,
+    cards: ranked.map((c) => ({
+      profileId: c.profileId,
+      userId: c.userId,
+      score: c.score,
+      explanation: c.explanation,
+    })),
+  };
 }

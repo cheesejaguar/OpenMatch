@@ -26,6 +26,7 @@ const TABLES = [
   "BetaInviteCode",
   "AdminUser",
   "AdminRole",
+  "Entitlement",
   "Message",
   "Conversation",
   "Match",

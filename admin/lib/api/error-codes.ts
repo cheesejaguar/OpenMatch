@@ -81,6 +81,8 @@ export const ErrorCodes = {
   ALREADY_BLOCKED: "already_blocked",
   EMPTY_MESSAGE: "empty_message",
   MESSAGE_TOO_LONG: "message_too_long",
+  MESSAGE_REJECTED_BY_MODERATION: "message_rejected_by_moderation",
+  PHOTO_REJECTED_BY_MODERATION: "photo_rejected_by_moderation",
   CANNOT_BLOCK_SELF: "cannot_block_self",
   CANNOT_REPORT_SELF: "cannot_report_self",
   REALTIME_UNCONFIGURED: "realtime_unconfigured",
