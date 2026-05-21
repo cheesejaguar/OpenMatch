@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import SensitiveBanner from "../../../../components/access/SensitiveBanner";
 import BanForm from "../../../../components/moderation/BanForm";
 import NoteForm from "../../../../components/moderation/NoteForm";
 import UnbanForm from "../../../../components/moderation/UnbanForm";
+import Skeleton from "../../../../components/ui/Skeleton";
 import { adminFetch } from "../../../../lib/api/admin-client";
 import type { UserDetailDTO } from "../../../../lib/api/types";
 import { readSession } from "../../../../lib/auth/session";
@@ -52,37 +54,68 @@ interface NotesResponse {
   }>;
 }
 
+// PERF-A1: stream the user detail and the notes panel independently.
+// The detail card depends on the user fetch (and provides the page
+// title / ban actions), so it streams as one unit. Notes are wrapped
+// in their own Suspense so a slow notes query never blocks the detail.
 export default async function UserDetailPage({ params }: Params) {
   const { userId } = await params;
+  return (
+    <div>
+      <SensitiveBanner />
+      <Suspense fallback={<UserDetailSkeleton />}>
+        <UserDetail userId={userId} />
+      </Suspense>
+    </div>
+  );
+}
+
+function UserDetailSkeleton() {
+  return (
+    <>
+      <div className="page-header">
+        <h2>
+          <Skeleton width={220} height={24} />
+        </h2>
+      </div>
+      <div className="grid cols-2">
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Account</h3>
+          <Skeleton height={180} />
+        </div>
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Profile</h3>
+          <Skeleton height={180} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+async function UserDetail({ userId }: { userId: string }) {
   const session = (await readSession())!;
   const perms = session.permissions;
-  const [userRes, notesRes] = await Promise.all([
-    adminFetch<UserDetailDTO>(`/api/v1/admin/users/${userId}`),
-    adminFetch<NotesResponse>(`/api/v1/admin/users/${userId}/notes`),
-  ]);
+  const userRes = await adminFetch<UserDetailDTO>(`/api/v1/admin/users/${userId}`);
   if (!userRes.ok && userRes.status === 404) {
     return (
-      <div>
-        <div className="page-header">
-          <h2>User not found</h2>
-        </div>
+      <div className="page-header">
+        <h2>User not found</h2>
       </div>
     );
   }
   if (!userRes.ok) {
     return (
-      <div>
+      <>
         <div className="page-header">
           <h2>User</h2>
         </div>
         <div className="error">
           Failed to load ({userRes.status} {userRes.error.code}).
         </div>
-      </div>
+      </>
     );
   }
   const user = userRes.data;
-  const notes = notesRes.ok ? notesRes.data : null;
   const canBanTemp = has(perms, PERMISSIONS.USER_BAN_TEMPORARY);
   const canBanPerm = has(perms, PERMISSIONS.USER_BAN_PERMANENT);
   const canUnban = has(perms, PERMISSIONS.USER_UNBAN);
@@ -91,8 +124,7 @@ export default async function UserDetailPage({ params }: Params) {
   const canSeeMessages = has(perms, PERMISSIONS.MESSAGE_READ_ALL);
 
   return (
-    <div>
-      <SensitiveBanner />
+    <>
       <div className="page-header">
         <h2>
           {user.profile?.displayName ?? user.userId}{" "}
@@ -208,28 +240,56 @@ export default async function UserDetailPage({ params }: Params) {
       <div className="card" style={{ marginTop: 16 }}>
         <h3 style={{ marginTop: 0 }}>Internal notes</h3>
         {canNote ? <NoteForm userId={user.userId} /> : null}
-        <div style={{ marginTop: 12 }}>
-          {notes?.notes && notes.notes.length > 0 ? (
-            notes.notes.map((n) => (
-              <div
-                key={n.id}
-                style={{
-                  borderTop: "1px solid var(--border)",
-                  paddingTop: 8,
-                  marginTop: 8,
-                }}
-              >
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {n.createdAt.slice(0, 16)} · {n.createdByAdminUserId}
-                </div>
-                <div style={{ whiteSpace: "pre-wrap" }}>{n.body}</div>
-              </div>
-            ))
-          ) : (
-            <div className="muted">No notes yet.</div>
-          )}
-        </div>
+        <Suspense fallback={<NotesSkeleton />}>
+          <UserNotes userId={user.userId} />
+        </Suspense>
       </div>
+    </>
+  );
+}
+
+function NotesSkeleton() {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <Skeleton height={60} />
+    </div>
+  );
+}
+
+async function UserNotes({ userId }: { userId: string }) {
+  const notesRes = await adminFetch<NotesResponse>(`/api/v1/admin/users/${userId}/notes`);
+  if (!notesRes.ok) {
+    return (
+      <div className="muted" style={{ marginTop: 12 }}>
+        Notes unavailable ({notesRes.status} {notesRes.error.code}).
+      </div>
+    );
+  }
+  const notes = notesRes.data.notes;
+  if (notes.length === 0) {
+    return (
+      <div className="muted" style={{ marginTop: 12 }}>
+        No notes yet.
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: 12 }}>
+      {notes.map((n) => (
+        <div
+          key={n.id}
+          style={{
+            borderTop: "1px solid var(--border)",
+            paddingTop: 8,
+            marginTop: 8,
+          }}
+        >
+          <div className="muted" style={{ fontSize: 12 }}>
+            {n.createdAt.slice(0, 16)} · {n.createdByAdminUserId}
+          </div>
+          <div style={{ whiteSpace: "pre-wrap" }}>{n.body}</div>
+        </div>
+      ))}
     </div>
   );
 }
