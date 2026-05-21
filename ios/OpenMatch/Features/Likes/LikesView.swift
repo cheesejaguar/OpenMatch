@@ -1,16 +1,22 @@
 import SwiftUI
 
 
+// PERF-I3 — `LikesViewModel` no longer owns an APIClient; the view
+// injects the env-shared `appState.api` in `.task`. This brings Likes
+// onto the same URLSession pool / pinning delegate / token-rotation
+// stream as the rest of the app and drops the redundant Keychain reads
+// + URLSession allocation that the previous `APIClient(baseURL:)` call
+// inside `init` was paying.
 final class LikesViewModel: ObservableObject {
     @Published var visibility: LikesVisibility = .visible
     @Published var count: Int = 0
     @Published var likes: [IncomingLike] = []
     @Published var error: String?
 
-    private let api: APIClient
-    init(api: APIClient) { self.api = api }
+    var api: APIClient?
 
     func load() async {
+        guard let api else { return }
         do {
             let resp = try await api.incomingLikes()
             visibility = LikesVisibility(rawValue: resp.visibility) ?? .visible
@@ -24,11 +30,7 @@ final class LikesViewModel: ObservableObject {
 
 struct LikesView: View {
     @EnvironmentObject private var api: APIClient
-    @StateObject private var vm: LikesViewModel
-
-    init() {
-        _vm = StateObject(wrappedValue: LikesViewModel(api: APIClient(baseURL: APIConfig.defaultBaseURL)))
-    }
+    @StateObject private var vm = LikesViewModel()
 
     var body: some View {
         NavigationStack {
@@ -55,7 +57,10 @@ struct LikesView: View {
                     }
                 }
             }
-            .task { await vm.load() }
+            .task {
+                vm.api = api
+                await vm.load()
+            }
         }
     }
 

@@ -31,6 +31,7 @@ final class MessageQueueProtectionTests: XCTestCase {
             nextAttemptAt: Date()
         )
         storage.save([item])
+        storage._flushForTesting()
 
         // After save() the file must exist…
         XCTAssertTrue(FileManager.default.fileExists(atPath: tmp.path))

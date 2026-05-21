@@ -276,9 +276,18 @@ struct EditProfileView: View {
         .onChange(of: pickedItem) { _, newItem in
             guard let newItem else { return }
             Task {
-                if let data = try? await newItem.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    await vm.upload(image)
+                // PERF-I18 — `loadTransferable` already returns Data off
+                // the main actor, but the subsequent `UIImage(data:)`
+                // call decodes the JPEG (often 30-80ms for a phone
+                // photo). Move it onto a userInitiated detached task so
+                // the picker dismiss animation stays buttery.
+                if let data = try? await newItem.loadTransferable(type: Data.self) {
+                    let image = await Task.detached(priority: .userInitiated) {
+                        UIImage(data: data)
+                    }.value
+                    if let image {
+                        await vm.upload(image)
+                    }
                 }
                 pickedItem = nil
             }
@@ -353,21 +362,13 @@ private struct PhotoTile: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            AsyncImage(url: URL(string: photo.cdnUrl)) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                case .empty:
-                    ProgressView().tint(OMColor.plum)
-                case .failure:
-                    BotanicPlaceholder(.large)
-                @unknown default:
-                    EmptyView()
-                }
-            }
-            .frame(width: 100, height: 100)
-            .clipShape(OMShape.card(OMRadius.md))
-            .background(OMColor.surfaceSunken, in: OMShape.card(OMRadius.md))
+            // PERF-I4 — 100pt × screen scale (≤ 300px on 3x) is plenty
+            // for an edit-grid thumbnail.
+            OMImage(url: URL(string: photo.cdnUrl), thumbnailMaxPixelSize: 300)
+                .scaledToFill()
+                .frame(width: 100, height: 100)
+                .clipShape(OMShape.card(OMRadius.md))
+                .background(OMColor.surfaceSunken, in: OMShape.card(OMRadius.md))
 
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "xmark.circle.fill")
@@ -395,14 +396,13 @@ struct ProfilePreviewView: View {
                         .foregroundStyle(OMColor.inkMuted)
                     if let profile {
                         if let firstPhoto = profile.photos.first {
-                            AsyncImage(url: URL(string: firstPhoto.cdnUrl)) { image in
-                                image.resizable().scaledToFill()
-                            } placeholder: {
-                                BotanicPlaceholder(.large)
-                            }
-                            .frame(height: 320)
-                            .frame(maxWidth: .infinity)
-                            .clipShape(OMShape.card())
+                            // PERF-I4 — 320pt preview at ≤ 3x scale
+                            // covers a 1080px-wide hero comfortably.
+                            OMImage(url: URL(string: firstPhoto.cdnUrl), thumbnailMaxPixelSize: 1200)
+                                .scaledToFill()
+                                .frame(height: 320)
+                                .frame(maxWidth: .infinity)
+                                .clipShape(OMShape.card())
                         } else {
                             BotanicPlaceholder(.large)
                                 .frame(height: 320)

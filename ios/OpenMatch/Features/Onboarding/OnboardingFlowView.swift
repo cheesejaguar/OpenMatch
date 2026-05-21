@@ -125,9 +125,16 @@ private struct StepPhotos: View {
         .onChange(of: pickedItem) { _, newItem in
             guard let newItem else { return }
             Task {
-                if let data = try? await newItem.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    await upload(image)
+                // PERF-I18 — Decode the picked JPEG on a detached
+                // userInitiated task so a 12MB camera-roll photo
+                // doesn't stall the picker-dismiss animation.
+                if let data = try? await newItem.loadTransferable(type: Data.self) {
+                    let image = await Task.detached(priority: .userInitiated) {
+                        UIImage(data: data)
+                    }.value
+                    if let image {
+                        await upload(image)
+                    }
                 }
                 pickedItem = nil
             }
@@ -191,21 +198,12 @@ private struct OnboardingPhotoTile: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            AsyncImage(url: URL(string: photo.cdnUrl)) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                case .empty:
-                    ProgressView().tint(OMColor.plum)
-                case .failure:
-                    BotanicPlaceholder(.large)
-                @unknown default:
-                    EmptyView()
-                }
-            }
-            .frame(width: 100, height: 100)
-            .clipShape(OMShape.card(OMRadius.md))
-            .background(OMColor.surfaceSunken, in: OMShape.card(OMRadius.md))
+            // PERF-I4 — small onboarding tile; thumbnail at ≤ 300px.
+            OMImage(url: URL(string: photo.cdnUrl), thumbnailMaxPixelSize: 300)
+                .scaledToFill()
+                .frame(width: 100, height: 100)
+                .clipShape(OMShape.card(OMRadius.md))
+                .background(OMColor.surfaceSunken, in: OMShape.card(OMRadius.md))
 
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "xmark.circle.fill")

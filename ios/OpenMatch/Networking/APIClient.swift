@@ -360,8 +360,39 @@ final class APIClient: ObservableObject {
     // Coalesce into a single in-flight refresh task per APIClient.
     private var refreshTask: Task<Bool, Never>?
 
+    // PERF-I3 — Track every APIClient construction in DEBUG so a regression
+    // that re-introduces a per-feature client (e.g. `APIClient(baseURL:)`
+    // inside a SwiftUI view's `@StateObject` initializer) trips an
+    // assertion the first time the second instance is built for the same
+    // host. The shared client lives on `AppState`; everywhere else should
+    // be injected via `@EnvironmentObject`.
+    #if DEBUG
+    private static let instanceCountLock = NSLock()
+    nonisolated(unsafe) private static var instanceCountByHost: [String: Int] = [:]
+    #endif
+
     init(baseURL: URL) {
         self.baseURL = baseURL
+        #if DEBUG
+        Self.instanceCountLock.lock()
+        let host = baseURL.host ?? baseURL.absoluteString
+        let count = (Self.instanceCountByHost[host] ?? 0) + 1
+        Self.instanceCountByHost[host] = count
+        Self.instanceCountLock.unlock()
+        // First duplicate is the canary: any second instance for the same
+        // host is almost certainly a feature view bypassing `appState.api`.
+        // Tests intentionally construct multiple clients (every XCTestCase
+        // builds its own); skip the assertion under XCTest by sniffing the
+        // bundle.
+        let isUnderXCTest = NSClassFromString("XCTestCase") != nil
+        if count > 1 && !isUnderXCTest {
+            assertionFailure(
+                "APIClient initialized \(count)× for host \(host). " +
+                "Use AppState.api / @EnvironmentObject APIClient instead of " +
+                "constructing a new client inside a view (see PERF-I3)."
+            )
+        }
+        #endif
         let cfg = URLSessionConfiguration.default
         // PERF — explicit network tuning that previously relied on
         // defaults.
@@ -394,11 +425,40 @@ final class APIClient: ObservableObject {
         let delegate = PinningSessionDelegate()
         self.pinningDelegate = delegate
         self.session = URLSession(configuration: cfg, delegate: delegate, delegateQueue: nil)
-        let keychain = Keychain.shared
-        self.accessToken = keychain.read(.accessToken)
-        self.refreshToken = keychain.read(.refreshToken)
-        self.cachedUserId = keychain.read(.userId)
-        self.hasSession = self.accessToken != nil
+        // PERF-I2 — Defer keychain reads off the main thread. AppState
+        // calls `loadSessionFromKeychain()` from a detached task during
+        // app startup; the published `hasSession` flag flips once the
+        // probe completes. Tokens are nil until then; any in-flight
+        // request before the probe finishes will surface as
+        // `.notAuthenticated`, which is the correct behaviour because
+        // we genuinely do not know whether a session exists.
+        self.accessToken = nil
+        self.refreshToken = nil
+        self.cachedUserId = nil
+        self.hasSession = false
+    }
+
+    // PERF-I2 — Off-main keychain probe. Called from AppState in a
+    // detached task during launch; once it returns, the published
+    // `hasSession` flag flips on the MainActor and AppState swaps
+    // `.loading` for `.loggedIn` / `.loggedOut`.
+    //
+    // Returns the cachedUserId once the probe completes, so AppState
+    // doesn't have to read `cachedUserId` racily during the same task.
+    func loadSessionFromKeychain() async -> String? {
+        let probed: (access: String?, refresh: String?, uid: String?) = await Task.detached(priority: .userInitiated) {
+            let keychain = Keychain.shared
+            return (
+                keychain.read(.accessToken),
+                keychain.read(.refreshToken),
+                keychain.read(.userId)
+            )
+        }.value
+        self.accessToken = probed.access
+        self.refreshToken = probed.refresh
+        self.cachedUserId = probed.uid
+        self.hasSession = probed.access != nil
+        return probed.uid
     }
 
     // PERF — single process-wide URLCache shared across every APIClient

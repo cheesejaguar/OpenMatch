@@ -20,7 +20,11 @@ enum OMFont {
         // italic variant still produce a sensible result.
         fileprivate func postscript(italic: Bool) -> String {
             switch (self, italic) {
-            case (.light, false): return "Fraunces9pt-Light"
+            // PERF-I12 — Fraunces9pt-Light.ttf is no longer bundled (no
+            // call sites). Map .light to Regular so any call that
+            // re-introduces the request renders a sensible weight
+            // rather than falling back to the system font.
+            case (.light, false): return "Fraunces9pt-Regular"
             case (.light, true): return "Fraunces9pt-Italic"
             case (.regular, false): return "Fraunces9pt-Regular"
             case (.regular, true): return "Fraunces9pt-Italic"
@@ -43,7 +47,8 @@ enum OMFont {
         case light, regular, medium, semibold, bold, black
         fileprivate var postscript: String {
             switch self {
-            case .light: return "Geist-Light"
+            // PERF-I12 — Geist-Light.ttf removed; fall back to Regular.
+            case .light: return "Geist-Regular"
             case .regular: return "Geist-Regular"
             case .medium: return "Geist-Medium"
             case .semibold: return "Geist-SemiBold"
