@@ -47,7 +47,11 @@ targets:
         # Custom fonts shipped in Resources/Fonts/. Postscript names are
         # verified in OMFont.debugDumpAvailableFamilies().
         UIAppFonts:
-          - "Fonts/Fraunces9pt-Light.ttf"
+          # PERF-I12 — Fraunces9pt-Light.ttf and Geist-Light.ttf were
+          # bundled (~190KB) but never referenced; the typography
+          # mapping for `.light` now falls back to Regular (Fraunces)
+          # via DisplayWeight and the BodyWeight.light case has no call
+          # sites in Features/.
           - "Fonts/Fraunces9pt-Regular.ttf"
           - "Fonts/Fraunces9pt-Italic.ttf"
           - "Fonts/Fraunces9pt-SemiBold.ttf"
@@ -56,7 +60,6 @@ targets:
           - "Fonts/Fraunces9pt-BoldItalic.ttf"
           - "Fonts/Fraunces9pt-Black.ttf"
           - "Fonts/Fraunces9pt-BlackItalic.ttf"
-          - "Fonts/Geist-Light.ttf"
           - "Fonts/Geist-Regular.ttf"
           - "Fonts/Geist-Medium.ttf"
           - "Fonts/Geist-SemiBold.ttf"
