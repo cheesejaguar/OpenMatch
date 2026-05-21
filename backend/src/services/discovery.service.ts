@@ -9,6 +9,7 @@ import type {
 import { currentConfig, getDiscoveryDeck } from "@openmatch/matching";
 import type { PrismaClient } from "@prisma/client";
 import { haversineKm } from "../lib/location.js";
+import { getActiveMetros } from "../lib/metros-cache.js";
 import { withSpan } from "../lib/spans.js";
 
 const ACTIVITY_BUCKETS: Array<{ maxHours: number; bucket: ActivityBucket }> = [
@@ -130,9 +131,10 @@ async function buildDeckInner(input: BuildDeckInput) {
   // setting their preference radius wide enough to leak into an
   // adjacent metro. If the viewer is in no metro, we fall back to
   // the preference-radius filter only.
-  const activeMetros = await input.prisma.metroBoundary.findMany({
-    where: { active: true },
-  });
+  // PERF-B12 — process-local LRU keyed by country (or all-active for
+  // unknown viewer-country). MetroBoundary changes ~quarterly so even a
+  // 30s TTL eliminates >95% of round-trips on the hot deck path.
+  const activeMetros = await getActiveMetros(input.prisma, null);
   let viewerMetro: (typeof activeMetros)[number] | null = null;
   for (const m of activeMetros) {
     const dist = haversineKm(

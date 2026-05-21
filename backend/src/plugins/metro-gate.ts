@@ -1,6 +1,7 @@
 import type { FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import { haversineKm } from "../lib/location.js";
+import { getActiveMetros } from "../lib/metros-cache.js";
 
 // Metro / city geo-fence.
 //
@@ -57,9 +58,8 @@ export default fp(async (app) => {
       // No country known: can't pick which metros apply. Allow.
       if (!country) return { allow: true };
 
-      const metros = await app.prisma.metroBoundary.findMany({
-        where: { active: true, countryCode: country.toUpperCase() },
-      });
+      // PERF-B12 — route through the in-process LRU keyed by country.
+      const metros = await getActiveMetros(app.prisma, country);
       if (metros.length === 0) {
         // Back-compat: country is launch-supported but no metro defined
         // yet — let the country gate be the only gate.
