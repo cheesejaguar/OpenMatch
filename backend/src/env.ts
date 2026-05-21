@@ -38,6 +38,11 @@ const schema = z.object({
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
 
+  // PERF-TELEMETRY: queries running longer than this threshold are
+  // logged at WARN via Pino with the parameterised SQL (values redacted).
+  // Default 200ms — Neon round-trip is typically 5-30ms.
+  SLOW_QUERY_LOG_THRESHOLD_MS: z.coerce.number().int().positive().default(200),
+
   // Admin dashboard. Distinct signing key so a leaked consumer JWT_SECRET
   // cannot mint admin tokens. Required in all non-test environments —
   // we deliberately removed the dev fallback because preview deploys
