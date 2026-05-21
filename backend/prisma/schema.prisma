@@ -606,8 +606,39 @@ model Message {
   readAt           DateTime?
   deletedAt        DateTime?
   moderationStatus ModerationStatus @default(clean)
+  // Voice-note payload. Both columns are nullable so a text-only message
+  // remains the default shape. When `audioPath` is set, `body` is the
+  // empty string (or a short summary "[voice note]") for back-compat
+  // with clients that don't render audio yet. Moderation of speech-to-
+  // text content is a Trust & Safety lane TODO — see CoreML / cloud STT
+  // pipeline notes in doc/safety.
+  audioPath        String?
+  // Full URL to fetch the audio bytes from. In production this is the
+  // Vercel Blob URL (treated as a server-only secret — never returned
+  // to clients; the /audio/serve proxy uses it to stream bytes). In
+  // local dev this is the `/media/...` filesystem-backed path.
+  audioCdnUrl      String?
+  audioDurationMs  Int?
+
+  reactions MessageReaction[]
 
   @@index([conversationId, createdAt])
+}
+
+// Emoji reactions on messages. (messageId, userId, emoji) is unique so
+// repeated taps on the same emoji are idempotent and a user can only
+// hold one reaction-of-a-given-emoji per message. A user CAN attach
+// multiple distinct emojis to the same message.
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
 }
 
 // -------- Safety --------

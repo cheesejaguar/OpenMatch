@@ -26,7 +26,7 @@ const TABLES = [
   "BetaInviteCode",
   "AdminUser",
   "AdminRole",
-  "Entitlement",
+  "MessageReaction",
   "Message",
   "Conversation",
   "Match",
@@ -58,10 +58,6 @@ export async function resetDb(): Promise<void> {
   await testPrisma.$executeRawUnsafe(
     `TRUNCATE TABLE ${TABLES.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE`,
   );
-  // PERF-B12 — the in-process metros LRU is global and outlives a DB
-  // truncate. Each test gets a fresh seed so flush the cache here too.
-  const { invalidateMetros } = await import("../../src/lib/metros-cache.js");
-  invalidateMetros();
 }
 
 interface CreateUserOptions {
