@@ -4,6 +4,15 @@ export default defineConfig({
   test: {
     include: ["test/**/*.spec.ts"],
     environment: "node",
+    // PERF — matching is pure-logic with no shared DB or filesystem
+    // state, so spec files can run concurrently across worker threads.
+    // The default `forks` pool spins one Node process per file, which
+    // pays a much heavier per-file startup tax than threads. Cap at
+    // four workers so CI runners with fewer cores don't oversubscribe.
+    pool: "threads",
+    poolOptions: {
+      threads: { singleThread: false, maxThreads: 4 },
+    },
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html", "json-summary"],
