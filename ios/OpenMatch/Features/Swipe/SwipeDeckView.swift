@@ -109,38 +109,58 @@ struct SwipeDeckView: View {
 
     private func cardStack(in size: CGSize) -> some View {
         ZStack {
-            // Behind card (next)
-            if vm.cards.count > 1 {
-                ProfileCardView(
-                    card: vm.cards[1],
-                    dragOffset: .zero,
-                    onLike: {}, onReject: {}, onUndo: {},
-                    onShowDetail: {},
-                    canUndo: false,
-                    displayMode: .preview
-                )
-                .scaleEffect(0.96)
-                .opacity(0.7)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            }
-            // Top card
-            if let top = vm.top {
-                ProfileCardView(
-                    card: top,
-                    dragOffset: dragOffset,
-                    onLike: { Task { await commit(.like) } },
-                    onReject: { Task { await commit(.reject) } },
-                    onUndo: { Task { await vm.undo() } },
-                    onShowDetail: { detailCard = top },
-                    canUndo: vm.canUndo
-                )
-                .offset(dragOffset)
-                .rotationEffect(.degrees(reduceMotion ? 0 : Double(rotationDegrees(dragOffset.width))))
-                .gesture(dragGesture)
-                .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.78), value: dragOffset)
-                .id(top.profileId)
-            }
+            // PERF-I6 — Back card is hoisted into its own view so it
+            // does NOT take `dragOffset` as input. Without this, every
+            // drag-update frame re-renders the back card's
+            // PhotoCarouselView + photo decode — a per-frame waste
+            // when the back card is purely decorative.
+            backCard
+            // Top card: this one *does* depend on dragOffset, but only
+            // for transform (offset + rotation). The body inside
+            // `ProfileCardView` still runs per-frame for the top card
+            // (intent / edge-glow), which is intentional and where the
+            // drag feedback lives.
+            topCard
+        }
+    }
+
+    @ViewBuilder
+    private var backCard: some View {
+        if vm.cards.count > 1 {
+            ProfileCardView(
+                card: vm.cards[1],
+                dragOffset: .zero,
+                onLike: {}, onReject: {}, onUndo: {},
+                onShowDetail: {},
+                canUndo: false,
+                displayMode: .preview
+            )
+            .scaleEffect(0.96)
+            .opacity(0.7)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            // Re-render only when the back-card identity changes.
+            .id(vm.cards.count > 1 ? vm.cards[1].profileId : "none")
+        }
+    }
+
+    @ViewBuilder
+    private var topCard: some View {
+        if let top = vm.top {
+            ProfileCardView(
+                card: top,
+                dragOffset: dragOffset,
+                onLike: { Task { await commit(.like) } },
+                onReject: { Task { await commit(.reject) } },
+                onUndo: { Task { await vm.undo() } },
+                onShowDetail: { detailCard = top },
+                canUndo: vm.canUndo
+            )
+            .offset(dragOffset)
+            .rotationEffect(.degrees(reduceMotion ? 0 : Double(rotationDegrees(dragOffset.width))))
+            .gesture(dragGesture)
+            .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.78), value: dragOffset)
+            .id(top.profileId)
         }
     }
 
