@@ -1,4 +1,6 @@
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
 
@@ -47,7 +49,15 @@ export const dynamic = "force-dynamic";
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${geist.variable} ${fraunces.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Telemetry — RUM + Web Vitals (FCP/LCP/CLS/INP/TTFB). Both
+            components are no-ops outside Vercel and don't ship any
+            payload when the Vercel project hasn't opted in to the
+            respective analytics product. */}
+        <Analytics />
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
