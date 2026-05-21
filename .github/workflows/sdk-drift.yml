@@ -1,0 +1,88 @@
+name: SDK drift
+
+# Fail if the OpenAPI spec changes without a matching SDK regeneration.
+# Forks consume sdk/typescript/ directly, so drift between the source
+# document and the generated client breaks them silently. This workflow
+# runs the same gen-sdk.mjs that ships in the repo and diffs the result
+# against what's committed.
+
+on:
+  pull_request:
+    paths:
+      - "backend/src/**/*.ts"
+      - "backend/src/plugins/openapi.ts"
+      - "sdk/**"
+      - "scripts/gen-sdk.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Verify SDK is up to date
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .nvmrc
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci --foreground-scripts --prefer-offline --no-audit
+
+      - name: Build matching package
+        run: npm run build -w @openmatch/matching
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: backend
+
+      - name: Build backend
+        run: npm run build -w @openmatch/backend
+
+      - name: Boot backend + export OpenAPI
+        env:
+          # Dev-only secrets that satisfy backend/src/env.ts (>=32 bytes).
+          DATABASE_URL: postgresql://openmatch:openmatch@localhost:5432/openmatch
+          JWT_SECRET: ci-only-secret-padded-to-thirty-two-bytes-please
+          ADMIN_JWT_SECRET: ci-admin-only-secret-padded-thirty-two-bytes!
+          INTERNAL_WORKER_TOKEN: ci-worker-only-token-padded-to-thirty-two-bytes
+          ADMIN_SESSION_SECRET: ci-admin-session-padded-to-thirty-two-bytes!
+          SMTP_HOST: localhost
+          SMTP_PORT: "1025"
+          SMTP_FROM: noreply@openmatch.local
+          PORT: "8080"
+          HOST: "0.0.0.0"
+          # We only need the OpenAPI JSON; the backend's startup is
+          # tolerant of an unreachable DB for that single endpoint
+          # because /openapi.json doesn't hit Prisma. If your backend
+          # changes that, swap this for a `docker run postgres` step.
+          OPENAPI_BOOT: "true"
+        run: |
+          node backend/dist/src/server.js &
+          BACKEND_PID=$!
+          # Wait up to 20s for /openapi.json to respond.
+          for i in $(seq 1 20); do
+            if curl -fsS http://localhost:8080/openapi.json > /tmp/openapi.json 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          kill $BACKEND_PID 2>/dev/null || true
+          test -s /tmp/openapi.json || (echo "Backend did not produce /openapi.json"; exit 1)
+
+      - name: Regenerate SDK
+        run: OPENAPI_FILE=/tmp/openapi.json node scripts/gen-sdk.mjs
+
+      - name: Diff against committed SDK
+        run: |
+          if ! git diff --quiet -- sdk/; then
+            echo ""
+            echo "::error::SDK is out of date. Run \`npm run gen:sdk\` and commit the result."
+            git --no-pager diff -- sdk/ | head -200
+            exit 1
+          fi
+          echo "✅ SDK matches OpenAPI spec."
