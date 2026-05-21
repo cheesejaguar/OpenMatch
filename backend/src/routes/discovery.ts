@@ -32,23 +32,33 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
           deckSessionId,
         });
 
-        // Hydrate display fields for each card (photos, distance text, bio).
-        const profiles = await app.prisma.profile.findMany({
-          where: { id: { in: deck.cards.map((c) => c.profileId) } },
-          include: { photos: { orderBy: { sortOrder: "asc" } } },
-        });
-
-        // Pull viewer location once for distance display.
-        const vLoc = await app.prisma.$queryRawUnsafe<Array<{ lat: number; lng: number }>>(
-          `SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM "Profile" WHERE "userId" = $1`,
-          req.userId!,
-        );
-        const cLoc = await app.prisma.$queryRawUnsafe<
-          Array<{ profile_id: string; lat: number; lng: number }>
-        >(
-          `SELECT "id" AS profile_id, ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM "Profile" WHERE "id" = ANY($1::text[])`,
-          deck.cards.map((c) => c.profileId),
-        );
+        // PERF-X17 — these three lookups are mutually independent
+        // (profiles by id-set, viewer lat/lng, candidate lat/lng) so
+        // fan them out via Promise.all. The previous sequential awaits
+        // stacked three network round-trips on Neon's WebSocket
+        // connection per /deck request; parallelising collapses them
+        // into roughly one RTT.
+        //
+        // The full deck consolidation into a single CTE that also
+        // jsonb_agg's photos + dateOfBirth (PERF-B1) is a deeper
+        // refactor with PostGIS + JSON aggregation testing surface;
+        // tracked as a follow-up to this PR. This change captures the
+        // sequential-fanout wins without restructuring the SQL.
+        const profileIds = deck.cards.map((c) => c.profileId);
+        const [profiles, vLoc, cLoc] = await Promise.all([
+          app.prisma.profile.findMany({
+            where: { id: { in: profileIds } },
+            include: { photos: { orderBy: { sortOrder: "asc" } } },
+          }),
+          app.prisma.$queryRawUnsafe<Array<{ lat: number; lng: number }>>(
+            `SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM "Profile" WHERE "userId" = $1`,
+            req.userId!,
+          ),
+          app.prisma.$queryRawUnsafe<Array<{ profile_id: string; lat: number; lng: number }>>(
+            `SELECT "id" AS profile_id, ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM "Profile" WHERE "id" = ANY($1::text[])`,
+            profileIds,
+          ),
+        ]);
         const candLoc = new Map(cLoc.map((r) => [r.profile_id, r]));
 
         const viewerLatLng = vLoc[0];

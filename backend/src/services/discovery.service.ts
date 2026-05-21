@@ -204,12 +204,15 @@ async function buildDeckInner(input: BuildDeckInput) {
       )
     : candidateRows;
 
-  // Blocks (either direction)
-  const blocks = await input.prisma.block.findMany({
-    where: {
-      OR: [{ blockerUserId: input.viewerUserId }, { blockedUserId: input.viewerUserId }],
-    },
-  });
+  // PERF-B1 (partial) — blocks, priorSwipes, and standingLikes are
+  // three mutually independent lookups against the viewer's history.
+  // Previously they stacked three sequential RTTs on the Neon
+  // WebSocket connection between the candidate query and the matching
+  // call. Fan them out via Promise.all so they run in parallel — same
+  // semantics, one round-trip cost.
+  //
+  // The full CTE collapse that also folds the candidate fetch
+  // (PERF-B1) is tracked as a follow-up.
 
   // PERF-B2 — bound the priorSwipes lookup. The matching package only
   // dedupes against swipes within `rejectStickyDays` (90 days by the
@@ -234,30 +237,38 @@ async function buildDeckInner(input: BuildDeckInput) {
   const priorSwipesWindow = new Date(
     now.getTime() - PRIOR_SWIPES_WINDOW_DAYS * 24 * 60 * 60 * 1000,
   );
-  const priorSwipes = await input.prisma.swipeAction.findMany({
-    where: {
-      viewerUserId: input.viewerUserId,
-      undoneAt: null,
-      createdAt: { gt: priorSwipesWindow },
-    },
-    select: {
-      targetUserId: true,
-      decision: true,
-      createdAt: true,
-      undoneAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-    take: PRIOR_SWIPES_CAP,
-  });
 
-  // Standing likes the viewer sent — exclude those candidates from deck.
-  const standingLikes = await input.prisma.like.findMany({
-    where: {
-      fromUserId: input.viewerUserId,
-      status: { in: ["active", "matched"] },
-    },
-    select: { toUserId: true },
-  });
+  const [blocks, priorSwipes, standingLikes] = await Promise.all([
+    // Blocks (either direction)
+    input.prisma.block.findMany({
+      where: {
+        OR: [{ blockerUserId: input.viewerUserId }, { blockedUserId: input.viewerUserId }],
+      },
+    }),
+    input.prisma.swipeAction.findMany({
+      where: {
+        viewerUserId: input.viewerUserId,
+        undoneAt: null,
+        createdAt: { gt: priorSwipesWindow },
+      },
+      select: {
+        targetUserId: true,
+        decision: true,
+        createdAt: true,
+        undoneAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: PRIOR_SWIPES_CAP,
+    }),
+    // Standing likes the viewer sent — exclude those candidates from deck.
+    input.prisma.like.findMany({
+      where: {
+        fromUserId: input.viewerUserId,
+        status: { in: ["active", "matched"] },
+      },
+      select: { toUserId: true },
+    }),
+  ]);
   const likedTargets = new Set(standingLikes.map((l) => l.toUserId));
 
   const viewerMatchingProfile: MatchingProfile = {
