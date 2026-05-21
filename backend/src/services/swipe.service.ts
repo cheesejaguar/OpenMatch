@@ -44,14 +44,32 @@ async function recordSwipeInner(
   }
   // Reject if blocked either direction. Treat as silent no-op rather than 4xx
   // to avoid leaking block existence to the swiper.
-  const isBlocked = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerUserId: input.viewerUserId, blockedUserId: input.targetUserId },
-        { blockerUserId: input.targetUserId, blockedUserId: input.viewerUserId },
-      ],
-    },
-  });
+  // PERF-B9 — issue two findUnique lookups in parallel against the
+  // composite unique index on Block(blockerUserId, blockedUserId). Each
+  // hits the unique index directly; the previous OR-clause findFirst
+  // had inconsistent planner behaviour (audit doc / EXPLAIN — sometimes
+  // a single seq filter rather than two index lookups + union).
+  const [forwardBlock, reverseBlock] = await Promise.all([
+    prisma.block.findUnique({
+      where: {
+        blockerUserId_blockedUserId: {
+          blockerUserId: input.viewerUserId,
+          blockedUserId: input.targetUserId,
+        },
+      },
+      select: { id: true },
+    }),
+    prisma.block.findUnique({
+      where: {
+        blockerUserId_blockedUserId: {
+          blockerUserId: input.targetUserId,
+          blockedUserId: input.viewerUserId,
+        },
+      },
+      select: { id: true },
+    }),
+  ]);
+  const isBlocked = forwardBlock !== null || reverseBlock !== null;
   if (isBlocked) {
     // Silent no-op: don't record the swipe, don't reveal the block to the
     // swiper, and return null so the client cannot attempt to "undo" a
