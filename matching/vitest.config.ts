@@ -11,7 +11,7 @@ export default defineConfig({
     // four workers so CI runners with fewer cores don't oversubscribe.
     pool: "threads",
     poolOptions: {
-      threads: { singleThread: false, maxThreads: 4 },
+      threads: { singleThread: false, minThreads: 1, maxThreads: 4 },
     },
     coverage: {
       provider: "v8",

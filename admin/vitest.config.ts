@@ -23,7 +23,7 @@ export default defineConfig({
     // runners with limited cores don't oversubscribe.
     pool: "threads",
     poolOptions: {
-      threads: { singleThread: false, maxThreads: 4 },
+      threads: { singleThread: false, minThreads: 1, maxThreads: 4 },
     },
     // `server-only` is a Next.js-provided marker module that has no
     // implementation outside the Next.js bundler. Tests that import
