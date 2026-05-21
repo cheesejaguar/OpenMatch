@@ -1,6 +1,14 @@
+import type { PrismaClient } from "@prisma/client";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../../env.js";
 import { buildReadySnapshot } from "../health.js";
+
+// PERF-X9 — keep at most 30 days of synthetic-check audit rows. The
+// cron writes one row every 5 minutes (~8.6k/month), so a 30-day window
+// stays in the low five-figures per environment instead of growing
+// unbounded. The cleanup runs daily on its own cron path so it never
+// pollutes the synthetic-check hot path.
+export const SYNTHETIC_PRUNE_RETENTION_DAYS = 30;
 
 // Round D — synthetic check route.
 //
@@ -193,6 +201,31 @@ export async function runSyntheticCheck(app: FastifyInstance): Promise<Synthetic
   return report;
 }
 
+export interface SyntheticPruneReport {
+  deleted: number;
+  cutoff: string;
+  durationMs: number;
+}
+
+// PERF-X9 — prune SyntheticCheckRun rows older than the retention
+// window. Idempotent; safe to invoke ad-hoc from ops as well as from
+// the daily cron in vercel.json.
+export async function runSyntheticPruneOnce(
+  prisma: PrismaClient,
+  retentionDays: number = SYNTHETIC_PRUNE_RETENTION_DAYS,
+): Promise<SyntheticPruneReport> {
+  const startedAt = Date.now();
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  const result = await prisma.syntheticCheckRun.deleteMany({
+    where: { ranAt: { lt: cutoff } },
+  });
+  return {
+    deleted: result.count,
+    cutoff: cutoff.toISOString(),
+    durationMs: Date.now() - startedAt,
+  };
+}
+
 export const internalSyntheticRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/run-synthetic-check",
@@ -208,6 +241,28 @@ export const internalSyntheticRoutes: FastifyPluginAsync = async (app) => {
           failed: report.steps.filter((s) => !s.passed).map((s) => s.name),
         },
         "synthetic_check_run",
+      );
+      return reply.send(report);
+    },
+  );
+
+  // PERF-X9 — daily prune of SyntheticCheckRun rows older than the
+  // retention window. Bearer-gated like every other internal cron;
+  // logged with deleted count + cutoff so an operator can audit it.
+  app.post(
+    "/run-synthetic-prune",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      if (!checkBearer(req, reply)) return;
+      const report = await runSyntheticPruneOnce(app.prisma);
+      app.log.info(
+        {
+          event: "internal.synthetic_prune",
+          deleted: report.deleted,
+          cutoff: report.cutoff,
+          durationMs: report.durationMs,
+        },
+        "synthetic_prune_run",
       );
       return reply.send(report);
     },

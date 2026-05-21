@@ -401,6 +401,8 @@ model User {
   pushDeliveryLogs    PushDeliveryLog[]
 
   @@index([status])
+  // PERF-B14 — daily-digest counts new signups in a time window
+  @@index([createdAt])
 }
 
 model Profile {
@@ -466,6 +468,8 @@ model ProfilePhoto {
   updatedAt        DateTime         @updatedAt
 
   @@index([profileId, sortOrder])
+  // PERF-B14 — daily-digest counts photo uploads in a time window
+  @@index([createdAt])
 }
 
 model Preferences {
@@ -510,6 +514,12 @@ model SwipeAction {
 
   @@index([viewerUserId, targetUserId])
   @@index([targetUserId, decision])
+  // PERF-B2 — discovery.buildDeck pulls the most recent priorSwipes for
+  // a viewer (bounded window + take cap). Without this composite the
+  // planner did a per-row sort over every row matching viewerUserId; the
+  // (viewerUserId, createdAt DESC) ordering lets PG stream rows in index
+  // order and stop at the LIMIT.
+  @@index([viewerUserId, createdAt(sort: Desc)])
 }
 
 model Like {
@@ -524,6 +534,10 @@ model Like {
 
   @@unique([fromUserId, toUserId])
   @@index([toUserId, status])
+  // listIncomingLikes orders by createdAt DESC — composite lets PG skip sort
+  @@index([toUserId, status, createdAt(sort: Desc)])
+  // listOutgoingLikes / DSAR exports filter on (fromUserId, status)
+  @@index([fromUserId, status])
 }
 
 model Match {
@@ -542,6 +556,11 @@ model Match {
   @@unique([userAId, userBId])
   @@index([userAId, status])
   @@index([userBId, status])
+  // listMatches orders by createdAt DESC — composite lets PG skip sort
+  @@index([userAId, status, createdAt(sort: Desc)])
+  @@index([userBId, status, createdAt(sort: Desc)])
+  // PERF-B14 — daily-digest counts new matches in a time window
+  @@index([createdAt])
 }
 
 model Conversation {
@@ -608,6 +627,11 @@ model Report {
 
   @@index([status, createdAt])
   @@index([assignedAdminUserId])
+  // Admin investigation: "all reports against this user" / "user's report history"
+  @@index([reportedUserId])
+  @@index([reporterUserId])
+  // PERF-B14 — daily-digest counts new reports in a time window with no status filter
+  @@index([createdAt])
 }
 
 // -------- Auth --------
@@ -686,10 +710,10 @@ model AdminUser {
   // recovery codes; the plaintext is shown to the operator only once
   // at enrolment. `twoFactorRequired` lets per-user policy override the
   // global ADMIN_2FA_OPTIONAL env flag (default: required).
-  totpSecret              String?
-  totpEnrolledAt          DateTime?
-  recoveryCodes           String[]        @default([])
-  twoFactorRequired       Boolean         @default(true)
+  totpSecret        String?
+  totpEnrolledAt    DateTime?
+  recoveryCodes     String[]  @default([])
+  twoFactorRequired Boolean   @default(true)
 
   roles             AdminUserRole[]        @relation("RoleHolder")
   rolesAssigned     AdminUserRole[]        @relation("RoleAssigner")
@@ -978,6 +1002,8 @@ model AccountDeletionRequest {
 
   @@unique([userId, status])
   @@index([status, gracePeriodEndsAt])
+  // PERF-B14 — daily-digest counts new deletion requests in a time window
+  @@index([requestedAt])
 }
 
 model NotificationPreference {
@@ -1317,6 +1343,8 @@ model AnalyticsEvent {
 
   @@index([eventName, serverTs])
   @@index([userId, serverTs])
+  // PERF-B15 — alerter counts total events in a window (no eventName prefix)
+  @@index([serverTs])
 }
 
 model BetaFeedback {

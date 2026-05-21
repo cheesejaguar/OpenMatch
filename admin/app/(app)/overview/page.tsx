@@ -1,19 +1,56 @@
+import { Suspense } from "react";
+import Skeleton from "../../../components/ui/Skeleton";
 import { adminFetch } from "../../../lib/api/admin-client";
 import type { OverviewMetricsDTO } from "../../../lib/api/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function OverviewPage() {
+// PERF-A1: split the overview's data fetch into a child server
+// component so the page shell (heading + grid skeleton) streams
+// immediately and the metrics fetch streams in when ready.
+export default function OverviewPage() {
+  return (
+    <div>
+      <div className="page-header">
+        <h2>Overview</h2>
+      </div>
+      <Suspense fallback={<OverviewSkeleton />}>
+        <OverviewMetrics />
+      </Suspense>
+    </div>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <>
+      <div className="grid cols-3">
+        {Array.from({ length: 8 }, (_, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: pure-shape skeleton, never reorders
+          <div key={i} className="metric">
+            <div className="label">
+              <Skeleton width={120} height={12} />
+            </div>
+            <div className="value">
+              <Skeleton width={80} height={28} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="card" style={{ marginTop: 24 }}>
+        <h3 style={{ marginTop: 0 }}>Open reports by reason</h3>
+        <Skeleton height={120} />
+      </div>
+    </>
+  );
+}
+
+async function OverviewMetrics() {
   const res = await adminFetch<OverviewMetricsDTO>("/api/v1/admin/metrics/overview");
   if (!res.ok) {
     return (
-      <div>
-        <div className="page-header">
-          <h2>Overview</h2>
-        </div>
-        <div className="error">
-          Unable to load metrics ({res.status} {res.error.code}).
-        </div>
+      <div className="error">
+        Unable to load metrics ({res.status} {res.error.code}).
       </div>
     );
   }
@@ -34,10 +71,7 @@ export default async function OverviewPage() {
     { label: "Admin actions today", value: data.adminActionsToday },
   ];
   return (
-    <div>
-      <div className="page-header">
-        <h2>Overview</h2>
-      </div>
+    <>
       <div className="grid cols-3">
         {tiles.map((t) => (
           <div key={t.label} className="metric">
@@ -69,6 +103,6 @@ export default async function OverviewPage() {
           </table>
         )}
       </div>
-    </div>
+    </>
   );
 }

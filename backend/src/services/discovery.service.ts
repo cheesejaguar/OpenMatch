@@ -204,25 +204,71 @@ async function buildDeckInner(input: BuildDeckInput) {
       )
     : candidateRows;
 
-  // Blocks (either direction)
-  const blocks = await input.prisma.block.findMany({
-    where: {
-      OR: [{ blockerUserId: input.viewerUserId }, { blockedUserId: input.viewerUserId }],
-    },
-  });
+  // PERF-B1 (partial) — blocks, priorSwipes, and standingLikes are
+  // three mutually independent lookups against the viewer's history.
+  // Previously they stacked three sequential RTTs on the Neon
+  // WebSocket connection between the candidate query and the matching
+  // call. Fan them out via Promise.all so they run in parallel — same
+  // semantics, one round-trip cost.
+  //
+  // The full CTE collapse that also folds the candidate fetch
+  // (PERF-B1) is tracked as a follow-up.
 
-  const priorSwipes = await input.prisma.swipeAction.findMany({
-    where: { viewerUserId: input.viewerUserId },
-  });
+  // PERF-B2 — bound the priorSwipes lookup. The matching package only
+  // dedupes against swipes within `rejectStickyDays` (90 days by the
+  // shipped config) AND ignores rows where `undoneAt !== null`, so the
+  // previous unbounded `findMany` materialised tens of thousands of
+  // historical rows per request for power users with no benefit.
+  //
+  // Window choice: 120 days. That's `rejectStickyDays` (90) plus a 30-day
+  // safety buffer in case the config is bumped or a candidate's
+  // `createdAt` floats relative to the viewer's clock. Above the buffer
+  // matching's loop would have ignored the row regardless. `take: 10000`
+  // caps memory blowup if a single user manages to swipe at >100/day for
+  // 120 days; with `orderBy createdAt desc` the cap keeps the most recent
+  // rows so the dedupe window remains honest.
+  //
+  // `select` narrows the wire payload to only the columns matching's
+  // `notRecentlyActedUpon` reads: targetUserId, decision, createdAt,
+  // undoneAt. Pulling the row's id / algorithmVersion / deckSessionId
+  // wasted ~80% of the per-row bytes.
+  const PRIOR_SWIPES_WINDOW_DAYS = 120;
+  const PRIOR_SWIPES_CAP = 10_000;
+  const priorSwipesWindow = new Date(
+    now.getTime() - PRIOR_SWIPES_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  );
 
-  // Standing likes the viewer sent — exclude those candidates from deck.
-  const standingLikes = await input.prisma.like.findMany({
-    where: {
-      fromUserId: input.viewerUserId,
-      status: { in: ["active", "matched"] },
-    },
-    select: { toUserId: true },
-  });
+  const [blocks, priorSwipes, standingLikes] = await Promise.all([
+    // Blocks (either direction)
+    input.prisma.block.findMany({
+      where: {
+        OR: [{ blockerUserId: input.viewerUserId }, { blockedUserId: input.viewerUserId }],
+      },
+    }),
+    input.prisma.swipeAction.findMany({
+      where: {
+        viewerUserId: input.viewerUserId,
+        undoneAt: null,
+        createdAt: { gt: priorSwipesWindow },
+      },
+      select: {
+        targetUserId: true,
+        decision: true,
+        createdAt: true,
+        undoneAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: PRIOR_SWIPES_CAP,
+    }),
+    // Standing likes the viewer sent — exclude those candidates from deck.
+    input.prisma.like.findMany({
+      where: {
+        fromUserId: input.viewerUserId,
+        status: { in: ["active", "matched"] },
+      },
+      select: { toUserId: true },
+    }),
+  ]);
   const likedTargets = new Set(standingLikes.map((l) => l.toUserId));
 
   const viewerMatchingProfile: MatchingProfile = {
@@ -313,7 +359,10 @@ async function buildDeckInner(input: BuildDeckInput) {
       blockedId: b.blockedUserId,
     })),
     priorSwipes: priorSwipes.map((s) => ({
-      viewerId: s.viewerUserId,
+      // All rows are scoped to the viewer via the `where` clause above;
+      // matching's notRecentlyActedUpon still filters on viewerId so we
+      // pass the known viewerUserId rather than re-selecting it per row.
+      viewerId: input.viewerUserId,
       targetUserId: s.targetUserId,
       decision: s.decision === "like" ? "like" : "reject",
       createdAt: s.createdAt,

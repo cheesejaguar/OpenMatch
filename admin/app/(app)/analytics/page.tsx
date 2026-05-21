@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import DataTable, { type DataTableColumn } from "../../../components/ui/DataTable";
 import EmptyState from "../../../components/ui/EmptyState";
 import FilterBar from "../../../components/ui/FilterBar";
+import Skeleton from "../../../components/ui/Skeleton";
 import TimeSeriesChart, { type TimeSeriesSeries } from "../../../components/ui/TimeSeriesChart";
 import { adminFetch } from "../../../lib/api/admin-client";
 import {
@@ -45,6 +47,12 @@ function endpointMissing(status: number): boolean {
   return status === 404;
 }
 
+// PERF-A1 / PERF-A4: previously the cohort dropdown (200-item invite
+// list, only consumed by an optional <select>) was awaited before any
+// tab could render, then each tab issued its own fetches sequentially.
+// Now the toolbar shell renders immediately, the cohort options stream
+// in via Suspense, and each tab streams in its own boundary so they
+// run concurrently with the cohort fetch.
 export default async function AnalyticsPage({ searchParams }: Params) {
   const sp = await searchParams;
   const activeTab = (TABS.find((t) => t.key === sp.tab)?.key ?? "funnel") as
@@ -54,16 +62,6 @@ export default async function AnalyticsPage({ searchParams }: Params) {
   const from = sp.from ?? isoDaysAgo(14);
   const to = sp.to ?? isoDaysAgo(0);
   const cohort = sp.cohort ?? "";
-
-  // Cohort dropdown — derived from invite list (R1A, already shipped).
-  const invitesRes = await adminFetch<InviteListDTO>("/api/v1/admin/invites", {
-    query: { limit: 200 },
-  });
-  const cohortSet = new Set<string>();
-  if (invitesRes.ok) {
-    for (const inv of invitesRes.data.items) cohortSet.add(inv.cohortLabel);
-  }
-  const cohorts = Array.from(cohortSet).sort();
 
   return (
     <div>
@@ -104,25 +102,61 @@ export default async function AnalyticsPage({ searchParams }: Params) {
           </div>
           <div style={{ width: 200 }}>
             <label htmlFor="cohort">Cohort</label>
-            <select id="cohort" name="cohort" defaultValue={cohort}>
-              <option value="">All cohorts</option>
-              {cohorts.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+            <Suspense fallback={<CohortSelectFallback selected={cohort} />}>
+              <CohortSelect selected={cohort} />
+            </Suspense>
           </div>
         </FilterBar>
       </form>
 
-      {activeTab === "funnel" ? (
-        <FunnelTab from={from} to={to} cohort={cohort || undefined} />
-      ) : activeTab === "retention" ? (
-        <RetentionTab from={from} to={to} cohort={cohort || undefined} />
-      ) : (
-        <EngagementTab from={from} to={to} cohort={cohort || undefined} />
-      )}
+      <Suspense key={`${activeTab}|${from}|${to}|${cohort}`} fallback={<TabSkeleton />}>
+        {activeTab === "funnel" ? (
+          <FunnelTab from={from} to={to} cohort={cohort || undefined} />
+        ) : activeTab === "retention" ? (
+          <RetentionTab from={from} to={to} cohort={cohort || undefined} />
+        ) : (
+          <EngagementTab from={from} to={to} cohort={cohort || undefined} />
+        )}
+      </Suspense>
+    </div>
+  );
+}
+
+function CohortSelectFallback({ selected }: { selected: string }) {
+  // Render a usable select with the current value preselected — the
+  // form is still submittable even before the cohort list resolves.
+  return (
+    <select id="cohort" name="cohort" defaultValue={selected} disabled>
+      <option value={selected}>{selected || "All cohorts"}</option>
+    </select>
+  );
+}
+
+async function CohortSelect({ selected }: { selected: string }) {
+  const invitesRes = await adminFetch<InviteListDTO>("/api/v1/admin/invites", {
+    query: { limit: 200 },
+  });
+  const cohortSet = new Set<string>();
+  if (invitesRes.ok) {
+    for (const inv of invitesRes.data.items) cohortSet.add(inv.cohortLabel);
+  }
+  const cohorts = Array.from(cohortSet).sort();
+  return (
+    <select id="cohort" name="cohort" defaultValue={selected}>
+      <option value="">All cohorts</option>
+      {cohorts.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TabSkeleton() {
+  return (
+    <div className="card">
+      <Skeleton height={260} />
     </div>
   );
 }

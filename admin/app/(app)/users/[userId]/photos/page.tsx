@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import SensitiveBanner from "../../../../../components/access/SensitiveBanner";
 import { adminFetch } from "../../../../../lib/api/admin-client";
@@ -30,8 +31,18 @@ export default async function UserPhotosPage({ params }: Params) {
         <div className="photo-grid">
           {data!.photos.map((p) => (
             <div key={p.id} className="photo">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {p.url ? <img src={p.url} alt="" /> : <div style={{ height: 160 }} />}
+              {p.url ? (
+                <Image
+                  src={p.url}
+                  alt=""
+                  width={160}
+                  height={160}
+                  sizes="160px"
+                  style={{ width: "100%", height: 160, objectFit: "cover" }}
+                />
+              ) : (
+                <div style={{ height: 160 }} />
+              )}
               <div className="meta">
                 <div>
                   <span className={`badge ${p.moderationStatus}`}>{p.moderationStatus}</span>

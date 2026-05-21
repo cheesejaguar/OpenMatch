@@ -260,4 +260,101 @@ describe("GET /api/v1/photos/:id/url + /serve", () => {
       await app.close();
     }
   });
+
+  // PERF-X3 — content-addressed photos get a stable ETag derived from
+  // (storageKey, audienceUserId). A second request carrying the same
+  // value in If-None-Match must short-circuit with 304 Not Modified.
+  it("serve endpoint emits an ETag and honours If-None-Match with 304", async () => {
+    const app = await build();
+    try {
+      const owner = await createUser({ displayName: "Owner" });
+      const { photoId } = await seedPhoto(owner.id);
+
+      const urlRes = await app.inject({
+        method: "GET",
+        url: `/api/v1/photos/${photoId}/url`,
+        headers: { authorization: bearer(owner.id, app) },
+      });
+      const { url } = urlRes.json() as { url: string };
+
+      const first = await app.inject({ method: "GET", url });
+      expect(first.statusCode).toBe(200);
+      const etag = first.headers.etag as string;
+      expect(etag).toBeTruthy();
+      expect(etag.startsWith('"')).toBe(true);
+
+      const second = await app.inject({
+        method: "GET",
+        url,
+        headers: { "if-none-match": etag },
+      });
+      expect(second.statusCode).toBe(304);
+      // 304 must echo the same ETag so the client cache stays
+      // synchronised. Body MUST be empty for a 304.
+      expect(second.headers.etag).toBe(etag);
+      expect(second.rawPayload.length).toBe(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  // PERF-X3 — ETag is audience-scoped: a mint for user A and a mint
+  // for user B must produce different ETag values so they can't be
+  // used as a cross-user correlation handle.
+  it("ETag differs per audience to prevent cross-user correlation", async () => {
+    const app = await build();
+    try {
+      const owner = await createUser({ displayName: "Owner" });
+      const peer = await createUser({ displayName: "Peer" });
+      const { photoId } = await seedPhoto(owner.id);
+      await testPrisma.match.create({
+        data: { userAId: owner.id, userBId: peer.id, status: "active" },
+      });
+
+      const ownerUrl = await app.inject({
+        method: "GET",
+        url: `/api/v1/photos/${photoId}/url`,
+        headers: { authorization: bearer(owner.id, app) },
+      });
+      const peerUrl = await app.inject({
+        method: "GET",
+        url: `/api/v1/photos/${photoId}/url`,
+        headers: { authorization: bearer(peer.id, app) },
+      });
+
+      const ownerServe = await app.inject({
+        method: "GET",
+        url: (ownerUrl.json() as { url: string }).url,
+      });
+      const peerServe = await app.inject({
+        method: "GET",
+        url: (peerUrl.json() as { url: string }).url,
+      });
+
+      expect(ownerServe.headers.etag).toBeTruthy();
+      expect(peerServe.headers.etag).toBeTruthy();
+      expect(ownerServe.headers.etag).not.toBe(peerServe.headers.etag);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("serve endpoint advertises Accept-Ranges so clients can resume", async () => {
+    const app = await build();
+    try {
+      const owner = await createUser({ displayName: "Owner" });
+      const { photoId } = await seedPhoto(owner.id);
+      const urlRes = await app.inject({
+        method: "GET",
+        url: `/api/v1/photos/${photoId}/url`,
+        headers: { authorization: bearer(owner.id, app) },
+      });
+      const { url } = urlRes.json() as { url: string };
+      const res = await app.inject({ method: "GET", url });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers["accept-ranges"]).toBe("bytes");
+    } finally {
+      await app.close();
+    }
+  });
 });

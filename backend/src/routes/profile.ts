@@ -366,19 +366,30 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     }
     await app.prisma.profilePhoto.delete({ where: { id: photo.id } });
 
-    // Compact the remaining photos' sort orders so the next upload's index
-    // is always profile.photos.length.
+    // PERF-B18 — compact the remaining photos' sort orders in a single
+    // statement instead of N round-trips. UPDATE ... FROM UNNEST(...)
+    // applies all the new indices in one pass.
     const remaining = await app.prisma.profilePhoto.findMany({
       where: { profileId: profile.id },
       orderBy: { sortOrder: "asc" },
+      select: { id: true, sortOrder: true },
     });
-    await Promise.all(
-      remaining.map((p, idx) =>
-        p.sortOrder === idx
-          ? Promise.resolve()
-          : app.prisma.profilePhoto.update({ where: { id: p.id }, data: { sortOrder: idx } }),
-      ),
-    );
+    const needsUpdate = remaining
+      .map((p, idx) => ({ id: p.id, idx, current: p.sortOrder }))
+      .filter((r) => r.current !== r.idx);
+    if (needsUpdate.length > 0) {
+      await app.prisma.$executeRaw`
+        UPDATE "ProfilePhoto" AS p
+           SET "sortOrder" = v."idx"
+          FROM (
+            SELECT * FROM UNNEST(
+              ${needsUpdate.map((r) => r.id)}::text[],
+              ${needsUpdate.map((r) => r.idx)}::int[]
+            ) AS u(id, idx)
+          ) AS v(id, idx)
+         WHERE p."id" = v."id"
+      `;
+    }
 
     return reply.code(204).send();
   });
@@ -400,11 +411,24 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       return sendHttpError(reply, httpError(ErrorCodes.DUPLICATE_PHOTOS));
     }
 
-    await app.prisma.$transaction(
-      body.photoIds.map((id, idx) =>
-        app.prisma.profilePhoto.update({ where: { id }, data: { sortOrder: idx } }),
-      ),
-    );
+    // PERF-B17 — collapse N serial UPDATEs into one statement via
+    // UPDATE ... FROM (VALUES ...). For 9 photos this is 1 round-trip
+    // instead of 9; the unique-by-id WHERE clause and the index on
+    // (profileId, sortOrder) both apply.
+    if (body.photoIds.length > 0) {
+      const rows = body.photoIds.map((id, idx) => ({ id, idx }));
+      await app.prisma.$executeRaw`
+        UPDATE "ProfilePhoto" AS p
+           SET "sortOrder" = v."idx"
+          FROM (
+            SELECT * FROM UNNEST(
+              ${rows.map((r) => r.id)}::text[],
+              ${rows.map((r) => r.idx)}::int[]
+            ) AS u(id, idx)
+          ) AS v(id, idx)
+         WHERE p."id" = v."id"
+      `;
+    }
     const photos = await app.prisma.profilePhoto.findMany({
       where: { profileId: profile.id },
       orderBy: { sortOrder: "asc" },

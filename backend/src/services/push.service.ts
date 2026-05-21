@@ -257,32 +257,39 @@ export async function sendPush(
     };
   }
 
-  // 4. Send to each device with one retry on transient failures.
+  // 4. Send to each device in parallel (PERF-X8). APNs HTTP/2 multiplexes
+  // hundreds of concurrent streams on a single connection — the previous
+  // sequential `for` loop left per-notification latency at O(devices × RTT)
+  // when O(RTT) is achievable. Each device still gets its own one-retry
+  // policy and pushDeliveryLog row.
   const apnNote = buildApnNotification(n);
   const failures: Array<{ deviceId: string; reason: string }> = [];
   let succeeded = 0;
 
-  for (const d of devices) {
-    // iOS-only for v0; quietly skip other platforms.
-    if (d.platform !== "ios") continue;
-
-    let result = await sendOnce(provider, d.token, apnNote).catch((err: Error) => ({
-      ok: false as const,
-      reason: err.message ?? "send_threw",
-      retryable: true,
-      deviceGone: false,
-    }));
-
-    if (!result.ok && result.retryable) {
-      await sleep(RETRY_BACKOFF_MS);
-      result = await sendOnce(provider, d.token, apnNote).catch((err: Error) => ({
+  const iosDevices = devices.filter((d) => d.platform === "ios");
+  const perDeviceResults = await Promise.all(
+    iosDevices.map(async (d) => {
+      let result = await sendOnce(provider, d.token, apnNote).catch((err: Error) => ({
         ok: false as const,
         reason: err.message ?? "send_threw",
-        retryable: false,
+        retryable: true,
         deviceGone: false,
       }));
-    }
 
+      if (!result.ok && result.retryable) {
+        await sleep(RETRY_BACKOFF_MS);
+        result = await sendOnce(provider, d.token, apnNote).catch((err: Error) => ({
+          ok: false as const,
+          reason: err.message ?? "send_threw",
+          retryable: false,
+          deviceGone: false,
+        }));
+      }
+      return { device: d, result };
+    }),
+  );
+
+  for (const { device: d, result } of perDeviceResults) {
     if (result.ok) {
       succeeded += 1;
       await prisma.pushDeliveryLog

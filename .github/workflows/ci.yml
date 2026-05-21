@@ -24,6 +24,10 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — use the built-in GitHub-hosted npm cache keyed on
+          # package-lock.json. Saves ~30-60 s on the install step when
+          # the cache is warm. See doc/performance/perf-audit-cross-cutting.md.
+          cache: "npm"
 
       - name: Install deps (cached)
         run: npm ci --foreground-scripts --prefer-offline --no-audit
@@ -54,6 +58,8 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — see fast-feedback job above.
+          cache: "npm"
 
       - name: Install deps (with debug capture)
         run: |
@@ -158,6 +164,8 @@ jobs:
       - uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — see fast-feedback job above.
+          cache: "npm"
 
       - name: Install deps (with debug capture)
         run: |
@@ -205,6 +213,16 @@ jobs:
           path: admin/coverage/
           retention-days: 7
 
+      # PERF-A12 — catch RSC boundary violations, bundle / tree-shaking
+      # regressions, and font subsetting failures in CI instead of on
+      # Vercel preview deploys. Build does not need a live backend; we
+      # provide placeholder values for the few env vars next build reads.
+      - name: Build admin dashboard
+        env:
+          ADMIN_API_BASE_URL: http://localhost:0
+          ADMIN_SESSION_SECRET: ci-only-secret-not-real-must-be-32-bytes-long
+        run: npm run build -w @openmatch/admin
+
   test-matching:
     name: Test @openmatch/matching
     runs-on: ubuntu-latest
@@ -215,6 +233,8 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — see fast-feedback job above.
+          cache: "npm"
 
       - name: Install deps (with debug capture)
         run: |
@@ -304,6 +324,8 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
+          # PERF-X12 — see fast-feedback job above.
+          cache: "npm"
 
       - name: Install deps (with debug capture)
         run: |

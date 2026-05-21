@@ -1,10 +1,78 @@
-import type { FastifyPluginAsync } from "fastify";
+import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
+import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { z } from "zod";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
-import { fetchPhotoBytes } from "../lib/media.js";
+import { fetchPhotoStream } from "../lib/media.js";
 import { signPhotoToken, verifyPhotoToken } from "../lib/photo-tokens.js";
 import { authorizePhotoAccess } from "../services/photo-access.service.js";
+
+// PERF-X3 — Photos are content-addressed (storageKey is a UUID path
+// that never mutates once written). A stable ETag derived from
+// (storageKey, audienceUserId) lets clients short-circuit a re-fetch
+// when their cache still holds the matching response and the audience
+// scope keeps the ETag from being a cross-user correlation handle.
+function buildPhotoEtag(storageKey: string, audienceUserId: string | null): string {
+  const h = createHash("sha256");
+  h.update(storageKey);
+  if (audienceUserId) {
+    h.update("\x00");
+    h.update(audienceUserId);
+  }
+  // ETag tokens are quoted strong validators. 16 bytes (32 hex chars) of
+  // hash is enough collision resistance for the cache key space.
+  return `"${h.digest("hex").slice(0, 32)}"`;
+}
+
+async function streamPhotoResponse(
+  reply: FastifyReply,
+  args: {
+    storageKey: string;
+    cdnUrl: string;
+    etag: string;
+    rangeHeader?: string;
+    ifNoneMatch?: string;
+  },
+): Promise<FastifyReply | null> {
+  // PERF-X3 — fast-path 304 when the client's If-None-Match matches our
+  // stable photo ETag. Saves the full upstream blob round-trip.
+  if (args.ifNoneMatch && args.ifNoneMatch === args.etag) {
+    reply.header("etag", args.etag);
+    // PERF — the signed URL itself expires in 5 min (see
+    // PHOTO_URL_TTL_SECONDS below) so the underlying blob bytes can be
+    // cached for that full window with `immutable` — every refresh
+    // issues a fresh signed URL anyway, so no client will need to
+    // revalidate within that lifetime.
+    reply.header("cache-control", "private, max-age=300, immutable");
+    return reply.code(304).send();
+  }
+
+  // PERF-X2 — stream the upstream blob through Fastify's reply rather
+  // than buffering the entire 4MB body in heap. PERF-X3 — also forward
+  // Range so iOS / a flaky-connection client can resume a partial.
+  const stream = await fetchPhotoStream(args.storageKey, args.cdnUrl, {
+    range: args.rangeHeader,
+  });
+  if (!stream) return null;
+
+  reply.header("etag", args.etag);
+  reply.header("cache-control", "private, max-age=300");
+  reply.header("accept-ranges", stream.acceptRanges ?? "bytes");
+  reply.header("content-type", stream.contentType);
+  if (stream.contentLength !== null) {
+    reply.header("content-length", String(stream.contentLength));
+  }
+  // Propagate 206 Partial Content from the upstream when a Range was
+  // honoured. Forward the Content-Range header verbatim if the upstream
+  // exposed it.
+  if (stream.status === 206) {
+    reply.code(206);
+  }
+  // Wrap the WHATWG ReadableStream as a Node Readable so Fastify's send
+  // pipeline can pipe it to the socket without an intermediate copy.
+  return reply.send(Readable.fromWeb(stream.body as never));
+}
 
 // Photo URL/serve endpoints (SEV-N16 / SEV-M7).
 //
@@ -105,6 +173,8 @@ export const photosRoutes: FastifyPluginAsync = async (app) => {
       // requester was authorized at mint time; we re-check here so a
       // user who got blocked / unmatched within the 5-minute window
       // loses access at the next image fetch.
+      const ifNoneMatch = req.headers["if-none-match"];
+      const rangeHeader = req.headers.range;
       if (audienceUserId) {
         const access = await authorizePhotoAccess(app.prisma, {
           photoId,
@@ -113,20 +183,16 @@ export const photosRoutes: FastifyPluginAsync = async (app) => {
         if (!access.ok) {
           return sendHttpError(reply, httpError(ErrorCodes.PHOTO_NOT_FOUND));
         }
-        const bytes = await fetchPhotoBytes(access.photo.storageKey, access.photo.cdnUrl);
-        if (!bytes) {
-          return sendHttpError(reply, httpError(ErrorCodes.PHOTO_NOT_FOUND));
-        }
-        // Short browser cache (5 min) — keeps the image hot across a list
-        // refresh but limits how long a revoked URL keeps rendering.
-        // PERF — the signed URL itself expires in 5 min (see
-        // PHOTO_URL_TTL_SECONDS above) so the underlying blob bytes
-        // can be cached for that full window with `immutable` — every
-        // refresh issues a fresh signed URL anyway, so no client will
-        // need to revalidate within that lifetime.
-        reply.header("cache-control", "private, max-age=300, immutable");
-        reply.header("content-type", bytes.contentType);
-        return reply.send(bytes.bytes);
+        const etag = buildPhotoEtag(access.photo.storageKey, audienceUserId);
+        const result = await streamPhotoResponse(reply, {
+          storageKey: access.photo.storageKey,
+          cdnUrl: access.photo.cdnUrl,
+          etag,
+          rangeHeader: typeof rangeHeader === "string" ? rangeHeader : undefined,
+          ifNoneMatch: typeof ifNoneMatch === "string" ? ifNoneMatch : undefined,
+        });
+        if (!result) return sendHttpError(reply, httpError(ErrorCodes.PHOTO_NOT_FOUND));
+        return result;
       }
 
       // Admin-context / unauthenticated path. Load the photo without
@@ -139,13 +205,16 @@ export const photosRoutes: FastifyPluginAsync = async (app) => {
       if (!row) {
         return sendHttpError(reply, httpError(ErrorCodes.PHOTO_NOT_FOUND));
       }
-      const bytes = await fetchPhotoBytes(row.storageKey, row.cdnUrl);
-      if (!bytes) {
-        return sendHttpError(reply, httpError(ErrorCodes.PHOTO_NOT_FOUND));
-      }
-      reply.header("cache-control", "private, max-age=300");
-      reply.header("content-type", bytes.contentType);
-      return reply.send(bytes.bytes);
+      const etag = buildPhotoEtag(row.storageKey, null);
+      const result = await streamPhotoResponse(reply, {
+        storageKey: row.storageKey,
+        cdnUrl: row.cdnUrl,
+        etag,
+        rangeHeader: typeof rangeHeader === "string" ? rangeHeader : undefined,
+        ifNoneMatch: typeof ifNoneMatch === "string" ? ifNoneMatch : undefined,
+      });
+      if (!result) return sendHttpError(reply, httpError(ErrorCodes.PHOTO_NOT_FOUND));
+      return result;
     },
   );
 };
