@@ -28,9 +28,7 @@ const config: NextConfig = {
     // are served from a `*.public.blob.vercel-storage.com` subdomain.
     // Listing them here lets `next/image` resize + reformat (WebP/AVIF)
     // those photos through the Vercel image optimizer.
-    remotePatterns: [
-      { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
-    ],
+    remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }],
     formats: ["image/avif", "image/webp"],
   },
   async headers() {

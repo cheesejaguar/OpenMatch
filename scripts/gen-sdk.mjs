@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 // gen-sdk.mjs — generate a TypeScript client from the backend's
 // OpenAPI 3.1 export. Output lands in sdk/typescript/.
 //
@@ -24,8 +25,8 @@
 //   npx @openapitools/openapi-generator-cli generate \
 //     -i sdk/openapi.json -g swift5 -o sdk/swift
 
-import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -259,13 +260,9 @@ Tracked in [\`ROADMAP.md\`](../../ROADMAP.md).
 `;
 }
 
-async function ensureOpenapiTypescript() {
-  // openapi-typescript ships a CLI we can invoke via npx without
-  // adding it to the workspace dependency graph. We pin a known-good
-  // major to avoid surprises.
-  return ["npx", ["--yes", "openapi-typescript@^7", "--help"]];
-}
-
+// openapi-typescript ships a CLI we can invoke via npx without adding
+// it to the workspace dependency graph. We pin a known-good major to
+// avoid surprises.
 async function generateSchema() {
   const args = [
     "--yes",

@@ -19,10 +19,10 @@
 //      (or `npm run rebrand` if the npm script is wired up)
 
 import { readFile } from "node:fs/promises";
-import { resolve, dirname, relative } from "node:path";
-import { fileURLToPath } from "node:url";
-import { createInterface } from "node:readline/promises";
+import { dirname, relative, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
+import { createInterface } from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -179,7 +179,10 @@ function transformProjectYml(src, { bundleIdPrefix }) {
   if (!src) return null;
   return src
     .replace(/^(\s*bundleIdPrefix:\s*)\S+/m, `$1${bundleIdPrefix}`)
-    .replace(/PRODUCT_BUNDLE_IDENTIFIER:\s*app\.openmatch\.ios\b/g, `PRODUCT_BUNDLE_IDENTIFIER: ${bundleIdPrefix}.ios`);
+    .replace(
+      /PRODUCT_BUNDLE_IDENTIFIER:\s*app\.openmatch\.ios\b/g,
+      `PRODUCT_BUNDLE_IDENTIFIER: ${bundleIdPrefix}.ios`,
+    );
 }
 
 function transformInfoPlist(src, { displayName }) {
@@ -194,15 +197,25 @@ function transformInfoPlist(src, { displayName }) {
 function transformOMColor(src, palette) {
   if (!src) return null;
   // Replace the four Aurora Dawn brand lines. Leaves cinnabar / mauve alone.
-  const sub = (name, light, dark) =>
-    new RegExp(
-      `static let ${name} = dual\\(light: 0x[0-9A-Fa-f]{6}, dark: 0x[0-9A-Fa-f]{6}\\)`,
-    );
+  const sub = (name) =>
+    new RegExp(`static let ${name} = dual\\(light: 0x[0-9A-Fa-f]{6}, dark: 0x[0-9A-Fa-f]{6}\\)`);
   return src
-    .replace(sub("plum"), `static let plum = dual(light: 0x${palette.plum.light.toUpperCase()}, dark: 0x${palette.plum.dark.toUpperCase()})`)
-    .replace(sub("magenta"), `static let magenta = dual(light: 0x${palette.magenta.light.toUpperCase()}, dark: 0x${palette.magenta.dark.toUpperCase()})`)
-    .replace(sub("marigold"), `static let marigold = dual(light: 0x${palette.marigold.light.toUpperCase()}, dark: 0x${palette.marigold.dark.toUpperCase()})`)
-    .replace(sub("periwinkle"), `static let periwinkle = dual(light: 0x${palette.periwinkle.light.toUpperCase()}, dark: 0x${palette.periwinkle.dark.toUpperCase()})`);
+    .replace(
+      sub("plum"),
+      `static let plum = dual(light: 0x${palette.plum.light.toUpperCase()}, dark: 0x${palette.plum.dark.toUpperCase()})`,
+    )
+    .replace(
+      sub("magenta"),
+      `static let magenta = dual(light: 0x${palette.magenta.light.toUpperCase()}, dark: 0x${palette.magenta.dark.toUpperCase()})`,
+    )
+    .replace(
+      sub("marigold"),
+      `static let marigold = dual(light: 0x${palette.marigold.light.toUpperCase()}, dark: 0x${palette.marigold.dark.toUpperCase()})`,
+    )
+    .replace(
+      sub("periwinkle"),
+      `static let periwinkle = dual(light: 0x${palette.periwinkle.light.toUpperCase()}, dark: 0x${palette.periwinkle.dark.toUpperCase()})`,
+    );
 }
 
 function transformGlobalsCss(src, palette) {
@@ -211,7 +224,10 @@ function transformGlobalsCss(src, palette) {
     .replace(/--om-plum:\s*#[0-9a-fA-F]{6};/, `--om-plum: #${palette.plum.light};`)
     .replace(/--om-magenta:\s*#[0-9a-fA-F]{6};/, `--om-magenta: #${palette.magenta.light};`)
     .replace(/--om-marigold:\s*#[0-9a-fA-F]{6};/, `--om-marigold: #${palette.marigold.light};`)
-    .replace(/--om-periwinkle:\s*#[0-9a-fA-F]{6};/, `--om-periwinkle: #${palette.periwinkle.light};`);
+    .replace(
+      /--om-periwinkle:\s*#[0-9a-fA-F]{6};/,
+      `--om-periwinkle: #${palette.periwinkle.light};`,
+    );
 }
 
 function transformEnvExample(src, { bundleId, teamId }) {
@@ -223,7 +239,10 @@ function transformEnvExample(src, { bundleId, teamId }) {
 
 function transformAuthService(src, { brandName }) {
   if (!src) return null;
-  return src.replace(/^export const BRAND_NAME = "[^"]+";$/m, `export const BRAND_NAME = "${brandName}";`);
+  return src.replace(
+    /^export const BRAND_NAME = "[^"]+";$/m,
+    `export const BRAND_NAME = "${brandName}";`,
+  );
 }
 
 function transformReadme(src, { brandName }) {
@@ -320,7 +339,9 @@ async function main() {
   }
 
   if (!anyChanges) {
-    console.log("No changes to make. Either the brand markers were already swapped, or the files weren't found.");
+    console.log(
+      "No changes to make. Either the brand markers were already swapped, or the files weren't found.",
+    );
     return;
   }
 
@@ -330,9 +351,13 @@ async function main() {
   console.log("  2. Or copy the diff hunks into your editor.");
   console.log("");
   console.log("Don't forget the steps the script can't automate:");
-  console.log("  - Replace fonts under admin/app/fonts/ and ios/OpenMatch/Resources/Fonts/ (see docs/forking.md §5).");
+  console.log(
+    "  - Replace fonts under admin/app/fonts/ and ios/OpenMatch/Resources/Fonts/ (see docs/forking.md §5).",
+  );
   console.log("  - Regenerate logo assets: `npm run gen:logo` (see docs/forking.md §6).");
-  console.log("  - Update Apple Developer (App ID, Services ID, Push key) — see docs/forking.md §2.");
+  console.log(
+    "  - Update Apple Developer (App ID, Services ID, Push key) — see docs/forking.md §2.",
+  );
   console.log("  - Author a privacy policy + ToS from docs/templates/.");
 }
 
