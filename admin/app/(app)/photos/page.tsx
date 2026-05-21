@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import PhotoActions from "../../../components/moderation/PhotoActions";
 import { adminFetch } from "../../../lib/api/admin-client";
@@ -110,8 +111,21 @@ export default async function PhotosPage({ searchParams }: Params) {
             const st = isOpen ? slaState(p.createdAt, undefined, now) : null;
             return (
               <div key={p.id} className="photo">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {p.url ? <img src={p.url} alt="" /> : <div style={{ height: 160 }} />}
+                {p.url ? (
+                  <Image
+                    src={p.url}
+                    alt=""
+                    width={160}
+                    height={160}
+                    sizes="160px"
+                    // CSS forces 100% width × 160px height with object-fit:
+                    // cover; the explicit dims here just lock the intrinsic
+                    // aspect ratio for the layout pass.
+                    style={{ width: "100%", height: 160, objectFit: "cover" }}
+                  />
+                ) : (
+                  <div style={{ height: 160 }} />
+                )}
                 <div className="meta">
                   <div>
                     <span className={`badge ${p.moderationStatus}`}>{p.moderationStatus}</span>
