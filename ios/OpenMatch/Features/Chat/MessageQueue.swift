@@ -224,6 +224,14 @@ final class FileMessageQueueStorage: MessageQueueStorage {
     private let url: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    // PERF-I13 — Serial background queue for the encode + atomic write.
+    // Persistence ordering is causal — every save must land in the
+    // order it was issued — so a serial queue is the right shape. The
+    // MainActor caller stops paying for JSON-encode + fsync.
+    private let writeQueue: DispatchQueue = DispatchQueue(
+        label: "app.openmatch.message-queue.write",
+        qos: .utility
+    )
 
     init(url: URL) {
         self.url = url
@@ -274,6 +282,34 @@ final class FileMessageQueueStorage: MessageQueueStorage {
     }
 
     func save(_ items: [PendingMessage]) {
+        // PERF-I13 — Hop to the serial background queue so the calling
+        // MainActor doesn't pay for JSON-encode + atomic fsync on every
+        // enqueue / retry / deliver. The dispatch is async; ordering is
+        // preserved because the queue is serial.
+        //
+        // Tests that inspect the on-disk file (MessageQueueProtectionTests,
+        // MessageQueueTests.testFileStorageRoundTrip) need the write to
+        // be observable synchronously; `.sync` from a background test
+        // thread is fine because we never call this from MainActor
+        // inside tests' assertion path. The production call sites are
+        // already async-friendly (best-effort persistence).
+        let isOnMainActor = Thread.isMainThread
+        if isOnMainActor {
+            writeQueue.async { [encoder, url] in
+                Self.writeInner(items: items, encoder: encoder, to: url)
+            }
+        } else {
+            writeQueue.sync { [encoder, url] in
+                Self.writeInner(items: items, encoder: encoder, to: url)
+            }
+        }
+    }
+
+    private static func writeInner(
+        items: [PendingMessage],
+        encoder: JSONEncoder,
+        to url: URL
+    ) {
         do {
             let data = try encoder.encode(items)
             // SEV-M6 — `.completeFileProtection` makes the bytes
@@ -294,6 +330,14 @@ final class FileMessageQueueStorage: MessageQueueStorage {
             // Persistence is best-effort. On failure the queue still
             // works in-memory for the current process lifetime.
         }
+    }
+
+    // Test seam: block until any pending background writes have flushed.
+    // Production code never needs to call this — the queue is allowed
+    // to be a bit ahead of disk. Tests that assert on the file's bytes
+    // call this immediately after the @MainActor save to avoid races.
+    func _flushForTesting() {
+        writeQueue.sync {}
     }
 }
 

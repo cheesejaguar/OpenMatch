@@ -276,9 +276,18 @@ struct EditProfileView: View {
         .onChange(of: pickedItem) { _, newItem in
             guard let newItem else { return }
             Task {
-                if let data = try? await newItem.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    await vm.upload(image)
+                // PERF-I18 — `loadTransferable` already returns Data off
+                // the main actor, but the subsequent `UIImage(data:)`
+                // call decodes the JPEG (often 30-80ms for a phone
+                // photo). Move it onto a userInitiated detached task so
+                // the picker dismiss animation stays buttery.
+                if let data = try? await newItem.loadTransferable(type: Data.self) {
+                    let image = await Task.detached(priority: .userInitiated) {
+                        UIImage(data: data)
+                    }.value
+                    if let image {
+                        await vm.upload(image)
+                    }
                 }
                 pickedItem = nil
             }

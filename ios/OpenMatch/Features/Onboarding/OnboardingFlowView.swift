@@ -125,9 +125,16 @@ private struct StepPhotos: View {
         .onChange(of: pickedItem) { _, newItem in
             guard let newItem else { return }
             Task {
-                if let data = try? await newItem.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    await upload(image)
+                // PERF-I18 — Decode the picked JPEG on a detached
+                // userInitiated task so a 12MB camera-roll photo
+                // doesn't stall the picker-dismiss animation.
+                if let data = try? await newItem.loadTransferable(type: Data.self) {
+                    let image = await Task.detached(priority: .userInitiated) {
+                        UIImage(data: data)
+                    }.value
+                    if let image {
+                        await upload(image)
+                    }
                 }
                 pickedItem = nil
             }

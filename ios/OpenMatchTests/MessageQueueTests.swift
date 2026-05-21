@@ -114,6 +114,10 @@ final class MessageQueueTests: XCTestCase {
             nextAttemptAt: Date(timeIntervalSince1970: 1700000000)
         )
         storage.save([item])
+        // PERF-I13 — File writes are dispatched off the main thread.
+        // Block until the background queue has drained before asserting
+        // on the on-disk bytes.
+        storage._flushForTesting()
         let reloaded = storage.load()
         XCTAssertEqual(reloaded.count, 1)
         XCTAssertEqual(reloaded.first, item)
