@@ -524,6 +524,10 @@ model Like {
 
   @@unique([fromUserId, toUserId])
   @@index([toUserId, status])
+  // listIncomingLikes orders by createdAt DESC — composite lets PG skip sort
+  @@index([toUserId, status, createdAt(sort: Desc)])
+  // listOutgoingLikes / DSAR exports filter on (fromUserId, status)
+  @@index([fromUserId, status])
 }
 
 model Match {
@@ -542,6 +546,9 @@ model Match {
   @@unique([userAId, userBId])
   @@index([userAId, status])
   @@index([userBId, status])
+  // listMatches orders by createdAt DESC — composite lets PG skip sort
+  @@index([userAId, status, createdAt(sort: Desc)])
+  @@index([userBId, status, createdAt(sort: Desc)])
 }
 
 model Conversation {
@@ -608,6 +615,9 @@ model Report {
 
   @@index([status, createdAt])
   @@index([assignedAdminUserId])
+  // Admin investigation: "all reports against this user" / "user's report history"
+  @@index([reportedUserId])
+  @@index([reporterUserId])
 }
 
 // -------- Auth --------
@@ -686,10 +696,10 @@ model AdminUser {
   // recovery codes; the plaintext is shown to the operator only once
   // at enrolment. `twoFactorRequired` lets per-user policy override the
   // global ADMIN_2FA_OPTIONAL env flag (default: required).
-  totpSecret              String?
-  totpEnrolledAt          DateTime?
-  recoveryCodes           String[]        @default([])
-  twoFactorRequired       Boolean         @default(true)
+  totpSecret        String?
+  totpEnrolledAt    DateTime?
+  recoveryCodes     String[]  @default([])
+  twoFactorRequired Boolean   @default(true)
 
   roles             AdminUserRole[]        @relation("RoleHolder")
   rolesAssigned     AdminUserRole[]        @relation("RoleAssigner")
