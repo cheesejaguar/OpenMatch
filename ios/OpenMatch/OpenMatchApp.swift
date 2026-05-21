@@ -10,9 +10,18 @@ struct OpenMatchApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        // Crash reporting first — we want to capture any setup error
-        // that follows. A missing DSN is a no-op (see Crash.swift).
-        Crash.bootstrap()
+        // PERF — Sentry's `startWithOptions` synchronously spins up its
+        // breadcrumb collectors, runtime monitors, and disk-backed
+        // envelope queue. Doing that work inside `App.init()` blocks
+        // the first frame from compositing. Move it to a detached
+        // utility-priority Task so the app draws immediately and crash
+        // reporting attaches a few hundred ms later. The window between
+        // app launch and bootstrap completion is covered by Apple's
+        // crash log handoff (next launch picks them up), so we don't
+        // lose data on a crash inside that gap.
+        Task.detached(priority: .utility) {
+            Crash.bootstrap()
+        }
         OMFont.debugDumpAvailableFamilies()
     }
 
