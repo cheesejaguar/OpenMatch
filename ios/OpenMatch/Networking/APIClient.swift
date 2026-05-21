@@ -729,6 +729,71 @@ final class APIClient: ObservableObject {
         )
     }
 
+    /// Trust & safety automation — variant that attaches an on-device
+    /// scan verdict to the upload. `clientFlaggedAt` and `scanReasons`
+    /// are advisory; the server runs its own moderation pass regardless.
+    func uploadPhoto(
+        data: Data,
+        mimeType: String = "image/jpeg",
+        clientFlaggedAt: Date?,
+        scanReasons: [PhotoModerator.Signal]
+    ) async throws -> PhotoDTO {
+        var extraFields: [String: String] = [:]
+        if let flagged = clientFlaggedAt {
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            extraFields["clientFlaggedAt"] = iso.string(from: flagged)
+        }
+        if !scanReasons.isEmpty {
+            let encoder = JSONEncoder()
+            if let json = try? encoder.encode(scanReasons),
+               let str = String(data: json, encoding: .utf8) {
+                extraFields["scanReasons"] = str
+            }
+        }
+        return try await uploadMultipart(
+            "/api/v1/profile/me/photos",
+            fileFieldName: "file",
+            filename: "photo.jpg",
+            mimeType: mimeType,
+            data: data,
+            extraFields: extraFields
+        )
+    }
+
+    /// Trust & safety automation — verification flow API. Returns the
+    /// pose prompt + nonce; the client then captures + posts the selfie.
+    struct VerificationStartResponse: Codable {
+        let requestId: String
+        let challengePrompt: String
+        let challengeNonce: String
+    }
+
+    func startSelfieVerification() async throws -> VerificationStartResponse {
+        struct StartBody: Codable {}
+        return try await post("/api/v1/verification/selfie/start", body: StartBody())
+    }
+
+    struct VerificationSubmitResponse: Codable {
+        let requestId: String
+        let status: String
+    }
+
+    func submitSelfieVerification(
+        challengeNonce: String,
+        imageData: Data,
+        mimeType: String = "image/jpeg"
+    ) async throws -> VerificationSubmitResponse {
+        try await uploadMultipart(
+            "/api/v1/verification/selfie",
+            fileFieldName: "file",
+            filename: "selfie.jpg",
+            mimeType: mimeType,
+            data: imageData,
+            extraFields: ["challengeNonce": challengeNonce]
+        )
+    }
+
     func deletePhoto(id: String) async throws {
         let _: EmptyResponse = try await delete("/api/v1/profile/me/photos/\(id)")
     }
@@ -981,6 +1046,7 @@ final class APIClient: ObservableObject {
         filename: String,
         mimeType: String,
         data: Data,
+        extraFields: [String: String] = [:],
         isRetry: Bool = false
     ) async throws -> T {
         try await omRunWithHTTPSpan(path) {
@@ -990,6 +1056,7 @@ final class APIClient: ObservableObject {
                 filename: filename,
                 mimeType: mimeType,
                 data: data,
+                extraFields: extraFields,
                 isRetry: isRetry
             )
         }
@@ -1001,6 +1068,7 @@ final class APIClient: ObservableObject {
         filename: String,
         mimeType: String,
         data: Data,
+        extraFields: [String: String],
         isRetry: Bool
     ) async throws -> T {
         guard let url = URL(string: path, relativeTo: baseURL) else {
@@ -1016,6 +1084,14 @@ final class APIClient: ObservableObject {
 
         var body = Data()
         let CRLF = "\r\n"
+        // Extra text fields first so a backend that consumes them
+        // before the file part (Fastify multipart) finds them attached.
+        for (name, value) in extraFields {
+            body.append("--\(boundary)\(CRLF)".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\(CRLF)\(CRLF)".data(using: .utf8)!)
+            body.append(value.data(using: .utf8) ?? Data())
+            body.append(CRLF.data(using: .utf8)!)
+        }
         body.append("--\(boundary)\(CRLF)".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"\(fileFieldName)\"; filename=\"\(filename)\"\(CRLF)".data(using: .utf8)!)
         body.append("Content-Type: \(mimeType)\(CRLF)\(CRLF)".data(using: .utf8)!)
@@ -1050,6 +1126,7 @@ final class APIClient: ObservableObject {
                     filename: filename,
                     mimeType: mimeType,
                     data: data,
+                    extraFields: extraFields,
                     isRetry: true
                 )
             }

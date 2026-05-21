@@ -79,6 +79,11 @@ struct DeckCardDTO: Codable, Identifiable {
     // backwards compatibility with older servers that don't emit it
     // yet; iOS treats `nil` as "unknown / don't render the badge".
     let recentlyActive: Bool?
+    /// Trust & safety automation — true once an admin approves the
+    /// user's selfie-pose verification request. Older builds + servers
+    /// omit this key entirely, so the optional default keeps the
+    /// release back-compatible.
+    let isPhotoVerified: Bool?
 
     var id: String { profileId }
 
@@ -95,7 +100,8 @@ struct DeckCardDTO: Codable, Identifiable {
         photos: [PhotoDTO],
         interests: [String],
         explanation: ExplanationDTO,
-        recentlyActive: Bool? = nil
+        recentlyActive: Bool? = nil,
+        isPhotoVerified: Bool? = nil
     ) {
         self.profileId = profileId
         self.userId = userId
@@ -110,6 +116,7 @@ struct DeckCardDTO: Codable, Identifiable {
         self.interests = interests
         self.explanation = explanation
         self.recentlyActive = recentlyActive
+        self.isPhotoVerified = isPhotoVerified
     }
 }
 

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Skeleton from "../../../components/ui/Skeleton";
 import { adminFetch } from "../../../lib/api/admin-client";
-import type { OverviewMetricsDTO } from "../../../lib/api/types";
+import type { ModerationSummaryDTO, OverviewMetricsDTO } from "../../../lib/api/types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,61 @@ export default function OverviewPage() {
       <Suspense fallback={<OverviewSkeleton />}>
         <OverviewMetrics />
       </Suspense>
+      <Suspense fallback={null}>
+        <ModerationSummaryWidget />
+      </Suspense>
+    </div>
+  );
+}
+
+// Trust & safety automation — scam-signals-per-hour widget. Renders
+// the heuristic moderator + rule-based scam signals over the last 24h
+// so an operator can spot bursts at a glance.
+async function ModerationSummaryWidget() {
+  const res = await adminFetch<ModerationSummaryDTO>("/api/v1/admin/moderation/summary", {
+    query: { hours: 24 },
+  });
+  if (!res.ok) return null;
+  const d = res.data;
+  return (
+    <div className="card" style={{ marginTop: 24 }}>
+      <h3 style={{ marginTop: 0 }}>Safety signals (24h)</h3>
+      <div className="grid cols-3" style={{ marginBottom: 12 }}>
+        <div className="metric">
+          <div className="label">Heuristic flags</div>
+          <div className="value">{d.moderationFlagCount}</div>
+        </div>
+        <div className="metric">
+          <div className="label">Scam-rule signals</div>
+          <div className="value">{d.scamSignalCount}</div>
+        </div>
+        <div className="metric">
+          <div className="label">Window</div>
+          <div className="value">{d.windowHours}h</div>
+        </div>
+      </div>
+      {d.topReasons.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Reason</th>
+              <th>Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.topReasons.map((r) => (
+              <tr key={r.reasonCode}>
+                <td>
+                  <code style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{r.reasonCode}</code>
+                </td>
+                <td>{r.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div className="muted">No flags in the last {d.windowHours}h.</div>
+      )}
     </div>
   );
 }

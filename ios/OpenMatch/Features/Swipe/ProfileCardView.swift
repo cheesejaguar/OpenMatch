@@ -99,6 +99,15 @@ struct ProfileCardView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(card.displayName)
                     .font(OMFont.display(28, weight: .bold))
+                if card.isPhotoVerified {
+                    // Trust & safety automation — admin-confirmed
+                    // selfie-pose verification badge. Small and
+                    // unobtrusive; sits next to the display name.
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Color.white)
+                        .accessibilityLabel("Verified profile")
+                }
                 if let p = card.pronouns, !p.isEmpty {
                     Text(p)
                         .font(OMFont.callout)

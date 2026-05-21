@@ -26,6 +26,8 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: "/reports", label: "Reports" },
       { href: "/photos", label: "Photos" },
+      { href: "/moderation/text", label: "Text moderation" },
+      { href: "/moderation/verification", label: "Verification" },
     ],
   },
   {

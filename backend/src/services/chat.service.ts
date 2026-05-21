@@ -1,7 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { CONVERSATION_PEER_SELECT } from "../lib/dto/peer-user.js";
-import { getModerationProvider } from "../lib/moderation-provider.js";
+import { getModerationProvider as getPluginModerationProvider } from "../lib/moderation-provider.js";
 import { withSpan } from "../lib/spans.js";
+import { moderateText, recordModerationFlags } from "./moderation.service.js";
 import { tryDispatchPush } from "./push.service.js";
 
 // SEV-A3: explicit allow-list select for peer-visible columns. The
@@ -170,20 +171,49 @@ async function postMessageInner(
     throw Object.assign(new Error("not_authorized"), { statusCode: 403 });
   }
 
-  // PLATFORM-PLUGIN — run the active ModerationProvider over every
-  // outbound message body. The noop default is unconditional `clean`
-  // so existing behaviour is preserved when no provider is wired.
-  // `block` rejects the send; `flag` lets the row through with
-  // moderationStatus = under_review so the recipient still sees the
-  // message and the safety queue can audit.
-  const moderation = await getModerationProvider().scanText({
+  // PLATFORM-PLUGIN — consult the registered ModerationProvider first
+  // so forks that wire an external scanner (Hive, Cloudflare, etc.) get
+  // first refusal on the body before our in-tree heuristic runs. The
+  // default Noop provider returns `clean` so out-of-the-box behaviour
+  // is unchanged.
+  //   - block → 422 message_rejected_by_moderation, no row written
+  //   - flag  → message is delivered with moderationStatus=under_review
+  //   - clean → fall through to the T&S heuristic below
+  const pluginScan = await getPluginModerationProvider().scanText({
     text: body,
     context: "message",
   });
-  if (moderation.decision === "block") {
+  if (pluginScan.decision === "block") {
     throw Object.assign(new Error("message_rejected_by_moderation"), { statusCode: 422 });
   }
-  const moderationStatus = moderation.decision === "flag" ? "under_review" : "clean";
+  const pluginFlag = pluginScan.decision === "flag";
+
+  // Trust & safety automation — run the heuristic moderator BEFORE
+  // committing the message. A `block` verdict refuses the send with a
+  // 422; flag verdicts ship the message but enqueue a ModerationFlag
+  // row for admin review.
+  const moderation = await moderateText({ surface: "message", text: body });
+  if (moderation.decision === "block") {
+    // Best-effort persist of the blocked attempt so abuse-rate
+    // dashboards include refused sends.
+    try {
+      await recordModerationFlags({
+        prisma,
+        userId: senderUserId,
+        result: moderation,
+        surface: "message",
+      });
+    } catch {
+      // Swallow — the user response is what matters here.
+    }
+    throw Object.assign(new Error("message_blocked"), { statusCode: 422 });
+  }
+
+  // T&S "flag" verdicts (heuristic) and Plugin API "flag" verdicts both
+  // surface the message but mark it for admin review so the safety queue
+  // can audit. Either signal flips the row to under_review.
+  const moderationStatus =
+    pluginFlag || moderation.decision === "flag" ? "under_review" : "clean";
 
   const message = await prisma.$transaction(async (tx) => {
     const m = await tx.message.create({
@@ -195,6 +225,24 @@ async function postMessageInner(
     });
     return m;
   });
+
+  // Persist any flag signals after the commit — they're observability,
+  // not authoritative, so we never block the user write on this.
+  if (moderation.signals.length > 0) {
+    setImmediate(async () => {
+      try {
+        await recordModerationFlags({
+          prisma,
+          userId: senderUserId,
+          result: moderation,
+          surface: "message",
+          targetMessageId: message.id,
+        });
+      } catch {
+        // Best-effort.
+      }
+    });
+  }
 
   // OPS-1: fire message-push to the OTHER party. Best-effort.
   setImmediate(async () => {
