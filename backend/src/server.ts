@@ -1,3 +1,4 @@
+import compress from "@fastify/compress";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
@@ -176,6 +177,20 @@ export async function buildServer() {
   app.setSerializerCompiler(serializerCompiler);
 
   await app.register(sensible);
+
+  // PERF — response compression. Brotli first for clients that
+  // negotiate it; gzip fallback. `threshold: 1024` skips very small
+  // payloads where the CPU + latency tax outweighs the byte savings.
+  // `global: true` registers an onSend hook for every route so all JSON
+  // responses (notably /openapi.json and the larger discovery/match
+  // payloads) flow through the compressor. We keep the original
+  // Content-Length header for downstream proxies that key on it.
+  await app.register(compress, {
+    global: true,
+    threshold: 1024,
+    encodings: ["br", "gzip"],
+    removeContentLengthHeader: false,
+  });
 
   // SEV-N2 — baseline security headers. We keep the CSP report-only for
   // now so that adding it can't break the (currently unprotected) Swagger
