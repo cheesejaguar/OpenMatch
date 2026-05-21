@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { config } from "../lib/config.js";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
 
@@ -64,28 +65,44 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
 
   const r = app.withTypeProvider<ZodTypeProvider>();
 
-  r.get(
-    "/me",
-    { schema: { response: { 200: preferencesResponseSchema } } },
-    async (req, reply) => {
-      const prefs = await app.prisma.preferences.upsert({
-        where: { userId: req.userId! },
-        create: { userId: req.userId! },
-        update: {},
-      });
-      // PERF — preferences are user-private and frequently mutated by
-      // settings edits; force private caches to revalidate on every
-      // request rather than serving stale rows.
-      reply.header("cache-control", "private, max-age=0, must-revalidate");
-      return prefs;
-    },
-  );
+  r.get("/me", { schema: { response: { 200: preferencesResponseSchema } } }, async (req, reply) => {
+    const prefs = await app.prisma.preferences.upsert({
+      where: { userId: req.userId! },
+      create: { userId: req.userId! },
+      update: {},
+    });
+    // PERF — preferences are user-private and frequently mutated by
+    // settings edits; force private caches to revalidate on every
+    // request rather than serving stale rows.
+    reply.header("cache-control", "private, max-age=0, must-revalidate");
+    return prefs;
+  });
 
   app.patch("/me", async (req, reply) => {
     const body = updatePrefs.parse(req.body);
     if (body.minAge !== undefined && body.maxAge !== undefined) {
       if (body.minAge > body.maxAge) {
         return sendHttpError(reply, httpError(ErrorCodes.MIN_AGE_ABOVE_MAX));
+      }
+    }
+    // Platform-config gating. The dating variant requires a non-empty
+    // `interestedGenders` array and a populated age window; the
+    // mentorship / sports variants flip these flags off entirely. We
+    // only reject when the caller is *explicitly* clearing a required
+    // field — silent omission stays a partial update.
+    if (
+      config.features.requireGenderPreferences &&
+      body.interestedGenders !== undefined &&
+      body.interestedGenders.length === 0
+    ) {
+      return sendHttpError(reply, httpError(ErrorCodes.VALIDATION_FAILED));
+    }
+    if (config.features.requireAgeWindow) {
+      if (
+        (body.minAge !== undefined && body.minAge <= 0) ||
+        (body.maxAge !== undefined && body.maxAge <= 0)
+      ) {
+        return sendHttpError(reply, httpError(ErrorCodes.VALIDATION_FAILED));
       }
     }
     // SEV-V1 — explicit allow-list. The previous `...(body as

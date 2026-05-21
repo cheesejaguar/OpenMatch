@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { config } from "../lib/config.js";
 import { PUBLIC_PROFILE_SELECT } from "../lib/dto/peer-user.js";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
@@ -178,6 +179,23 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     const { location, declaredLocation: _declared, dateOfBirth: _ignored, ...data } = body;
     void _declared;
     void _ignored;
+
+    // Platform-config gate. When the active variant requires photos at
+    // signup AND the caller is trying to flip their profile to
+    // `visible`, count photos before allowing it. Forks running the
+    // mentorship variant (`requirePhotos: false`) bypass this entirely.
+    if (
+      config.features.requirePhotos &&
+      data.visibilityStatus === "visible" &&
+      config.features.minPhotos > 0
+    ) {
+      const photoCount = await app.prisma.profilePhoto.count({
+        where: { profile: { userId: req.userId! } },
+      });
+      if (photoCount < config.features.minPhotos) {
+        return sendHttpError(reply, httpError(ErrorCodes.VALIDATION_FAILED));
+      }
+    }
     // SEV-V1 — explicit allow-list of writable Profile columns. The
     // previous `...(data as Record<string, unknown>)` / `update: data
     // as never` cast escaped Prisma's generated types, so any future
@@ -295,7 +313,11 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         select: { id: true, photos: { select: { id: true } } },
       });
       if (!profile) return sendHttpError(reply, httpError(ErrorCodes.PROFILE_NOT_FOUND));
-      if (profile.photos.length >= 9) {
+      // Platform-config cap. Dating variant: 9. Roommates/sports/
+      // mentorship: smaller. The hardcoded `9` constant lived here
+      // historically; routing it through `config.features.maxPhotos`
+      // lets forks tune the cap without patching this file.
+      if (profile.photos.length >= config.features.maxPhotos) {
         return sendHttpError(reply, httpError(ErrorCodes.MAX_PHOTOS_REACHED));
       }
 

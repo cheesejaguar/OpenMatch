@@ -32,6 +32,24 @@
 	<string>https://openmatch-backend-cheesejaguar-cheesejaguar-2353s-projects.vercel.app</string>
 	<key>OMBackendSPKIPins</key>
 	<array/>
+	<key>OMConfigVariant</key>
+	<string>dating</string>
+	<key>OMConfigAppName</key>
+	<string>OpenMatch</string>
+	<key>OMConfigMatchVerb</key>
+	<string>matched</string>
+	<key>OMConfigSwipeRightVerb</key>
+	<string>like</string>
+	<key>OMConfigEnableSwipeDeck</key>
+	<true/>
+	<key>OMConfigEnableMatchOverlay</key>
+	<true/>
+	<key>OMConfigMinPhotos</key>
+	<integer>2</integer>
+	<key>OMConfigMaxPhotos</key>
+	<integer>9</integer>
+	<key>OMConfigRequirePhotos</key>
+	<true/>
 	<key>SentryDSN</key>
 	<string></string>
 	<key>SentryEnvironment</key>
