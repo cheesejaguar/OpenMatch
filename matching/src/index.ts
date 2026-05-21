@@ -2,8 +2,15 @@ export { currentConfig } from "./config.js";
 export { getDiscoveryDeck } from "./deck.js";
 export { checkEligibility } from "./eligibility.js";
 export { explain } from "./explain.js";
-export type { RankedCandidate, RankInput, RankingProvider } from "./ranking-provider.js";
-export { BuiltinRankingProvider, RankingProviderRegistry } from "./ranking-provider.js";
+export {
+  BuiltinRankingProvider,
+  defaultRankingProvider,
+  EngagementRankingProvider,
+  LearnedRankingProvider,
+  type RankedEntry,
+  type RankingProvider,
+  type RankingProviderInput,
+} from "./ranking-provider.js";
 export {
   activityScore,
   distanceScore,

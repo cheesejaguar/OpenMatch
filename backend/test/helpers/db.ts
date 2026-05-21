@@ -31,6 +31,7 @@ const TABLES = [
   "Conversation",
   "Match",
   "Like",
+  "DeckImpression",
   "SwipeAction",
   "Report",
   "Block",

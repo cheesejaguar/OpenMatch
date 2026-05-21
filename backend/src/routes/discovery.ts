@@ -5,7 +5,7 @@ import { z } from "zod";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
 import { formatDistance, haversineKm } from "../lib/location.js";
-import { buildDeck } from "../services/discovery.service.js";
+import { buildDeck, recordDeckImpressions } from "../services/discovery.service.js";
 
 // Zod-validated deck querystring. Replaces a hand-rolled
 // `Number.parseInt(req.query.limit ?? "10")` so the handler gets a
@@ -13,6 +13,15 @@ import { buildDeck } from "../services/discovery.service.js";
 // `error: "validation_failed"` instead of silently coercing to 10.
 const deckQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+// DISC-Q1 — anti-staleness impressions ping. iOS POSTs the set of card
+// userIds it has shown on screen so the next deck excludes them from
+// the trailing 7-day window. `deckSessionId` is opaque; we persist it
+// for forensic / dashboard reasons but don't gate on it.
+const impressionsBodySchema = z.object({
+  deckSessionId: z.string().min(1).max(64),
+  targetUserIds: z.array(z.string().min(1).max(64)).min(1).max(50),
 });
 
 export const discoveryRoutes: FastifyPluginAsync = async (app) => {
@@ -53,6 +62,8 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
           app.prisma.profile.findMany({
             where: { id: { in: profileIds } },
             include: { photos: { orderBy: { sortOrder: "asc" } } },
+            // PERF — `lastActiveAt` is included in the default select.
+            // The DISC-Q4 "recently active" badge keys off it.
           }),
           app.prisma.$queryRawUnsafe<Array<{ lat: number; lng: number }>>(
             `SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng FROM "Profile" WHERE "userId" = $1`,
@@ -81,6 +92,13 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
                     { lat: candLatLng.lat, lng: candLatLng.lng },
                   )
                 : 0;
+            // DISC-Q4 — "Active today" badge. Cheap win: surface a
+            // boolean off `Profile.lastActiveAt` so iOS doesn't need to
+            // ship a date-diff. Threshold matches the badge label
+            // ("Active today" ↔ last 24h).
+            const recentlyActive = profile
+              ? Date.now() - profile.lastActiveAt.getTime() < 24 * 60 * 60 * 1000
+              : false;
             return {
               profileId: card.profileId,
               // The owning user id is exposed so clients can call block/report
@@ -98,6 +116,7 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
               interests: profile?.interests ?? [],
               prompts: profile?.prompts ?? null,
               explanation: card.explanation,
+              recentlyActive,
             };
           }),
         });
@@ -112,6 +131,21 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
         }
         throw err;
       }
+    },
+  );
+
+  app.post(
+    "/impressions",
+    { config: { rateLimit: { max: 120, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const body = impressionsBodySchema.parse(req.body);
+      const count = await recordDeckImpressions({
+        prisma: app.prisma,
+        viewerUserId: req.userId!,
+        deckSessionId: body.deckSessionId,
+        targetUserIds: body.targetUserIds,
+      });
+      return reply.send({ recorded: count });
     },
   );
 

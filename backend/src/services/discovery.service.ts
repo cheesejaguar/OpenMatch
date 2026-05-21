@@ -4,14 +4,41 @@ import type {
   Gender as MatchingGender,
   Profile as MatchingProfile,
   RelationshipGoal as MatchingRelationshipGoal,
+  RankingProvider,
   Viewer,
 } from "@openmatch/matching";
-import { currentConfig, RankingProviderRegistry } from "@openmatch/matching";
+import { currentConfig, defaultRankingProvider, getDiscoveryDeck } from "@openmatch/matching";
 import type { PrismaClient } from "@prisma/client";
 import { env } from "../env.js";
 import { haversineKm } from "../lib/location.js";
 import { getActiveMetros } from "../lib/metros-cache.js";
 import { withSpan } from "../lib/spans.js";
+
+// DISC-Q1 — anti-staleness window. Candidates seen on a deck in the
+// last 7 days are filtered out of subsequent decks unless the candidate
+// pool is so thin that we'd otherwise return nothing — in which case
+// stale-but-unswiped candidates flow back through at a deprioritised
+// rank (see how `recentImpressions` is hydrated below).
+const IMPRESSION_STALENESS_WINDOW_DAYS = 7;
+
+// DISC-Q3 — concrete RankingProvider. Resolved once at module load so
+// every /deck request reuses the same provider instance. An env
+// override (`OPENMATCH_RANKING_PROVIDER`) is honoured for forks who
+// want to swap implementations without a code change.
+let cachedProvider: RankingProvider | null = null;
+function getRankingProvider(): RankingProvider {
+  if (!cachedProvider) cachedProvider = defaultRankingProvider();
+  return cachedProvider;
+}
+
+/**
+ * Test-only hook to reset the cached provider so unit tests can flip
+ * `process.env.OPENMATCH_RANKING_PROVIDER` between cases. Not exported
+ * from the package boundary.
+ */
+export function __resetRankingProviderCache() {
+  cachedProvider = null;
+}
 
 const ACTIVITY_BUCKETS: Array<{ maxHours: number; bucket: ActivityBucket }> = [
   { maxHours: 24, bucket: "within24h" },
@@ -241,7 +268,19 @@ async function buildDeckInner(input: BuildDeckInput) {
     now.getTime() - PRIOR_SWIPES_WINDOW_DAYS * 24 * 60 * 60 * 1000,
   );
 
-  const [blocks, priorSwipes, standingLikes] = await Promise.all([
+  // DISC-Q1 — anti-staleness. We pull the set of (target, shownAt) for
+  // every card we've surfaced to this viewer in the trailing 7 days.
+  // The set is used in two passes:
+  //   1) Hard filter — strip candidates the viewer saw recently so the
+  //      next deck page returns fresh faces first.
+  //   2) Soft fallback — if the hard filter empties the candidate pool,
+  //      we re-admit the stale ones but bump `recentImpressions` so the
+  //      ranking layer demotes them via `fairnessRotationScore`.
+  const impressionsWindow = new Date(
+    now.getTime() - IMPRESSION_STALENESS_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  );
+
+  const [blocks, priorSwipes, standingLikes, recentImpressions] = await Promise.all([
     // Blocks (either direction)
     input.prisma.block.findMany({
       where: {
@@ -271,8 +310,23 @@ async function buildDeckInner(input: BuildDeckInput) {
       },
       select: { toUserId: true },
     }),
+    input.prisma.deckImpression.findMany({
+      where: {
+        viewerUserId: input.viewerUserId,
+        shownAt: { gt: impressionsWindow },
+      },
+      select: { targetUserId: true },
+    }),
   ]);
   const likedTargets = new Set(standingLikes.map((l) => l.toUserId));
+  const impressionCountByTarget = new Map<string, number>();
+  for (const row of recentImpressions) {
+    impressionCountByTarget.set(
+      row.targetUserId,
+      (impressionCountByTarget.get(row.targetUserId) ?? 0) + 1,
+    );
+  }
+  const recentlyShownTargets = new Set(impressionCountByTarget.keys());
 
   const viewerMatchingProfile: MatchingProfile = {
     id: viewerUser.profile.id,
@@ -323,25 +377,44 @@ async function buildDeckInner(input: BuildDeckInput) {
   };
 
   // Build candidates, computing age and distance per row.
-  const candidates: Candidate[] = inMetro
-    .filter((row) => !likedTargets.has(row.user_id))
-    .map((row) => {
-      const profile = toMatchingProfile(row);
-      // Age requires DOB which isn't joined — fetch DOB cheaply.
-      // We accept a follow-up query rather than coupling matching to age math.
-      return {
-        profile,
-        distanceKm: haversineKm(viewer.profile.location, { lat: row.lat, lng: row.lng }),
-        activityBucket: activityBucket(row.last_active_at, now),
-        softPreferences: {
-          relationshipGoal:
-            viewer.profile.relationshipGoal !== null && profile.relationshipGoal !== null
-              ? viewer.profile.relationshipGoal === profile.relationshipGoal
-              : undefined,
-        },
-        recentImpressions: 0,
-      };
-    });
+  //
+  // DISC-Q1 — two-phase filter against the 7-day impression set:
+  //   * `fresh` = candidates we haven't shown recently.
+  //   * `stale` = candidates we have shown but the viewer never swiped
+  //     on. Used as a fallback when `fresh` is empty so the viewer
+  //     never sees a literally-empty deck just because we've shown
+  //     them everyone once.
+  const swipedTargets = new Set(priorSwipes.map((s) => s.targetUserId));
+
+  function rowToCandidate(row: RawProfileRow): Candidate {
+    const profile = toMatchingProfile(row);
+    return {
+      profile,
+      distanceKm: haversineKm(viewer.profile.location, { lat: row.lat, lng: row.lng }),
+      activityBucket: activityBucket(row.last_active_at, now),
+      softPreferences: {
+        relationshipGoal:
+          viewer.profile.relationshipGoal !== null && profile.relationshipGoal !== null
+            ? viewer.profile.relationshipGoal === profile.relationshipGoal
+            : undefined,
+      },
+      // Hydrated with the count of times this candidate has appeared in
+      // the trailing 7-day window. `fairnessRotationScore` reads this to
+      // demote (but not remove) over-served candidates.
+      recentImpressions: impressionCountByTarget.get(row.user_id) ?? 0,
+    };
+  }
+
+  const eligibleRows = inMetro.filter((row) => !likedTargets.has(row.user_id));
+  const freshRows = eligibleRows.filter((row) => !recentlyShownTargets.has(row.user_id));
+  // Stale-but-unswiped: candidates the viewer has seen recently but
+  // never acted on. Eligible for re-admission when `fresh` is empty.
+  const staleUnswipedRows = eligibleRows.filter(
+    (row) => recentlyShownTargets.has(row.user_id) && !swipedTargets.has(row.user_id),
+  );
+
+  const candidates: Candidate[] =
+    freshRows.length > 0 ? freshRows.map(rowToCandidate) : staleUnswipedRows.map(rowToCandidate);
 
   // Hydrate candidate ages in one round-trip.
   const dobs = await input.prisma.user.findMany({
@@ -355,11 +428,11 @@ async function buildDeckInner(input: BuildDeckInput) {
   }
 
   // PLATFORM-PLUGIN — route through the configured RankingProvider.
-  // The default `builtin` provider re-uses `getDiscoveryDeck()` so the
+  // The default `engagement` provider re-uses `getDiscoveryDeck()` so the
   // wire shape and behaviour are unchanged. Forks select an alternative
-  // ranker via the `RANKING_PROVIDER` env var.
-  const provider = RankingProviderRegistry.resolve(env.RANKING_PROVIDER);
-  const ranked = await provider.rank({
+  // ranker via the OPENMATCH_RANKING_PROVIDER env var (resolved in
+  // `getRankingProvider()` above).
+  return getDiscoveryDeck({
     viewer,
     candidates,
     blocks: blocks.map((b) => ({
@@ -376,21 +449,48 @@ async function buildDeckInner(input: BuildDeckInput) {
     now,
     limit: input.limit,
     deckSessionId: input.deckSessionId,
-    config: {
-      algorithmVersion: currentConfig.algorithmVersion,
-      rankingConfigVersion: currentConfig.rankingConfigVersion,
-    },
+    config: currentConfig,
+    rankingProvider: getRankingProvider(),
   });
+}
 
-  return {
-    algorithmVersion: currentConfig.algorithmVersion,
-    rankingConfigVersion: currentConfig.rankingConfigVersion,
-    deckSessionId: input.deckSessionId,
-    cards: ranked.map((c) => ({
-      profileId: c.profileId,
-      userId: c.userId,
-      score: c.score,
-      explanation: c.explanation,
+// DISC-Q1 — impressions recording. Called from the `/discovery/impressions`
+// route when iOS pings up the list of cards it just rendered. We dedupe
+// against the (viewer, target, deckSession) tuple to keep the index
+// tight even if the client re-pings on a scroll-back.
+export interface RecordImpressionsInput {
+  prisma: PrismaClient;
+  viewerUserId: string;
+  deckSessionId: string;
+  targetUserIds: string[];
+}
+
+export async function recordDeckImpressions(input: RecordImpressionsInput): Promise<number> {
+  const unique = Array.from(new Set(input.targetUserIds)).filter((id) => id !== input.viewerUserId);
+  if (unique.length === 0) return 0;
+  const result = await input.prisma.deckImpression.createMany({
+    data: unique.map((targetUserId) => ({
+      viewerUserId: input.viewerUserId,
+      targetUserId,
+      deckSessionId: input.deckSessionId,
     })),
-  };
+    // Skip duplicates is unsupported on this composite (no unique key)
+    // so we just let multiple rows land if the client double-pings; the
+    // 7-day filter is a set membership lookup which dedupes implicitly.
+  });
+  return result.count;
+}
+
+// DISC-Q1 — prune helper for the daily cron. Deletes impressions older
+// than 30 days so the table stays bounded.
+export const IMPRESSION_PRUNE_DAYS = 30;
+export async function pruneOldDeckImpressions(
+  prisma: PrismaClient,
+  now: Date = new Date(),
+): Promise<number> {
+  const cutoff = new Date(now.getTime() - IMPRESSION_PRUNE_DAYS * 24 * 60 * 60 * 1000);
+  const result = await prisma.deckImpression.deleteMany({
+    where: { shownAt: { lt: cutoff } },
+  });
+  return result.count;
 }

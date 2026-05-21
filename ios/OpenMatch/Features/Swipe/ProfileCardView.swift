@@ -124,6 +124,23 @@ struct ProfileCardView: View {
             .font(OMFont.callout)
             .foregroundStyle(Color.white.opacity(0.95))
 
+            // DISC-Q4 — "Active today" badge. Cheap visual cue that
+            // the candidate is engaged; the data already comes down
+            // on every deck card.
+            if card.recentlyActive {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
+                    Text("Active today")
+                        .font(OMFont.caption)
+                        .foregroundStyle(Color.white.opacity(0.95))
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Active today")
+            }
+
             if !card.bio.isEmpty {
                 Text(card.bio)
                     .lineLimit(3)

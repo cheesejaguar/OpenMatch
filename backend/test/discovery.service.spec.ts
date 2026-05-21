@@ -1,5 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { buildDeck } from "../src/services/discovery.service.js";
+import {
+  buildDeck,
+  pruneOldDeckImpressions,
+  recordDeckImpressions,
+} from "../src/services/discovery.service.js";
 import { recordSwipe } from "../src/services/swipe.service.js";
 import { createUser, resetDb, seedTestMetroSF, testPrisma } from "./helpers/db.js";
 
@@ -162,5 +166,128 @@ describe("discovery.buildDeck", () => {
     }
     const deck = await runDeck(a.id, 2);
     expect(deck.cards.length).toBeLessThanOrEqual(2);
+  });
+
+  // DISC-Q1 — anti-staleness coverage.
+  describe("anti-staleness via DeckImpression", () => {
+    it("excludes candidates shown to the viewer in the last 7 days", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const c = await createUser({ displayName: "C" });
+
+      // Mark B as having been shown to A "recently" (now).
+      await recordDeckImpressions({
+        prisma: testPrisma,
+        viewerUserId: a.id,
+        deckSessionId: "session-x",
+        targetUserIds: [b.id],
+      });
+
+      const deck = await runDeck(a.id);
+      const userIds = deck.cards.map((card) => card.userId);
+      expect(userIds).not.toContain(b.id);
+      expect(userIds).toContain(c.id);
+    });
+
+    it("re-admits stale-but-unswiped candidates when the pool is empty", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+
+      // B is the only candidate in the pool; we record an impression
+      // so the hard filter would normally drop them.
+      await recordDeckImpressions({
+        prisma: testPrisma,
+        viewerUserId: a.id,
+        deckSessionId: "session-x",
+        targetUserIds: [b.id],
+      });
+
+      const deck = await runDeck(a.id);
+      // Fallback kicks in — we'd rather show a stale-but-unswiped
+      // candidate than serve an empty deck.
+      expect(deck.cards.find((card) => card.userId === b.id)).toBeDefined();
+    });
+
+    it("does NOT re-admit candidates the viewer has already swiped on", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+
+      // A rejected B previously AND we showed them again recently.
+      await recordSwipe(testPrisma, {
+        viewerUserId: a.id,
+        targetUserId: b.id,
+        decision: "reject",
+        ...META,
+      });
+      await recordDeckImpressions({
+        prisma: testPrisma,
+        viewerUserId: a.id,
+        deckSessionId: "session-x",
+        targetUserIds: [b.id],
+      });
+
+      const deck = await runDeck(a.id);
+      // priorSwipes filter still applies; B stays out regardless of
+      // the impressions fallback.
+      expect(deck.cards.find((card) => card.userId === b.id)).toBeUndefined();
+    });
+
+    it("recordDeckImpressions dedupes within a single call", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+
+      const recorded = await recordDeckImpressions({
+        prisma: testPrisma,
+        viewerUserId: a.id,
+        deckSessionId: "session-x",
+        targetUserIds: [b.id, b.id, b.id],
+      });
+      expect(recorded).toBe(1);
+    });
+
+    it("recordDeckImpressions silently drops self-impressions", async () => {
+      const a = await createUser({ displayName: "A" });
+      const recorded = await recordDeckImpressions({
+        prisma: testPrisma,
+        viewerUserId: a.id,
+        deckSessionId: "session-x",
+        targetUserIds: [a.id],
+      });
+      expect(recorded).toBe(0);
+    });
+
+    it("pruneOldDeckImpressions deletes rows older than 30 days", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+
+      // Insert one fresh row + one ancient row directly.
+      const fresh = await testPrisma.deckImpression.create({
+        data: {
+          viewerUserId: a.id,
+          targetUserId: b.id,
+          deckSessionId: "fresh",
+        },
+      });
+      const ancient = await testPrisma.deckImpression.create({
+        data: {
+          viewerUserId: a.id,
+          targetUserId: b.id,
+          deckSessionId: "ancient",
+        },
+      });
+      // Hand-back-date the ancient row past the prune threshold.
+      await testPrisma.$executeRawUnsafe(
+        `UPDATE "DeckImpression" SET "shownAt" = NOW() - INTERVAL '40 days' WHERE "id" = $1`,
+        ancient.id,
+      );
+
+      const removed = await pruneOldDeckImpressions(testPrisma);
+      expect(removed).toBe(1);
+
+      const remaining = await testPrisma.deckImpression.findMany({
+        where: { viewerUserId: a.id },
+      });
+      expect(remaining.map((r) => r.id)).toEqual([fresh.id]);
+    });
   });
 });
