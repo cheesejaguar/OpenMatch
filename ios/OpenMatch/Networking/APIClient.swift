@@ -614,6 +614,96 @@ final class APIClient: ObservableObject {
         try await post("/api/v1/realtime/token", body: EmptyBody())
     }
 
+    // Read receipts. The recipient calls this when they open the
+    // conversation; one request marks every previously-unread message
+    // from the OTHER party as read and fans out a `read` Ably event so
+    // the sender's UI can flip "Delivered" → "Read at HH:mm".
+    @discardableResult
+    func markConversationRead(conversationId: String) async throws -> Int {
+        struct R: Codable { let updated: Int }
+        let r: R = try await post("/api/v1/conversations/\(conversationId)/read", body: EmptyBody())
+        return r.updated
+    }
+
+    // Reactions. Backend exposes POST/DELETE under /messages/:id/reactions.
+    func addReaction(messageId: String, emoji: String) async throws {
+        struct B: Codable { let emoji: String }
+        let _: EmptyResponse = try await post(
+            "/api/v1/messages/\(messageId)/reactions",
+            body: B(emoji: emoji)
+        )
+    }
+
+    func removeReaction(messageId: String, emoji: String) async throws {
+        let escaped =
+            emoji.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? emoji
+        let _: EmptyResponse = try await delete(
+            "/api/v1/messages/\(messageId)/reactions?emoji=\(escaped)"
+        )
+    }
+
+    // Voice notes. Hand-rolled multipart so we can attach a `durationMs`
+    // sibling field alongside the file part; uploadMultipart() above
+    // only supports a single file part. Returns the canonical MessageDTO
+    // with audioPath populated.
+    func sendVoiceNote(
+        conversationId: String,
+        audio: Data,
+        mimeType: String,
+        durationMs: Int
+    ) async throws -> MessageDTO {
+        guard let url = URL(
+            string: "/api/v1/conversations/\(conversationId)/messages/audio",
+            relativeTo: baseURL
+        ) else {
+            throw APIError.transport(URLError(.badURL))
+        }
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue(
+            "multipart/form-data; boundary=\(boundary)",
+            forHTTPHeaderField: "Content-Type"
+        )
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        var body = Data()
+        let CRLF = "\r\n"
+        body.append("--\(boundary)\(CRLF)".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"durationMs\"\(CRLF)\(CRLF)".data(using: .utf8)!)
+        body.append("\(durationMs)\(CRLF)".data(using: .utf8)!)
+        body.append("--\(boundary)\(CRLF)".data(using: .utf8)!)
+        body.append(
+            "Content-Disposition: form-data; name=\"file\"; filename=\"note.m4a\"\(CRLF)"
+                .data(using: .utf8)!
+        )
+        body.append("Content-Type: \(mimeType)\(CRLF)\(CRLF)".data(using: .utf8)!)
+        body.append(audio)
+        body.append("\(CRLF)--\(boundary)--\(CRLF)".data(using: .utf8)!)
+
+        let (data, response) = try await session.upload(for: req, from: body)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.transport(URLError(.badServerResponse))
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.decode(data: data, status: http.statusCode)
+        }
+        return try decoder.decode(MessageDTO.self, from: data)
+    }
+
+    // Returns a short-lived signed URL for the audio attached to a
+    // message. Mirrors the photo-url pattern: requester is re-authorized
+    // server-side, and the returned URL points at /audio/serve.
+    struct AudioURLDTO: Codable {
+        let url: String
+        let expiresAt: Date
+    }
+
+    func audioURL(messageId: String) async throws -> AudioURLDTO {
+        try await get("/api/v1/conversations/messages/\(messageId)/audio/url")
+    }
+
     // MARK: - Profile
 
     func getProfile() async throws -> ProfileDTO {
