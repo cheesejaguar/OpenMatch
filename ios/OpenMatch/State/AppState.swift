@@ -25,18 +25,13 @@ final class AppState: ObservableObject {
         let client = api ?? APIClient(baseURL: APIConfig.defaultBaseURL)
         self.api = client
         self.handedness = HandednessStore(api: client)
-        self.auth = client.hasSession ? .loggedIn(userId: client.cachedUserId ?? "self") : .loggedOut
-        if client.hasSession {
-            RealtimeService.shared.connect(api: client)
-            Crash.setUser(id: client.cachedUserId)
-            // Server is source of truth — pull on launch so a
-            // setting changed on another device propagates here.
-            let store = handedness
-            Task { await store.refreshFromServer() }
-        }
-        // Analytics is fire-and-forget; attach now so any pre-login
-        // events (e.g. signup funnel) reach the backend.
-        Task { await Analytics.shared.attach(api: client) }
+        // PERF-I2 — Start in `.loading` and probe the keychain off the
+        // main thread. The first frame renders against the existing
+        // `.loading` branch of `RootView` (which shows a ProgressView)
+        // and flips to `.loggedIn` / `.loggedOut` once the detached
+        // probe completes (~10-50ms typical, longer right after device
+        // unlock when the Secure Enclave is warming up).
+        self.auth = .loading
 
         // Forward APNs device tokens to the backend whenever they
         // arrive. We only have one AppState per process, but we
@@ -45,6 +40,32 @@ final class AppState: ObservableObject {
             guard let self else { return }
             guard self.api.hasSession else { return }
             Task { try? await self.api.registerDeviceToken(token) }
+        }
+
+        // Kick off the off-main keychain probe + analytics attach.
+        // Order: probe → flip auth → run side-effects gated on a real
+        // session. Analytics + handedness refresh do not need the
+        // session to be probed first.
+        Task { await Analytics.shared.attach(api: client) }
+        let store = handedness
+        Task { @MainActor [weak self] in
+            let uid = await client.loadSessionFromKeychain()
+            guard let self else { return }
+            // If a test (or a sign-in flow that raced the probe) has
+            // already mutated `auth` away from `.loading`, don't
+            // clobber it. The keychain reflects what we just read; the
+            // newer assignment is what the caller intended.
+            guard self.auth == .loading else { return }
+            if client.hasSession {
+                self.auth = .loggedIn(userId: uid ?? "self")
+                RealtimeService.shared.connect(api: client)
+                Crash.setUser(id: uid)
+                // Server is source of truth — pull on launch so a
+                // setting changed on another device propagates here.
+                await store.refreshFromServer()
+            } else {
+                self.auth = .loggedOut
+            }
         }
         #if DEBUG
         // UX-review hook: launching with -OPENMATCH_AUTO_LOGIN <userId>

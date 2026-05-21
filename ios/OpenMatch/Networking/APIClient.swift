@@ -425,11 +425,40 @@ final class APIClient: ObservableObject {
         let delegate = PinningSessionDelegate()
         self.pinningDelegate = delegate
         self.session = URLSession(configuration: cfg, delegate: delegate, delegateQueue: nil)
-        let keychain = Keychain.shared
-        self.accessToken = keychain.read(.accessToken)
-        self.refreshToken = keychain.read(.refreshToken)
-        self.cachedUserId = keychain.read(.userId)
-        self.hasSession = self.accessToken != nil
+        // PERF-I2 — Defer keychain reads off the main thread. AppState
+        // calls `loadSessionFromKeychain()` from a detached task during
+        // app startup; the published `hasSession` flag flips once the
+        // probe completes. Tokens are nil until then; any in-flight
+        // request before the probe finishes will surface as
+        // `.notAuthenticated`, which is the correct behaviour because
+        // we genuinely do not know whether a session exists.
+        self.accessToken = nil
+        self.refreshToken = nil
+        self.cachedUserId = nil
+        self.hasSession = false
+    }
+
+    // PERF-I2 — Off-main keychain probe. Called from AppState in a
+    // detached task during launch; once it returns, the published
+    // `hasSession` flag flips on the MainActor and AppState swaps
+    // `.loading` for `.loggedIn` / `.loggedOut`.
+    //
+    // Returns the cachedUserId once the probe completes, so AppState
+    // doesn't have to read `cachedUserId` racily during the same task.
+    func loadSessionFromKeychain() async -> String? {
+        let probed: (access: String?, refresh: String?, uid: String?) = await Task.detached(priority: .userInitiated) {
+            let keychain = Keychain.shared
+            return (
+                keychain.read(.accessToken),
+                keychain.read(.refreshToken),
+                keychain.read(.userId)
+            )
+        }.value
+        self.accessToken = probed.access
+        self.refreshToken = probed.refresh
+        self.cachedUserId = probed.uid
+        self.hasSession = probed.access != nil
+        return probed.uid
     }
 
     // PERF — single process-wide URLCache shared across every APIClient
