@@ -1,8 +1,37 @@
 import type { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
+
+// PERF-B16 / PERF-X4 — response schema for GET /preferences/me. Mirrors
+// the Preferences Prisma model exactly. JSON-typed columns
+// (lifestyleFilters, hardFilters, softPreferences) stay `unknown` since
+// their schema is feature-flag driven; the rest is the full row.
+const preferencesResponseSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  minAge: z.number().int(),
+  maxAge: z.number().int(),
+  maxDistanceKm: z.number().int(),
+  interestedGenders: z.array(z.string()),
+  relationshipGoals: z.array(z.string()),
+  heightMinCm: z.number().int().nullable(),
+  heightMaxCm: z.number().int().nullable(),
+  educationLevels: z.array(z.string()),
+  colleges: z.array(z.string()),
+  lifestyleFilters: z.unknown().nullable(),
+  includeUnansweredOptionalFields: z.boolean(),
+  hardFilters: z.unknown().nullable(),
+  softPreferences: z.unknown().nullable(),
+  excludeIncompatibleGoals: z.boolean(),
+  likesVisibility: z.enum(["visible", "count_only", "hidden"]),
+  discoveryPaused: z.boolean(),
+  handedness: z.enum(["right", "left", "center"]),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
 
 // SEV-V15 — every array field gets an explicit per-item cap AND a
 // per-array cap consistent with profile.ts. Previously these were
@@ -33,7 +62,9 @@ const updatePrefs = z.object({
 export const preferencesRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  app.get("/me", async (req) => {
+  const r = app.withTypeProvider<ZodTypeProvider>();
+
+  r.get("/me", { schema: { response: { 200: preferencesResponseSchema } } }, async (req) => {
     const prefs = await app.prisma.preferences.upsert({
       where: { userId: req.userId! },
       create: { userId: req.userId! },

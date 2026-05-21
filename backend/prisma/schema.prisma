@@ -510,6 +510,12 @@ model SwipeAction {
 
   @@index([viewerUserId, targetUserId])
   @@index([targetUserId, decision])
+  // PERF-B2 — discovery.buildDeck pulls the most recent priorSwipes for
+  // a viewer (bounded window + take cap). Without this composite the
+  // planner did a per-row sort over every row matching viewerUserId; the
+  // (viewerUserId, createdAt DESC) ordering lets PG stream rows in index
+  // order and stop at the LIMIT.
+  @@index([viewerUserId, createdAt(sort: Desc)])
 }
 
 model Like {

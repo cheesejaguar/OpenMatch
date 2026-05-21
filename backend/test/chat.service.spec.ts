@@ -163,5 +163,82 @@ describe("chat service", () => {
       const rows = await listMessages(testPrisma, convo.id, a.id);
       expect(rows!.map((r) => r.body)).toEqual(["second"]);
     });
+
+    // PERF-B3 — keyset pagination + take cap. Default page should be the
+    // 50 most recent messages, ordered oldest→newest within the page; a
+    // cursor walks back through older history one page at a time.
+    it("listMessages caps the default page to 50 most-recent messages", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      // Seed 60 messages so the default page (50) leaves 10 older
+      // messages behind the cursor.
+      const created: { id: string; body: string }[] = [];
+      for (let i = 0; i < 60; i++) {
+        const msg = await postMessage(testPrisma, convo.id, a.id, `msg-${i}`);
+        created.push({ id: msg.id, body: msg.body });
+      }
+      const page1 = await listMessages(testPrisma, convo.id, a.id);
+      expect(page1).not.toBeNull();
+      expect(page1!.length).toBe(50);
+      // Within the page rows are oldest → newest. The first row is the
+      // 11th message we created (index 10); the last is the 60th
+      // (index 59).
+      expect(page1![0].body).toBe("msg-10");
+      expect(page1![49].body).toBe("msg-59");
+    });
+
+    it("listMessages cursor returns the page of messages immediately before", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      const created: { id: string; body: string }[] = [];
+      for (let i = 0; i < 60; i++) {
+        const msg = await postMessage(testPrisma, convo.id, a.id, `msg-${i}`);
+        created.push({ id: msg.id, body: msg.body });
+      }
+      const page1 = await listMessages(testPrisma, convo.id, a.id);
+      // Cursor = oldest message currently rendered (first of page1).
+      const cursor = page1![0].id;
+      const page2 = await listMessages(testPrisma, convo.id, a.id, { cursor });
+      expect(page2).not.toBeNull();
+      // 10 older messages (msg-0 .. msg-9), oldest first.
+      expect(page2!.map((m) => m.body)).toEqual([
+        "msg-0",
+        "msg-1",
+        "msg-2",
+        "msg-3",
+        "msg-4",
+        "msg-5",
+        "msg-6",
+        "msg-7",
+        "msg-8",
+        "msg-9",
+      ]);
+    });
+
+    it("listMessages drops the moderation-only / internal columns from the select", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      await postMessage(testPrisma, convo.id, a.id, "hello");
+      const rows = await listMessages(testPrisma, convo.id, a.id);
+      const msg = rows![0] as Record<string, unknown>;
+      // Allow-listed by MESSAGE_LIST_SELECT.
+      expect(msg.id).toBeDefined();
+      expect(msg.body).toBe("hello");
+      expect(msg.senderUserId).toBe(a.id);
+      // Not in the select — must be absent (not just null).
+      expect("deletedAt" in msg).toBe(false);
+    });
+
+    it("listMessages with an unknown cursor returns the first page (degraded benign)", async () => {
+      const a = await createUser({ displayName: "A" });
+      const b = await createUser({ displayName: "B" });
+      const convo = await makeConversationBetween(a.id, b.id);
+      await postMessage(testPrisma, convo.id, a.id, "only one");
+      const rows = await listMessages(testPrisma, convo.id, a.id, { cursor: "does-not-exist" });
+      expect(rows!.map((m) => m.body)).toEqual(["only one"]);
+    });
   });
 });

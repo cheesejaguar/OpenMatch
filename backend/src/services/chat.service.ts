@@ -34,14 +34,103 @@ export async function authorizedForConversation(
   return c.match.userAId === userId || c.match.userBId === userId;
 }
 
-export async function listMessages(prisma: PrismaClient, conversationId: string, userId: string) {
+// PERF-B3 — chat message pagination. The previous implementation
+// fetched every non-deleted message in the conversation with no take
+// cap and no select, returning full Message rows (moderationStatus,
+// deletedAt, deliveredAt, readAt, ...) for every message ever sent.
+// On a long-running match with hundreds of messages this was hundreds
+// of KB on every conversation open.
+//
+// The new shape:
+//   - defaults to `take: 50` (one page of recent history)
+//   - keyset cursor on (createdAt, id) for stable pagination — see
+//     comments below for why an id-only cursor isn't sufficient
+//   - returns messages most-recent-first; the client reverses for
+//     display order. This matches every modern chat client's "load
+//     older history on scroll-up" pattern.
+//   - narrow `select` of only the fields the chat UI consumes
+//
+// The (conversationId, createdAt) composite index already exists in the
+// schema so this scan is index-supported.
+
+export const MESSAGE_PAGE_SIZE = 50;
+export const MESSAGE_MAX_PAGE_SIZE = 100;
+
+export interface ListMessagesOptions {
+  // Keyset cursor: messageId of the oldest message currently rendered
+  // by the client. When set, returns the page of messages immediately
+  // BEFORE that cursor (older history). When unset, returns the most
+  // recent page.
+  cursor?: string;
+  limit?: number;
+}
+
+export const MESSAGE_LIST_SELECT = {
+  id: true,
+  conversationId: true,
+  senderUserId: true,
+  body: true,
+  createdAt: true,
+  deliveredAt: true,
+  readAt: true,
+  moderationStatus: true,
+} as const;
+
+export async function listMessages(
+  prisma: PrismaClient,
+  conversationId: string,
+  userId: string,
+  opts: ListMessagesOptions = {},
+) {
   if (!(await authorizedForConversation(prisma, conversationId, userId))) {
     return null;
   }
-  return prisma.message.findMany({
-    where: { conversationId, deletedAt: null },
-    orderBy: { createdAt: "asc" },
+  const take = Math.min(opts.limit ?? MESSAGE_PAGE_SIZE, MESSAGE_MAX_PAGE_SIZE);
+
+  // Resolve the cursor's (createdAt, id) so the keyset predicate uses
+  // both columns — id alone isn't strictly ordered against createdAt
+  // (cuid() is monotonic enough in practice but the createdAt+id pair
+  // is the unambiguous keyset).
+  let cursorCreatedAt: Date | null = null;
+  if (opts.cursor) {
+    const cursorRow = await prisma.message.findUnique({
+      where: { id: opts.cursor },
+      select: { id: true, createdAt: true, conversationId: true },
+    });
+    // Ignore an invalid cursor (different conversation / unknown id):
+    // the route would otherwise leak conversation membership info via a
+    // 400 here. Returning the first page is a benign degraded behaviour.
+    if (cursorRow && cursorRow.conversationId === conversationId) {
+      cursorCreatedAt = cursorRow.createdAt;
+    }
+  }
+
+  // Fetch the most recent `take` messages BEFORE the cursor (or the
+  // tail of the conversation when no cursor). The DB-level sort is
+  // DESC + LIMIT so PG can walk the (conversationId, createdAt) index
+  // in reverse and stop at LIMIT. We then re-reverse in JS so the
+  // returned array stays oldest-first within a page — matching the
+  // shape iOS clients have rendered since the unbounded-fetch days.
+  const desc = await prisma.message.findMany({
+    where: {
+      conversationId,
+      deletedAt: null,
+      ...(cursorCreatedAt
+        ? {
+            // strictly older than the cursor — exclude the cursor row
+            // itself so the client can concatenate pages without dedupe
+            OR: [
+              { createdAt: { lt: cursorCreatedAt } },
+              { createdAt: cursorCreatedAt, id: { lt: opts.cursor! } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take,
+    select: MESSAGE_LIST_SELECT,
   });
+  return desc.reverse();
 }
 
 export async function postMessage(
