@@ -205,6 +205,16 @@ jobs:
           path: admin/coverage/
           retention-days: 7
 
+      # PERF-A12 — catch RSC boundary violations, bundle / tree-shaking
+      # regressions, and font subsetting failures in CI instead of on
+      # Vercel preview deploys. Build does not need a live backend; we
+      # provide placeholder values for the few env vars next build reads.
+      - name: Build admin dashboard
+        env:
+          ADMIN_API_BASE_URL: http://localhost:0
+          ADMIN_SESSION_SECRET: ci-only-secret-not-real-must-be-32-bytes-long
+        run: npm run build -w @openmatch/admin
+
   test-matching:
     name: Test @openmatch/matching
     runs-on: ubuntu-latest
