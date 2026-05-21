@@ -17,6 +17,10 @@ struct ProfileCardModel: Identifiable, Equatable {
     let relationshipGoal: String?
     let city: String?
     let explanation: ExplanationDTO
+    // DISC-Q4 — backend-computed flag; true when the candidate was
+    // active in the last 24h. We surface a small green dot + "Active
+    // today" label on the swipe card when this is true.
+    let recentlyActive: Bool
 
     var id: String { profileId }
 
@@ -32,6 +36,36 @@ struct ProfileCardModel: Identifiable, Equatable {
         self.relationshipGoal = card.relationshipGoal
         self.city = card.city
         self.explanation = card.explanation
+        self.recentlyActive = card.recentlyActive ?? false
+    }
+
+    // Test / preview helper.
+    init(
+        profileId: String,
+        userId: String,
+        displayName: String,
+        bio: String,
+        distanceText: String,
+        photos: [PhotoDTO],
+        interests: [String],
+        pronouns: String?,
+        relationshipGoal: String?,
+        city: String?,
+        explanation: ExplanationDTO,
+        recentlyActive: Bool = false
+    ) {
+        self.profileId = profileId
+        self.userId = userId
+        self.displayName = displayName
+        self.bio = bio
+        self.distanceText = distanceText
+        self.photos = photos
+        self.interests = interests
+        self.pronouns = pronouns
+        self.relationshipGoal = relationshipGoal
+        self.city = city
+        self.explanation = explanation
+        self.recentlyActive = recentlyActive
     }
 
     static func == (lhs: ProfileCardModel, rhs: ProfileCardModel) -> Bool {

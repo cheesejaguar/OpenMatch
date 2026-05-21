@@ -74,8 +74,59 @@ struct DeckCardDTO: Codable, Identifiable {
     let photos: [PhotoDTO]
     let interests: [String]
     let explanation: ExplanationDTO
+    // DISC-Q4 — "Active today" badge. true when the candidate's
+    // Profile.lastActiveAt is within the trailing 24h. Optional for
+    // backwards compatibility with older servers that don't emit it
+    // yet; iOS treats `nil` as "unknown / don't render the badge".
+    let recentlyActive: Bool?
 
     var id: String { profileId }
+
+    init(
+        profileId: String,
+        userId: String,
+        displayName: String,
+        bio: String,
+        gender: String?,
+        pronouns: String?,
+        relationshipGoal: String?,
+        city: String?,
+        distanceText: String,
+        photos: [PhotoDTO],
+        interests: [String],
+        explanation: ExplanationDTO,
+        recentlyActive: Bool? = nil
+    ) {
+        self.profileId = profileId
+        self.userId = userId
+        self.displayName = displayName
+        self.bio = bio
+        self.gender = gender
+        self.pronouns = pronouns
+        self.relationshipGoal = relationshipGoal
+        self.city = city
+        self.distanceText = distanceText
+        self.photos = photos
+        self.interests = interests
+        self.explanation = explanation
+        self.recentlyActive = recentlyActive
+    }
+}
+
+// DISC-Q2 — conversation-starter suggestions returned by
+// GET /conversations/:id/suggested-openers.
+struct SuggestedOpenerDTO: Codable, Identifiable {
+    let text: String
+    let sourcePromptQuestion: String?
+
+    // Synthesised — the API doesn't return an id, but SwiftUI's ForEach
+    // wants Identifiable. The text alone is unique within the response
+    // because the templates and generics never collide.
+    var id: String { text }
+}
+
+struct SuggestedOpenersResponse: Codable {
+    let openers: [SuggestedOpenerDTO]
 }
 
 struct PhotoDTO: Codable, Identifiable {

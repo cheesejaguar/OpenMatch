@@ -1,7 +1,7 @@
 import { currentConfig } from "./config.js";
 import { checkEligibility } from "./eligibility.js";
 import { explain } from "./explain.js";
-import { scoreCandidate } from "./scoring.js";
+import { BuiltinRankingProvider, type RankingProvider } from "./ranking-provider.js";
 import type { Candidate, DeckRequest, DeckResponse, ScoreBreakdown } from "./types.js";
 
 interface RankedEntry {
@@ -43,8 +43,13 @@ function ageBucket(age: number): number {
 
 export function getDiscoveryDeck(req: DeckRequest): DeckResponse {
   const config = req.config ?? currentConfig;
+  // Plugin API — the caller can supply a custom RankingProvider; if not,
+  // we use the builtin (rule-based) provider whose output matches the
+  // pre-Plugin API behaviour exactly. The backend wires its preferred
+  // provider in `discovery.service.ts`.
+  const provider: RankingProvider = req.rankingProvider ?? new BuiltinRankingProvider();
 
-  const eligible: RankedEntry[] = [];
+  const eligibleCandidates: Candidate[] = [];
   for (const candidate of req.candidates) {
     const elig = checkEligibility({
       viewer: req.viewer,
@@ -55,13 +60,17 @@ export function getDiscoveryDeck(req: DeckRequest): DeckResponse {
       config,
     });
     if (!elig.ok) continue;
-    const breakdown = scoreCandidate(req.viewer, candidate, config, req.now);
-    eligible.push({ candidate, breakdown });
+    eligibleCandidates.push(candidate);
   }
 
-  eligible.sort((a, b) => b.breakdown.total - a.breakdown.total);
+  const ranked = provider.rank({
+    viewer: req.viewer,
+    candidates: eligibleCandidates,
+    now: req.now,
+    config,
+  });
 
-  const diversified = applyFairnessAndDiversityRules(eligible).slice(0, req.limit);
+  const diversified = applyFairnessAndDiversityRules(ranked).slice(0, req.limit);
 
   return {
     algorithmVersion: config.algorithmVersion,

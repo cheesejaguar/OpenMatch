@@ -5,6 +5,7 @@ import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
 import { publishMessage } from "../lib/realtime.js";
 import { listConversations, listMessages, postMessage } from "../services/chat.service.js";
+import { buildSuggestedOpeners } from "../services/suggested-openers.service.js";
 
 const sendSchema = z.object({ body: z.string().min(1).max(2000) });
 
@@ -66,6 +67,21 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
       // per-user so the body is never shareable.
       reply.header("cache-control", "private, no-cache");
       return result;
+    },
+  );
+
+  app.get<{ Params: { conversationId: string } }>(
+    "/:conversationId/suggested-openers",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const result = await buildSuggestedOpeners(
+        app.prisma,
+        req.params.conversationId,
+        req.userId!,
+      );
+      if (!result) return sendHttpError(reply, httpError(ErrorCodes.NOT_FOUND));
+      reply.header("cache-control", "private, no-cache");
+      return reply.send(result);
     },
   );
 

@@ -34,6 +34,21 @@ final class SwipeDeckViewModel: ObservableObject {
             rankingConfigVersion = deck.rankingConfigVersion
             cards = deck.cards.map(ProfileCardModel.init(from:))
             error = nil
+
+            // DISC-Q1 — anti-staleness ping. Best-effort. We fire-and-
+            // forget so a transient impression-recording failure can't
+            // block the deck render; the next /deck call will still
+            // exclude these targets if the ping succeeds eventually.
+            let shownIds = cards.map(\.userId)
+            if !shownIds.isEmpty {
+                let session = deckSessionId
+                Task { [weak api] in
+                    try? await api?.recordDeckImpressions(
+                        deckSessionId: session,
+                        targetUserIds: shownIds
+                    )
+                }
+            }
             #if DEBUG
             // UX-review hook: force the match overlay open with the top
             // card so screenshot scripts can capture the celebration.

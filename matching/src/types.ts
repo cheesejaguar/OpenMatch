@@ -223,4 +223,9 @@ export interface DeckRequest {
   limit: number;
   deckSessionId: string;
   config?: AlgorithmConfig;
+  // Plugin API — optional custom ranking provider. When omitted the
+  // builtin (rule-based) provider is used. The provider interface lives
+  // in `ranking-provider.ts`; we keep the import out of this types
+  // module to avoid a runtime/value dependency on the type-only file.
+  rankingProvider?: import("./ranking-provider.js").RankingProvider;
 }

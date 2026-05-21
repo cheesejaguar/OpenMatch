@@ -367,38 +367,40 @@ model User {
   isBanned      Boolean       @default(false)
   deletedAt     DateTime?
 
-  profile             Profile?
-  preferences         Preferences?
-  swipesMade          SwipeAction[]            @relation("SwipeViewer")
-  swipesReceived      SwipeAction[]            @relation("SwipeTarget")
-  likesSent           Like[]                   @relation("LikeFrom")
-  likesReceived       Like[]                   @relation("LikeTo")
-  matchesA            Match[]                  @relation("MatchUserA")
-  matchesB            Match[]                  @relation("MatchUserB")
-  unmatchedBy         Match[]                  @relation("MatchUnmatcher")
-  blocksMade          Block[]                  @relation("Blocker")
-  blocksReceived      Block[]                  @relation("Blocked")
-  reportsMade         Report[]                 @relation("Reporter")
-  reportsAbout        Report[]                 @relation("Reported")
-  messagesSent        Message[]
-  sessions            Session[]
-  authChallenges      AuthChallenge[]
-  deviceTokens        DeviceToken[]
-  bans                UserBan[]
-  appeals             Appeal[]
-  consents            ConsentRecord[]
-  dsarRequests        DataSubjectRequest[]
-  deletionRequests    AccountDeletionRequest[]
-  scamSignals         ScamSignal[]
-  notificationPrefs   NotificationPreference?
-  sanctionsScreenings SanctionsScreening[]
-  scammerNotices      ScammerNotification[]    @relation("ScammerNoticeRecipient")
-  noticeReportsAbout  NoticeAndActionReport[]  @relation("NoticeAndActionTarget")
-  betaRedemption      BetaInviteRedemption?
-  notificationDevices NotificationDevice[]
-  analyticsEvents     AnalyticsEvent[]
-  betaFeedback        BetaFeedback[]
-  pushDeliveryLogs    PushDeliveryLog[]
+  profile              Profile?
+  preferences          Preferences?
+  swipesMade           SwipeAction[]            @relation("SwipeViewer")
+  swipesReceived       SwipeAction[]            @relation("SwipeTarget")
+  likesSent            Like[]                   @relation("LikeFrom")
+  likesReceived        Like[]                   @relation("LikeTo")
+  matchesA             Match[]                  @relation("MatchUserA")
+  matchesB             Match[]                  @relation("MatchUserB")
+  unmatchedBy          Match[]                  @relation("MatchUnmatcher")
+  blocksMade           Block[]                  @relation("Blocker")
+  blocksReceived       Block[]                  @relation("Blocked")
+  reportsMade          Report[]                 @relation("Reporter")
+  reportsAbout         Report[]                 @relation("Reported")
+  messagesSent         Message[]
+  sessions             Session[]
+  authChallenges       AuthChallenge[]
+  deviceTokens         DeviceToken[]
+  bans                 UserBan[]
+  appeals              Appeal[]
+  consents             ConsentRecord[]
+  dsarRequests         DataSubjectRequest[]
+  deletionRequests     AccountDeletionRequest[]
+  scamSignals          ScamSignal[]
+  notificationPrefs    NotificationPreference?
+  sanctionsScreenings  SanctionsScreening[]
+  scammerNotices       ScammerNotification[]    @relation("ScammerNoticeRecipient")
+  noticeReportsAbout   NoticeAndActionReport[]  @relation("NoticeAndActionTarget")
+  betaRedemption       BetaInviteRedemption?
+  notificationDevices  NotificationDevice[]
+  analyticsEvents      AnalyticsEvent[]
+  betaFeedback         BetaFeedback[]
+  pushDeliveryLogs     PushDeliveryLog[]
+  deckImpressionsMade  DeckImpression[]         @relation("DeckImpressionViewer")
+  deckImpressionsAbout DeckImpression[]         @relation("DeckImpressionTarget")
 
   @@index([status])
   // PERF-B14 — daily-digest counts new signups in a time window
@@ -520,6 +522,24 @@ model SwipeAction {
   // (viewerUserId, createdAt DESC) ordering lets PG stream rows in index
   // order and stop at the LIMIT.
   @@index([viewerUserId, createdAt(sort: Desc)])
+}
+
+// DISC-Q1 — anti-staleness in the deck. Each row records a (viewer,
+// target) pair that appeared on a deck page so the next page can skip
+// cards the viewer has already seen but not acted on. `shownAt` is
+// indexed so the trailing-7-days lookup is index-supported; the daily
+// prune worker deletes rows older than 30 days.
+model DeckImpression {
+  id            String   @id @default(cuid())
+  viewerUserId  String
+  viewer        User     @relation("DeckImpressionViewer", fields: [viewerUserId], references: [id], onDelete: Cascade)
+  targetUserId  String
+  target        User     @relation("DeckImpressionTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  deckSessionId String
+  shownAt       DateTime @default(now())
+
+  @@index([viewerUserId, shownAt(sort: Desc)])
+  @@index([shownAt])
 }
 
 model Like {

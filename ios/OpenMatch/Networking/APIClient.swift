@@ -588,6 +588,26 @@ final class APIClient: ObservableObject {
         return try await post("/api/v1/conversations/\(conversationId)/messages", body: B(body: body))
     }
 
+    // DISC-Q2 — suggested conversation openers for an empty chat. The
+    // endpoint is rate-limited server-side; callers should fetch once
+    // when ConversationView appears and only re-fetch on a hard refresh.
+    func suggestedOpeners(conversationId: String) async throws -> SuggestedOpenersResponse {
+        try await get("/api/v1/conversations/\(conversationId)/suggested-openers")
+    }
+
+    // DISC-Q1 — record which deck cards iOS rendered so the next
+    // /deck call can suppress the same faces. Best-effort: failures
+    // surface up so the caller can swallow them; a missed impression
+    // ping just degrades to the existing replay behaviour.
+    func recordDeckImpressions(deckSessionId: String, targetUserIds: [String]) async throws {
+        struct B: Codable { let deckSessionId: String; let targetUserIds: [String] }
+        struct R: Codable { let recorded: Int }
+        let _: R = try await post(
+            "/api/v1/discovery/impressions",
+            body: B(deckSessionId: deckSessionId, targetUserIds: targetUserIds)
+        )
+    }
+
     // Ably token request for the current user. The iOS client uses this to
     // open a realtime subscription scoped to its active conversations.
     func realtimeToken() async throws -> AblyTokenRequestDTO {

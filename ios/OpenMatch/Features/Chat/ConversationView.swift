@@ -22,6 +22,10 @@ final class ConversationViewModel: ObservableObject {
     @Published var pending: [PendingMessage] = []
     @Published var draft: String = ""
     @Published var error: String?
+    // DISC-Q2 — suggested conversation-starter pills, only rendered when
+    // the conversation has no messages yet. Lazily loaded once on
+    // first appear; we never refresh while the user is typing.
+    @Published var suggestedOpeners: [SuggestedOpenerDTO] = []
     let conversationId: String
     var api: APIClient?
 
@@ -49,6 +53,38 @@ final class ConversationViewModel: ObservableObject {
         do { messages = try await api.messages(conversationId: conversationId) } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    // DISC-Q2 — fetch suggested openers on demand. We only call this
+    // when the chat is empty AND we don't already have a cached set so
+    // the endpoint isn't hammered. Failures are swallowed — a missing
+    // pill row is not worth an alert.
+    func loadSuggestedOpenersIfNeeded() async {
+        guard let api else { return }
+        guard messages.isEmpty else { return }
+        guard suggestedOpeners.isEmpty else { return }
+        do {
+            let resp = try await api.suggestedOpeners(conversationId: conversationId)
+            suggestedOpeners = resp.openers
+        } catch {
+            // Quiet failure: chat still works without pills.
+        }
+    }
+
+    // Tap handler for a suggested-opener pill. We insert (not auto-send)
+    // so the user can edit the text before tapping the paper-plane.
+    func applySuggestedOpener(_ opener: SuggestedOpenerDTO) {
+        draft = opener.text
+    }
+
+    // Convenience for the "should we render the suggestion strip"
+    // predicate. True when the conversation is empty AND the user
+    // hasn't typed anything yet.
+    var shouldShowSuggestedOpeners: Bool {
+        messages.isEmpty
+            && pending.isEmpty
+            && !suggestedOpeners.isEmpty
+            && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // Open the Ably channel for this conversation. The handler dedupes by
@@ -192,6 +228,21 @@ struct ConversationView: View {
                     }
                 }
 
+                // DISC-Q2 — suggested-opener pills. Only present when
+                // the conversation is empty and the user hasn't begun
+                // typing. Tapping a pill drops its text into the draft
+                // field without auto-sending so the user can edit.
+                if vm.shouldShowSuggestedOpeners {
+                    SuggestedOpenersStrip(
+                        openers: vm.suggestedOpeners,
+                        onTap: { vm.applySuggestedOpener($0) }
+                    )
+                    .padding(.horizontal, OMSpacing.md)
+                    .padding(.top, OMSpacing.sm)
+                    .padding(.bottom, OMSpacing.xs)
+                    .transition(.opacity)
+                }
+
                 Rectangle()
                     .fill(OMColor.divider)
                     .frame(height: 1)
@@ -230,6 +281,10 @@ struct ConversationView: View {
             // Give the queue a chance to flush any messages that were
             // persisted across a force-quit before we got here.
             await vm.tick()
+            // DISC-Q2 — request suggested openers only when the chat
+            // is genuinely empty. The view-model is the gatekeeper so
+            // we don't hammer the endpoint on every screen entry.
+            await vm.loadSuggestedOpenersIfNeeded()
             startPolling()
         }
         .onDisappear {
@@ -287,6 +342,51 @@ struct ConversationView: View {
                 try? await Task.sleep(nanoseconds: 10 * 1_000_000_000)
                 if Task.isCancelled { return }
                 await vm?.tick()
+            }
+        }
+    }
+}
+
+// DISC-Q2 — suggested-opener pill strip. Renders above the input bar
+// when a fresh conversation has no messages yet. Horizontally
+// scrollable when the openers don't fit on screen. Accessible: each
+// pill is its own button labelled with the opener text.
+struct SuggestedOpenersStrip: View {
+    let openers: [SuggestedOpenerDTO]
+    let onTap: (SuggestedOpenerDTO) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Need a starter?")
+                .font(OMFont.caption)
+                .foregroundStyle(OMColor.inkSubtle)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(openers) { opener in
+                        Button {
+                            Haptics.threshold()
+                            onTap(opener)
+                        } label: {
+                            Text(opener.text)
+                                .font(OMFont.callout)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    OMShape.chip().fill(OMColor.surfaceSunken)
+                                )
+                                .overlay(
+                                    OMShape.chip().stroke(OMColor.cardStroke, lineWidth: 1)
+                                )
+                                .foregroundStyle(OMColor.ink)
+                                .frame(maxWidth: 260, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("Use opener: \(opener.text)"))
+                        .accessibilityHint(Text("Inserts the suggested opener into the message field"))
+                    }
+                }
             }
         }
     }

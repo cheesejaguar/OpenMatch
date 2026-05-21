@@ -1,107 +1,247 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { currentConfig } from "../src/config.js";
+import { getDiscoveryDeck } from "../src/deck.js";
 import {
   BuiltinRankingProvider,
-  type RankedCandidate,
-  type RankInput,
-  type RankingProvider,
-  RankingProviderRegistry,
+  defaultRankingProvider,
+  EngagementRankingProvider,
+  LearnedRankingProvider,
 } from "../src/ranking-provider.js";
+import type { Candidate, Viewer } from "../src/types.js";
 import { emptyBlocks, emptySwipes, FIXED_NOW, makeCandidates, makeViewer } from "./helpers.js";
 
-// Round PLATFORM-PLUGIN — contract tests for the RankingProvider
-// surface. We exercise: (a) the built-in provider produces a deck
-// equivalent to the existing rules engine, (b) the registry resolves
-// custom providers + falls back gracefully, (c) a stub implementation
-// can be registered and invoked end-to-end.
+// DISC-Q3 — concrete RankingProvider coverage.
 
 describe("RankingProvider", () => {
-  afterEach(() => {
-    RankingProviderRegistry.reset();
+  let viewer: Viewer;
+  let candidates: Candidate[];
+
+  beforeEach(() => {
+    viewer = makeViewer("viewerSeekingLongTermMen");
+    candidates = makeCandidates(viewer);
   });
 
   describe("BuiltinRankingProvider", () => {
-    it("returns ranked candidates with monotonically non-increasing scores", async () => {
-      const viewer = makeViewer("viewerSeekingLongTermMen");
-      const candidates = makeCandidates(viewer);
+    it("returns one entry per candidate, ranked DESC by total", () => {
       const provider = new BuiltinRankingProvider();
-      const ranked = await provider.rank({
+      const ranked = provider.rank({
         viewer,
         candidates,
-        config: { algorithmVersion: "x", rankingConfigVersion: "x" },
-        blocks: emptyBlocks,
-        priorSwipes: emptySwipes,
         now: FIXED_NOW,
-        limit: 10,
-        deckSessionId: "s",
+        config: currentConfig,
       });
-      expect(ranked.length).toBeGreaterThan(0);
-      // The deck's diversification rules may interleave candidates of
-      // similar score, but the GLOBAL top entry should never have a
-      // lower score than the GLOBAL bottom entry.
-      expect(ranked[0]!.score).toBeGreaterThanOrEqual(ranked[ranked.length - 1]!.score);
-      // Every entry carries a non-empty explanation summary.
-      for (const r of ranked) {
-        expect(typeof r.explanation.summary).toBe("string");
-        expect(r.profileId.length).toBeGreaterThan(0);
-        expect(r.userId.length).toBeGreaterThan(0);
+      expect(ranked.length).toBe(candidates.length);
+      for (let i = 1; i < ranked.length; i++) {
+        expect(ranked[i - 1]!.breakdown.total).toBeGreaterThanOrEqual(ranked[i]!.breakdown.total);
       }
     });
 
-    it("respects the limit parameter", async () => {
-      const viewer = makeViewer("viewerSeekingLongTermMen");
-      const candidates = makeCandidates(viewer);
-      const ranked = await new BuiltinRankingProvider().rank({
+    it("reproduces the pre-Plugin API deck order when used by getDiscoveryDeck", () => {
+      // No provider supplied → builtin is the default inside the deck.
+      const a = getDiscoveryDeck({
         viewer,
         candidates,
-        config: { algorithmVersion: "x", rankingConfigVersion: "x" },
         blocks: emptyBlocks,
         priorSwipes: emptySwipes,
         now: FIXED_NOW,
-        limit: 2,
+        limit: 50,
         deckSessionId: "s",
       });
-      expect(ranked.length).toBeLessThanOrEqual(2);
+      const b = getDiscoveryDeck({
+        viewer,
+        candidates,
+        blocks: emptyBlocks,
+        priorSwipes: emptySwipes,
+        now: FIXED_NOW,
+        limit: 50,
+        deckSessionId: "s",
+        rankingProvider: new BuiltinRankingProvider(),
+      });
+      expect(b.cards.map((c) => c.userId)).toEqual(a.cards.map((c) => c.userId));
     });
   });
 
-  describe("RankingProviderRegistry", () => {
-    it("resolves the built-in provider by default", () => {
-      const p = RankingProviderRegistry.resolve();
-      expect(p.name).toBe("builtin");
-    });
-
-    it("resolves a registered custom provider by name", async () => {
-      class Stub implements RankingProvider {
-        readonly name = "stub";
-        async rank(_input: RankInput): Promise<RankedCandidate[]> {
-          return [];
-        }
-      }
-      RankingProviderRegistry.register(new Stub());
-      expect(RankingProviderRegistry.resolve("stub").name).toBe("stub");
-    });
-
-    it("falls back to the built-in default when the requested name is unknown", () => {
-      const p = RankingProviderRegistry.resolve("does-not-exist");
-      expect(p.name).toBe("builtin");
-    });
-
-    it("setDefault refuses to point at an unregistered provider", () => {
-      expect(() => RankingProviderRegistry.setDefault("never-registered")).toThrowError(
-        /not registered/,
+  describe("LearnedRankingProvider", () => {
+    it("is a no-op wrapping the builtin provider", () => {
+      const learned = new LearnedRankingProvider();
+      const builtin = new BuiltinRankingProvider();
+      const a = learned.rank({ viewer, candidates, now: FIXED_NOW, config: currentConfig });
+      const b = builtin.rank({ viewer, candidates, now: FIXED_NOW, config: currentConfig });
+      expect(a.map((e) => e.candidate.profile.userId)).toEqual(
+        b.map((e) => e.candidate.profile.userId),
       );
     });
 
-    it("setDefault swaps the default once the target is registered", () => {
-      class Stub implements RankingProvider {
-        readonly name = "stub2";
-        async rank(_input: RankInput): Promise<RankedCandidate[]> {
-          return [];
-        }
-      }
-      RankingProviderRegistry.register(new Stub());
-      RankingProviderRegistry.setDefault("stub2");
-      expect(RankingProviderRegistry.resolve().name).toBe("stub2");
+    it("identifies itself by name for telemetry", () => {
+      expect(new LearnedRankingProvider().name).toBe("learned");
     });
+  });
+
+  describe("EngagementRankingProvider", () => {
+    it("boosts candidates who were active in the last 7 days", () => {
+      const provider = new EngagementRankingProvider();
+      // Take two candidates with otherwise-equal scoring and flip
+      // their last-active timestamps. The recent one should outrank.
+      const recent = candidates[0]!;
+      const stale = candidates[1]!;
+      const now = FIXED_NOW.getTime();
+      const adjusted: Candidate[] = [
+        { ...recent, profile: { ...recent.profile, lastActiveAt: new Date(now - 3600_000) } },
+        {
+          ...stale,
+          profile: { ...stale.profile, lastActiveAt: new Date(now - 60 * 24 * 3600_000) },
+        },
+      ];
+      const ranked = provider.rank({
+        viewer,
+        candidates: adjusted,
+        now: FIXED_NOW,
+        config: currentConfig,
+      });
+      const recentRank = ranked.findIndex(
+        (e) => e.candidate.profile.userId === recent.profile.userId,
+      );
+      const staleRank = ranked.findIndex(
+        (e) => e.candidate.profile.userId === stale.profile.userId,
+      );
+      expect(recentRank).toBeLessThan(staleRank);
+    });
+
+    it("demotes candidates whose bio is shorter than 30 chars", () => {
+      const provider = new EngagementRankingProvider();
+      const richBio = candidates[0]!;
+      const thinBio = candidates[1]!;
+      const adjusted: Candidate[] = [
+        {
+          ...richBio,
+          profile: {
+            ...richBio.profile,
+            publicFields: { ...richBio.profile.publicFields, hasBioAtLeast30Chars: true },
+          },
+        },
+        {
+          ...thinBio,
+          profile: {
+            ...thinBio.profile,
+            publicFields: { ...thinBio.profile.publicFields, hasBioAtLeast30Chars: false },
+          },
+        },
+      ];
+      const ranked = provider.rank({
+        viewer,
+        candidates: adjusted,
+        now: FIXED_NOW,
+        config: currentConfig,
+      });
+      const richRank = ranked.findIndex(
+        (e) => e.candidate.profile.userId === richBio.profile.userId,
+      );
+      const thinRank = ranked.findIndex(
+        (e) => e.candidate.profile.userId === thinBio.profile.userId,
+      );
+      expect(richRank).toBeLessThan(thinRank);
+    });
+
+    it("boosts candidates with allPhotosReviewedOk = true", () => {
+      const provider = new EngagementRankingProvider();
+      const reviewed = candidates[0]!;
+      const unreviewed = candidates[1]!;
+      const adjusted: (Candidate & { engagementSignals?: { allPhotosReviewedOk?: boolean } })[] = [
+        { ...reviewed, engagementSignals: { allPhotosReviewedOk: true } },
+        { ...unreviewed, engagementSignals: { allPhotosReviewedOk: false } },
+      ];
+      const ranked = provider.rank({
+        viewer,
+        candidates: adjusted,
+        now: FIXED_NOW,
+        config: currentConfig,
+      });
+      const reviewedRank = ranked.findIndex(
+        (e) => e.candidate.profile.userId === reviewed.profile.userId,
+      );
+      const unreviewedRank = ranked.findIndex(
+        (e) => e.candidate.profile.userId === unreviewed.profile.userId,
+      );
+      expect(reviewedRank).toBeLessThan(unreviewedRank);
+    });
+
+    it("identifies itself by name for telemetry", () => {
+      expect(new EngagementRankingProvider().name).toBe("engagement");
+    });
+  });
+
+  describe("defaultRankingProvider()", () => {
+    const original = process.env.OPENMATCH_RANKING_PROVIDER;
+
+    afterEach(() => {
+      if (original === undefined) {
+        delete process.env.OPENMATCH_RANKING_PROVIDER;
+      } else {
+        process.env.OPENMATCH_RANKING_PROVIDER = original;
+      }
+    });
+
+    it("defaults to EngagementRankingProvider when no env override is set", () => {
+      delete process.env.OPENMATCH_RANKING_PROVIDER;
+      expect(defaultRankingProvider().name).toBe("engagement");
+    });
+
+    it("honours OPENMATCH_RANKING_PROVIDER=builtin", () => {
+      process.env.OPENMATCH_RANKING_PROVIDER = "builtin";
+      expect(defaultRankingProvider().name).toBe("builtin");
+    });
+
+    it("honours OPENMATCH_RANKING_PROVIDER=learned", () => {
+      process.env.OPENMATCH_RANKING_PROVIDER = "learned";
+      expect(defaultRankingProvider().name).toBe("learned");
+    });
+
+    it("falls back to engagement on an unknown override", () => {
+      process.env.OPENMATCH_RANKING_PROVIDER = "neural-vibes-2026";
+      expect(defaultRankingProvider().name).toBe("engagement");
+    });
+  });
+
+  it("getDiscoveryDeck threads the supplied provider through", () => {
+    // Custom provider that ranks the second candidate first as a
+    // sentinel. The deck must respect that order modulo the
+    // diversification + limit pass.
+    const sentinel = candidates[1]!;
+    const provider = {
+      name: "test-sentinel",
+      rank() {
+        return [
+          {
+            candidate: sentinel,
+            breakdown: {
+              distance: 1,
+              activity: 1,
+              preferenceOverlap: 1,
+              relationshipGoal: 1,
+              profileCompleteness: 1,
+              fairnessRotation: 1,
+              randomization: 1,
+              total: 999,
+            },
+          },
+        ];
+      },
+    };
+    const deck = getDiscoveryDeck({
+      viewer,
+      candidates,
+      blocks: emptyBlocks,
+      priorSwipes: emptySwipes,
+      now: FIXED_NOW,
+      limit: 50,
+      deckSessionId: "s",
+      rankingProvider: provider,
+    });
+    // The custom provider returned a single entry. The deck must
+    // honour that decision (only sentinel survives the rank step).
+    // Diversification can drop it only if there is a similar duplicate
+    // — which there isn't, since we returned a 1-element list.
+    expect(deck.cards.length).toBe(1);
+    expect(deck.cards[0]!.userId).toBe(sentinel.profile.userId);
   });
 });

@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { env } from "../env.js";
 import { requestContext } from "../lib/request-context.js";
+import { pruneOldDeckImpressions } from "../services/discovery.service.js";
 
 // MON-1 — Daily success-digest email worker.
 //
@@ -164,6 +165,14 @@ async function runDailyDigestInner(
   },
 ): Promise<DailyDigestRunReport> {
   const startedAt = Date.now();
+  // DISC-Q1 — piggy-back on the once-daily cron to prune impression
+  // rows older than 30 days. Failure is non-fatal; the table just
+  // grows a little until the next run.
+  try {
+    await pruneOldDeckImpressions(prisma, opts.asOf ?? new Date());
+  } catch {
+    // swallowed by design — see comment above.
+  }
   const digest = await buildDailyDigest(prisma, opts.asOf);
   const recipients = recipientsFromEnv();
   const smtpConfigured = Boolean(env.SMTP_HOST && env.SMTP_PORT);
