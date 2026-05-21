@@ -29,6 +29,8 @@ async function runDsaSlaCheckInner(prisma: PrismaClient): Promise<DsaSlaReport> 
 
   // Acknowledgement breach: deadline passed and acknowledgedAt is still
   // null AND we haven't already recorded the breach.
+  // PERF-B13: collapse the per-row update loop into one updateMany —
+  // every row in the batch gets the same scannedAt timestamp.
   const ackCandidates = await prisma.noticeAndActionReport.findMany({
     where: {
       slaAckDueAt: { lt: scannedAt, not: null },
@@ -37,9 +39,9 @@ async function runDsaSlaCheckInner(prisma: PrismaClient): Promise<DsaSlaReport> 
     },
     select: { id: true, category: true, slaAckDueAt: true },
   });
-  for (const row of ackCandidates) {
-    await prisma.noticeAndActionReport.update({
-      where: { id: row.id },
+  if (ackCandidates.length > 0) {
+    await prisma.noticeAndActionReport.updateMany({
+      where: { id: { in: ackCandidates.map((c) => c.id) } },
       data: { slaAckBreachedAt: scannedAt },
     });
   }
@@ -53,9 +55,9 @@ async function runDsaSlaCheckInner(prisma: PrismaClient): Promise<DsaSlaReport> 
     },
     select: { id: true, category: true, slaDecisionDueAt: true },
   });
-  for (const row of decisionCandidates) {
-    await prisma.noticeAndActionReport.update({
-      where: { id: row.id },
+  if (decisionCandidates.length > 0) {
+    await prisma.noticeAndActionReport.updateMany({
+      where: { id: { in: decisionCandidates.map((c) => c.id) } },
       data: { slaDecisionBreachedAt: scannedAt },
     });
   }
@@ -82,12 +84,15 @@ async function runDsaSlaCheckInner(prisma: PrismaClient): Promise<DsaSlaReport> 
         deadline: c.slaDecisionDueAt,
       })),
     ];
-    for (const r of rows) {
-      await prisma.adminAuditLog.create({
-        data: {
+    // PERF-B13: batch audit-row insert via createMany so 100 breaches
+    // cost one INSERT instead of 100. We accept the createMany trade-off
+    // (no returning ids) — these are write-only audit rows.
+    if (rows.length > 0) {
+      await prisma.adminAuditLog.createMany({
+        data: rows.map((r) => ({
           adminUserId: systemAdmin.id,
           adminRoleSnapshot: "system",
-          eventType: "dsa_sla_breach",
+          eventType: "dsa_sla_breach" as const,
           targetEntityType: "dsa_notice",
           targetEntityId: r.id,
           metadata: {
@@ -96,7 +101,7 @@ async function runDsaSlaCheckInner(prisma: PrismaClient): Promise<DsaSlaReport> 
             deadline: r.deadline?.toISOString() ?? null,
             source: "dsa-sla-worker",
           },
-        },
+        })),
       });
     }
   }
