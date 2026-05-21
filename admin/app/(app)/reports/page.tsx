@@ -11,29 +11,29 @@ interface Params {
 
 export default async function ReportsPage({ searchParams }: Params) {
   const sp = await searchParams;
-  const res = await adminFetch<{
-    reports: ReportSummaryDTO[];
-    nextCursor: string | null;
-  }>("/api/v1/admin/reports", {
-    query: {
-      status: sp.status,
-      reason: sp.reason,
-      cursor: sp.cursor,
-      limit: 50,
-    },
-  });
+  // PERF-A2: fetch the main list and the "oldest open" panel in
+  // parallel. They're independent queries against the same endpoint
+  // and the oldest panel doesn't depend on the current filter.
+  const [res, oldestRes] = await Promise.all([
+    adminFetch<{
+      reports: ReportSummaryDTO[];
+      nextCursor: string | null;
+    }>("/api/v1/admin/reports", {
+      query: {
+        status: sp.status,
+        reason: sp.reason,
+        cursor: sp.cursor,
+        limit: 50,
+      },
+    }),
+    adminFetch<{ reports: ReportSummaryDTO[] }>("/api/v1/admin/reports", {
+      query: { status: "open", limit: 5 },
+    }),
+  ]);
   const data = res.ok ? res.data : null;
   const status = res.status;
 
-  // Oldest 5 open reports — pulled from a second, narrower fetch so
-  // the panel reflects "oldest globally" instead of "oldest on this
-  // filter page".
-  const oldestRes = res.ok
-    ? await adminFetch<{ reports: ReportSummaryDTO[] }>("/api/v1/admin/reports", {
-        query: { status: "open", limit: 5 },
-      })
-    : null;
-  const oldestSource = oldestRes && oldestRes.ok ? oldestRes.data.reports : [];
+  const oldestSource = oldestRes.ok ? oldestRes.data.reports : [];
   const oldest = oldestSource
     .slice()
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())

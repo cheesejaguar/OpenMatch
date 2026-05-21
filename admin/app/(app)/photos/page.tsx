@@ -13,23 +13,27 @@ interface Params {
 export default async function PhotosPage({ searchParams }: Params) {
   const sp = await searchParams;
   const queue = sp.queue ?? "pending";
-  const res = await adminFetch<{
-    photos: PhotoDTO[];
-    nextCursor: string | null;
-  }>("/api/v1/admin/photos", {
-    query: { queue, cursor: sp.cursor, limit: 50 },
-  });
+
+  // PERF-A2: fetch the main list and (on the "pending" queue) the
+  // oldest-pending panel in parallel. The oldest panel only renders
+  // on `queue === "pending"`, so on other queues we skip the second
+  // fetch entirely.
+  const [res, oldestRes] = await Promise.all([
+    adminFetch<{
+      photos: PhotoDTO[];
+      nextCursor: string | null;
+    }>("/api/v1/admin/photos", {
+      query: { queue, cursor: sp.cursor, limit: 50 },
+    }),
+    queue === "pending"
+      ? adminFetch<{ photos: PhotoDTO[] }>("/api/v1/admin/photos", {
+          query: { queue: "pending", limit: 5 },
+        })
+      : Promise.resolve(null),
+  ]);
   const data = res.ok ? res.data : null;
   const status = res.status;
 
-  // Oldest panel only shows for the "pending" queue — that's where
-  // SLA pressure is real. Other queues are historical.
-  const oldestRes =
-    res.ok && queue === "pending"
-      ? await adminFetch<{ photos: PhotoDTO[] }>("/api/v1/admin/photos", {
-          query: { queue: "pending", limit: 5 },
-        })
-      : null;
   const oldestPhotos = oldestRes && oldestRes.ok ? oldestRes.data.photos : [];
   const oldest = oldestPhotos
     .slice()

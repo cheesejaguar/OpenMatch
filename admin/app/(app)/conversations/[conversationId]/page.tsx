@@ -35,9 +35,19 @@ export default async function ConversationPage({ params, searchParams }: Params)
   const { conversationId } = await params;
   const sp = await searchParams;
 
-  const convoRes = await adminFetch<ConversationResponse>(
-    `/api/v1/admin/conversations/${conversationId}`,
-  );
+  // PERF-A3: convo metadata and messages are keyed by the same
+  // conversationId and don't depend on each other. The 412 access-reason
+  // gate is handled below by branching on `msgsRes.status` — we just
+  // need both responses to make routing decisions.
+  const [convoRes, msgsRes] = await Promise.all([
+    adminFetch<ConversationResponse>(
+      `/api/v1/admin/conversations/${conversationId}`,
+    ),
+    adminFetch<MessagesResponse>(
+      `/api/v1/admin/conversations/${conversationId}/messages`,
+      { query: { accessGrantId: sp.accessGrantId, limit: 200 } },
+    ),
+  ]);
   if (!convoRes.ok && convoRes.status === 404) {
     return (
       <div>
@@ -60,13 +70,6 @@ export default async function ConversationPage({ params, searchParams }: Params)
     );
   }
   const convo = convoRes.data;
-
-  // Try to fetch messages. If we don't have a grant yet, backend will
-  // return 412 access_reason_required; we then render the reason modal.
-  const msgsRes = await adminFetch<MessagesResponse>(
-    `/api/v1/admin/conversations/${conversationId}/messages`,
-    { query: { accessGrantId: sp.accessGrantId, limit: 200 } },
-  );
   const msgs = msgsRes.ok ? msgsRes.data : null;
   const msgStatus = msgsRes.status;
 
