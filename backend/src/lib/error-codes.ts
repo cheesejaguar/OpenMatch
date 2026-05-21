@@ -102,6 +102,8 @@ export const ErrorCodes = {
   ALREADY_BLOCKED: "already_blocked",
   EMPTY_MESSAGE: "empty_message",
   MESSAGE_TOO_LONG: "message_too_long",
+  MESSAGE_REJECTED_BY_MODERATION: "message_rejected_by_moderation",
+  PHOTO_REJECTED_BY_MODERATION: "photo_rejected_by_moderation",
   CANNOT_BLOCK_SELF: "cannot_block_self",
   CANNOT_REPORT_SELF: "cannot_report_self",
 
@@ -554,6 +556,18 @@ export const ERROR_CODE_META: Record<ErrorCode, ErrorCodeMeta> = {
     status: 400,
     description: "The chat message body exceeds the length limit.",
     group: "Discovery",
+  },
+  [ErrorCodes.MESSAGE_REJECTED_BY_MODERATION]: {
+    status: 422,
+    description:
+      "The configured ModerationProvider returned `block` for this message body; the message was not delivered.",
+    group: "Discovery",
+  },
+  [ErrorCodes.PHOTO_REJECTED_BY_MODERATION]: {
+    status: 422,
+    description:
+      "The configured ModerationProvider returned `block` for this image; the upload was rejected before persistence.",
+    group: "Profile",
   },
   [ErrorCodes.CANNOT_BLOCK_SELF]: {
     status: 400,

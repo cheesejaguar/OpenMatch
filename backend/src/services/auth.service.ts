@@ -33,6 +33,23 @@ function getMailer(): nodemailer.Transporter {
   return mailer;
 }
 
+// Magic-link email copy. Extracted so forks can rebrand in one place
+// without grepping the route handler. See docs/forking.md §9.
+//
+// We keep this plain-text on purpose: HTML email is a phishing vector
+// and adds maintenance burden. Forks that absolutely need HTML can
+// extend `magicLinkEmail` to return `{ text, html }` and pass both to
+// `nodemailer.sendMail`.
+export const BRAND_NAME = "OpenMatch";
+
+export function magicLinkEmailSubject(): string {
+  return `Your ${BRAND_NAME} sign-in link`;
+}
+
+export function magicLinkEmailBody(link: string, ttlMinutes: number): string {
+  return `Sign in to ${BRAND_NAME} by visiting this link within ${ttlMinutes} minutes:\n\n${link}\n\nIf you didn't request this, ignore this email.`;
+}
+
 export interface StartEmailLoginInput {
   email: string;
 }
@@ -89,8 +106,8 @@ async function startEmailLoginInner(
     .sendMail({
       from: env.SMTP_FROM,
       to: input.email,
-      subject: "Your OpenMatch sign-in link",
-      text: `Sign in to OpenMatch by visiting this link within ${env.MAGIC_LINK_TTL_SECONDS / 60} minutes:\n\n${link}\n\nIf you didn't request this, ignore this email.`,
+      subject: magicLinkEmailSubject(),
+      text: magicLinkEmailBody(link, env.MAGIC_LINK_TTL_SECONDS / 60),
     })
     .catch(() => {
       // In tests / when SMTP isn't reachable we silently swallow.

@@ -108,4 +108,26 @@ enum Crash {
         print("[Crash] (no Sentry) \(error)")
         #endif
     }
+
+    /// PERF-TELEMETRY: start a transaction so a screen / flow can record
+    /// itself as a measurable event in Sentry's performance UI. Returns
+    /// a finisher closure that the caller invokes once the work is done;
+    /// the closure is a no-op when Sentry isn't started so call sites
+    /// never need to guard.
+    ///
+    /// Example:
+    ///     let finish = Crash.startTransaction(name: "swipe.deck.load")
+    ///     await loadDeck()
+    ///     finish()
+    static func startTransaction(name: String, operation: String = "app.flow") -> () -> Void {
+        #if canImport(Sentry)
+        guard isReporting else { return {} }
+        let span = SentrySDK.startTransaction(name: name, operation: operation)
+        return { span.finish() }
+        #else
+        _ = name
+        _ = operation
+        return {}
+        #endif
+    }
 }

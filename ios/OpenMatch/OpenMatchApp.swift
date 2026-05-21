@@ -9,7 +9,26 @@ struct OpenMatchApp: App {
     @StateObject private var appState = AppState()
     @Environment(\.scenePhase) private var scenePhase
 
+    /// PERF-TELEMETRY: cold-launch transaction, finished when RootView
+    /// first appears. Lets us track p50/p95 first-frame time across app
+    /// versions in Sentry's performance UI. The wall-clock measurement
+    /// starts from process-init (we begin the transaction here before
+    /// any deferred work) and ends in RootView.onAppear.
+    let launchTransactionFinish: () -> Void
+
     init() {
+        // PERF-TELEMETRY — begin the cold-launch transaction. Until
+        // Crash.bootstrap() completes on the detached task below
+        // SentrySDK isn't actually started, so this returns a no-op
+        // finisher. The "real" launch-timing trace will start once a
+        // bootstrap has happened (warm starts only — typically the
+        // second cold launch the user makes per session). That's the
+        // right cohort to measure: the first-ever launch's timing is
+        // dominated by Sentry init itself.
+        launchTransactionFinish = Crash.startTransaction(
+            name: "app.cold_launch",
+            operation: "app.start",
+        )
         // PERF — Sentry's `startWithOptions` synchronously spins up its
         // breadcrumb collectors, runtime monitors, and disk-backed
         // envelope queue. Doing that work inside `App.init()` blocks
@@ -44,6 +63,12 @@ struct OpenMatchApp: App {
             }
             .onChange(of: scenePhase) { _, phase in
                 AppLifecycle.handleScenePhase(phase, appState: appState)
+            }
+            .onAppear {
+                // PERF-TELEMETRY — finish the cold-launch transaction
+                // once the root window has rendered. SwiftUI fires this
+                // on first appear of the WindowGroup contents.
+                launchTransactionFinish()
             }
         }
     }

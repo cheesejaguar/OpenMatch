@@ -15,10 +15,20 @@
   "crons": [
     { "path": "/api/v1/internal/run-deletion-purge", "schedule": "*/15 * * * *" },
     { "path": "/api/v1/internal/run-dsa-sla-check", "schedule": "0 * * * *" },
-    { "path": "/api/v1/internal/run-push-retry", "schedule": "*/5 * * * *" },
-    { "path": "/api/v1/internal/run-alert-check", "schedule": "*/5 * * * *" },
     { "path": "/api/v1/internal/run-daily-digest", "schedule": "0 16 * * *" },
-    { "path": "/api/v1/internal/run-synthetic-check", "schedule": "*/5 * * * *" },
-    { "path": "/api/v1/internal/run-synthetic-prune", "schedule": "0 4 * * *" }
+    { "path": "/api/v1/internal/run-synthetic-prune", "schedule": "0 4 * * *" },
+    {
+      "_comment": "PERF-A11 — stagger the three */5 schedules so they fire on different minutes (0/5/10 vs 1/6/11 vs 2/7/12). Avoids three concurrent cron requests landing on the same Function instance pool at minute :00 :05 :10 (also when synthetic-check users hit /health most often).",
+      "path": "/api/v1/internal/run-push-retry",
+      "schedule": "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
+    },
+    {
+      "path": "/api/v1/internal/run-alert-check",
+      "schedule": "1,6,11,16,21,26,31,36,41,46,51,56 * * * *"
+    },
+    {
+      "path": "/api/v1/internal/run-synthetic-check",
+      "schedule": "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
+    }
   ]
 }

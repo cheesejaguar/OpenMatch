@@ -1,0 +1,42 @@
+name: Question
+description: Ask a question about OpenMatch. Prefer GitHub Discussions for open-ended chat.
+title: "question: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For open-ended discussion, please use [Discussions](https://github.com/cheesejaguar/openmatch/discussions) instead. Use this template for questions that you believe have a specific, answerable resolution.
+
+        For security questions, see [SECURITY.md](../SECURITY.md) — do not file them publicly.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: What have you already tried?
+      description: Docs you read, related issues, code you skimmed. Helps reviewers skip ahead.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface is this about?
+      options:
+        - iOS app
+        - Backend API
+        - Admin dashboard
+        - Matching algorithm
+        - Self-host / Docker
+        - Fork-and-rebrand
+        - Project governance
+        - Other / not sure
+    validations:
+      required: true

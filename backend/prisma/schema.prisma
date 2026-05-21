@@ -1410,6 +1410,26 @@ model WaitlistEntry {
   @@index([createdAt])
 }
 
+// PLATFORM-PLUGIN — paid-tier entitlements granted to a user by an
+// authoritative billing source. Populated by `POST /api/v1/iap/validate`
+// after the configured `BillingProvider` accepts a receipt; consumed by
+// downstream code that gates paywalled features. Storing the source
+// keeps the audit trail honest when multiple providers coexist (e.g.
+// Apple StoreKit on iOS, a fork-specific Stripe path on web).
+model Entitlement {
+  id            String    @id @default(cuid())
+  userId        String
+  productId     String
+  expiresAt     DateTime?
+  source        String // e.g. "apple", "google", "stripe"
+  transactionId String? // provider's transaction id for dedupe
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, expiresAt])
+  @@unique([source, transactionId])
+}
+
 // Round D — synthetic check audit trail. Each cron-invoked run of the
 // synthetic probe writes a row so the admin "Health" panel can render
 // the last N results and ops can answer "when did the synthetic last

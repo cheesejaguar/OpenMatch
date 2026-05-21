@@ -65,6 +65,35 @@ Any PR that touches profile fields, location handling, message storage, moderati
 - Swift: `swift-format` defaults. SwiftUI-first, async/await, no Combine for new code unless there's a clear reason.
 - Tests are not optional. New logic ships with tests. New endpoints ship with route tests.
 
+## Quality bars
+
+OpenMatch maintains a set of public scorecards. New contributions are expected to not regress them, and ideally to improve them:
+
+- [`CLAUDE.md`](CLAUDE.md) — the agent-facing contract that documents non-negotiable invariants (no paid mechanics, no hidden ranking factors, no ad SDKs). Read this first if you use an AI assistant.
+- [`docs/launch/REPORT_CARD.md`](docs/launch/REPORT_CARD.md) — the 1.0 launch report card. Targets the project must clear before it ships.
+- [`docs/quality/A_PLUS_SCORECARD.md`](docs/quality/A_PLUS_SCORECARD.md) — the rolling code/architecture quality bar.
+- [`doc/security/security-scorecard.md`](doc/security/security-scorecard.md) — security posture across the auth, validation, network, and mobile-privacy audits.
+- [`doc/performance/performance-scorecard.md`](doc/performance/performance-scorecard.md) — the iOS, backend, admin, and cross-cutting performance audits.
+
+If your PR touches surfaces these scorecards measure (security, performance, algorithm fairness), call out in the PR description how the change affects the corresponding scorecard.
+
+## Sign your commits
+
+We require [DCO](https://developercertificate.org/) sign-off on every commit. Use `git commit -s` (which adds `Signed-off-by: Your Name <you@example.com>` automatically). Squash-merges preserve the sign-off from the final commit, so make sure that one is signed even if intermediate commits aren't.
+
+GPG/SSH signing is optional but encouraged for maintainers — set `commit.gpgsign = true` locally.
+
+## Self-hosting and forking
+
+OpenMatch is designed to be forked and rebranded. If you're standing up your own deployment or building a derivative product, start with:
+
+- [`docs/self-hosting.md`](docs/self-hosting.md) — one-command Docker self-host.
+- [`docs/forking.md`](docs/forking.md) — fork and rebrand walkthrough.
+
+## Governance
+
+See [`GOVERNANCE.md`](GOVERNANCE.md) for how decisions get made and how to become a maintainer.
+
 ## Reporting security issues
 
 **Do not** open a public issue for security problems. See [`SECURITY.md`](SECURITY.md).

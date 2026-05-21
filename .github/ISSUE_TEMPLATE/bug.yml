@@ -1,0 +1,93 @@
+name: Bug report
+description: Something is broken in OpenMatch (app, backend, admin, matching, docs).
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug report. Please do not file security issues here — see [SECURITY.md](../SECURITY.md) for the private disclosure channel.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checklist
+      options:
+        - label: I have searched existing issues and confirmed this is not a duplicate.
+          required: true
+        - label: This is not a security vulnerability. (If it is, stop and follow SECURITY.md.)
+          required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      options:
+        - iOS app
+        - Backend API
+        - Admin dashboard
+        - Matching package
+        - Docs / website
+        - Self-host / Docker
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: App version (Settings → About), backend deploy SHA, or local commit. "main @ <SHA>" is fine.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: One or two sentences. The summary, not the long story.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Numbered list. Include the exact request / tap / input.
+      placeholder: |
+        1. Tap Likes tab
+        2. Pull to refresh
+        3. Observe: spinner runs forever
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened?
+      description: Include any error messages, error codes (`docs/api/error-codes.md`), or relevant log lines. Redact PII.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: iOS version + device, browser + OS, or backend runtime details. Self-host vs. hosted.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else?
+      description: Screenshots, network HAR, related issues, hypothesis about the root cause.
+    validations:
+      required: false

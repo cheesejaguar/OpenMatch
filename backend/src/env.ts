@@ -38,6 +38,11 @@ const schema = z.object({
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
 
+  // PERF-TELEMETRY: queries running longer than this threshold are
+  // logged at WARN via Pino with the parameterised SQL (values redacted).
+  // Default 200ms — Neon round-trip is typically 5-30ms.
+  SLOW_QUERY_LOG_THRESHOLD_MS: z.coerce.number().int().positive().default(200),
+
   // Admin dashboard. Distinct signing key so a leaked consumer JWT_SECRET
   // cannot mint admin tokens. Required in all non-test environments —
   // we deliberately removed the dev fallback because preview deploys
@@ -191,6 +196,24 @@ const schema = z.object({
   // On-call alerter (MON-2). Posts a JSON `{ text }` payload to the
   // configured Slack incoming webhook when an alert condition fires.
   SLACK_WEBHOOK_URL: z.string().url().optional(),
+
+  // PLATFORM-PLUGIN — extension-point selectors.
+  //
+  // Each variable picks which implementation of a platform-plugin
+  // interface the backend uses at boot. The defaults preserve the
+  // pre-plugin behaviour:
+  //   - RANKING_PROVIDER=builtin  → @openmatch/matching's rules engine.
+  //   - MODERATION_PROVIDER=noop  → photos / messages enter `clean`,
+  //     no automated scan.
+  //   - BILLING_PROVIDER=noop     → every receipt is rejected;
+  //     everyone is free-tier.
+  //
+  // Unknown values are tolerated (we fall back to the default rather
+  // than crashing boot) so an operator setting an env var ahead of the
+  // fork code that registers the provider does not brick the deploy.
+  RANKING_PROVIDER: z.string().default("builtin"),
+  MODERATION_PROVIDER: z.string().default("noop"),
+  BILLING_PROVIDER: z.string().default("noop"),
 });
 
 // In `NODE_ENV=test` we inject ephemeral random secrets so the existing

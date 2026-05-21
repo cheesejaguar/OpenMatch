@@ -1,0 +1,36 @@
+# Keep Docker build context small. Mirrors .gitignore + Vercel ignore
+# plus things that should never end up inside an image.
+node_modules
+**/node_modules
+.git
+.github
+.vscode
+.idea
+.DS_Store
+
+# Build outputs — Dockerfile builds these fresh.
+backend/dist
+matching/dist
+admin/.next
+admin/out
+
+# Local-only stuff
+.env
+.env.*
+!.env.example
+*.local
+
+# iOS — never goes into server images.
+ios
+assets/logo
+
+# Docs / large extras
+doc/ux-review.zip
+public
+
+# Test outputs
+coverage
+*.lcov
+
+# Vercel cache
+.vercel
