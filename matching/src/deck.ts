@@ -1,7 +1,8 @@
 import { currentConfig } from "./config.js";
 import { checkEligibility } from "./eligibility.js";
 import { explain } from "./explain.js";
-import { BuiltinRankingProvider, type RankingProvider } from "./ranking-provider.js";
+import { type RankingProvider, StrategyRankingProvider } from "./ranking-provider.js";
+import { getStrategy } from "./strategies/registry.js";
 import type { Candidate, DeckRequest, DeckResponse, ScoreBreakdown } from "./types.js";
 
 interface RankedEntry {
@@ -43,11 +44,13 @@ function ageBucket(age: number): number {
 
 export function getDiscoveryDeck(req: DeckRequest): DeckResponse {
   const config = req.config ?? currentConfig;
-  // Plugin API — the caller can supply a custom RankingProvider; if not,
-  // we use the builtin (rule-based) provider whose output matches the
-  // pre-Plugin API behaviour exactly. The backend wires its preferred
-  // provider in `discovery.service.ts`.
-  const provider: RankingProvider = req.rankingProvider ?? new BuiltinRankingProvider();
+  // Provider precedence: an explicit rankingProvider (Plugin API — forks,
+  // engagement re-rankers, learned models) wins. Otherwise we rank via the
+  // selected strategy — a request-level strategyId, else one pinned by the
+  // config (e.g. a resolved preset), else the registry default. The
+  // weighted-sum strategy matches the pre-Plugin-API builtin output exactly.
+  const strategy = getStrategy(req.strategyId ?? config.strategyId);
+  const provider: RankingProvider = req.rankingProvider ?? new StrategyRankingProvider(strategy);
 
   const eligibleCandidates: Candidate[] = [];
   for (const candidate of req.candidates) {
@@ -75,6 +78,9 @@ export function getDiscoveryDeck(req: DeckRequest): DeckResponse {
   return {
     algorithmVersion: config.algorithmVersion,
     rankingConfigVersion: config.rankingConfigVersion,
+    // Report the effective ranking identity: a custom provider's name, else
+    // the selected strategy id.
+    strategyId: req.rankingProvider?.name ?? strategy.id,
     deckSessionId: req.deckSessionId,
     cards: diversified.map(({ candidate, breakdown }) => ({
       profileId: candidate.profile.id,

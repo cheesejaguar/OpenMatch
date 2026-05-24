@@ -360,6 +360,25 @@ export interface FeatureFlagListDTO {
   items: FeatureFlagDTO[];
 }
 
+export interface MatchingPresetDTO {
+  id: string;
+  key: string;
+  label: string;
+  description: string;
+  strategyId: string;
+  weights: Record<string, number>;
+  enabled: boolean;
+  isDefault: boolean;
+  sortOrder: number;
+  updatedAt: string;
+  updatedByAdminUserId: string | null;
+  createdAt: string;
+}
+
+export interface MatchingPresetListDTO {
+  items: MatchingPresetDTO[];
+}
+
 export interface BetaFeedbackDTO {
   id: string;
   userId: string;

@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { currentConfig } from "@openmatch/matching";
+import { currentConfig, listStrategies } from "@openmatch/matching";
 import type { FastifyPluginAsync } from "fastify";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
@@ -12,9 +12,29 @@ const FS_ROUTE_RATE_LIMIT = { max: 60, timeWindow: "1 minute" } as const;
 
 export const transparencyRoutes: FastifyPluginAsync = async (app) => {
   app.get("/algorithm/current", async () => {
+    // The base config holds the default weights. Discovery now applies one of
+    // several admin-curated, user-selectable presets on top — so we publish
+    // the available ranking strategies and the live preset catalog (with their
+    // weight overlays) alongside the base config. Auditability is a core
+    // product promise: a user can verify exactly which weightings can shape
+    // their deck.
+    const catalog = await app.matchingPresets.catalog();
     return {
       ...currentConfig,
-      note: "These are the live weights and constraints used by the discovery deck. The package source and synthetic tests are in the public repository.",
+      strategies: listStrategies().map((s) => ({
+        id: s.id,
+        label: s.label,
+        description: s.description,
+      })),
+      presets: catalog.presets.map((p) => ({
+        key: p.key,
+        label: p.label,
+        description: p.description,
+        strategyId: p.strategyId,
+        weightOverrides: p.weights,
+        isDefault: p.key === catalog.defaultKey,
+      })),
+      note: "These are the live weights, constraints, strategies, and selectable presets used by the discovery deck. The package source and synthetic tests are in the public repository.",
       sourceUrl: "https://github.com/cheesejaguar/openmatch/tree/main/matching",
     };
   });

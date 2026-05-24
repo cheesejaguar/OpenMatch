@@ -813,6 +813,12 @@ final class APIClient: ObservableObject {
         try await patch("/api/v1/preferences/me", body: prefs)
     }
 
+    /// The selectable discovery-style presets (enabled only) plus the default
+    /// key. Powers the "Discovery style" picker in Looking for.
+    func matchingPresets() async throws -> MatchingPresetsDTO {
+        try await get("/api/v1/preferences/matching-presets")
+    }
+
     /// Patch only the handedness field. The backend route accepts a
     /// partial body so we avoid round-tripping the full preferences
     /// object every time a user changes their thumb-reach setting.

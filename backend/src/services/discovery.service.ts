@@ -7,10 +7,16 @@ import type {
   RankingProvider,
   Viewer,
 } from "@openmatch/matching";
-import { currentConfig, defaultRankingProvider, getDiscoveryDeck } from "@openmatch/matching";
+import {
+  currentConfig,
+  defaultRankingProvider,
+  getDiscoveryDeck,
+  resolveConfig,
+} from "@openmatch/matching";
 import type { PrismaClient } from "@prisma/client";
 import { env } from "../env.js";
 import { haversineKm } from "../lib/location.js";
+import { getPresetCatalog, resolveActivePresetKey } from "../lib/matching-presets.js";
 import { getActiveMetros } from "../lib/metros-cache.js";
 import { withSpan } from "../lib/spans.js";
 
@@ -21,13 +27,20 @@ import { withSpan } from "../lib/spans.js";
 // rank (see how `recentImpressions` is hydrated below).
 const IMPRESSION_STALENESS_WINDOW_DAYS = 7;
 
-// DISC-Q3 — concrete RankingProvider. Resolved once at module load so
-// every /deck request reuses the same provider instance. An env
-// override (`OPENMATCH_RANKING_PROVIDER`) is honoured for forks who
-// want to swap implementations without a code change.
-let cachedProvider: RankingProvider | null = null;
-function getRankingProvider(): RankingProvider {
-  if (!cachedProvider) cachedProvider = defaultRankingProvider();
+// DISC-Q3 — RankingProvider override. Resolved once and reused. The deck
+// ranks via the viewer's selected preset strategy by default; setting
+// `OPENMATCH_RANKING_PROVIDER` lets forks/ops force an explicit provider
+// (builtin / engagement / learned) that overrides the preset strategy. When
+// the env var is unset we return undefined so the preset strategy wins.
+let providerResolved = false;
+let cachedProvider: RankingProvider | undefined;
+function getRankingProvider(): RankingProvider | undefined {
+  if (!providerResolved) {
+    const override =
+      typeof process !== "undefined" ? process.env.OPENMATCH_RANKING_PROVIDER : undefined;
+    cachedProvider = override ? defaultRankingProvider() : undefined;
+    providerResolved = true;
+  }
   return cachedProvider;
 }
 
@@ -37,7 +50,8 @@ function getRankingProvider(): RankingProvider {
  * from the package boundary.
  */
 export function __resetRankingProviderCache() {
-  cachedProvider = null;
+  providerResolved = false;
+  cachedProvider = undefined;
 }
 
 const ACTIVITY_BUCKETS: Array<{ maxHours: number; bucket: ActivityBucket }> = [
@@ -427,11 +441,18 @@ async function buildDeckInner(input: BuildDeckInput) {
     if (dob) c.profile.age = ageFromDob(dob, now);
   }
 
-  // PLATFORM-PLUGIN — route through the configured RankingProvider.
-  // The default `engagement` provider re-uses `getDiscoveryDeck()` so the
-  // wire shape and behaviour are unchanged. Forks select an alternative
-  // ranker via the OPENMATCH_RANKING_PROVIDER env var (resolved in
-  // `getRankingProvider()` above).
+  // Resolve the viewer's selected matching preset into a concrete config
+  // (weights + pinned strategy). The catalog read is cached
+  // (lib/matching-presets) so this stays cheap on the hot path; an
+  // unknown/disabled selection falls back to the default preset.
+  const catalog = await getPresetCatalog(input.prisma);
+  const presetKey = resolveActivePresetKey(catalog, viewerUser.preferences.discoveryPresetKey);
+  const config = resolveConfig(currentConfig, { presetKey, presets: catalog.presets });
+
+  // PLATFORM-PLUGIN — when OPENMATCH_RANKING_PROVIDER is set, forks/ops route
+  // the deck through that explicit RankingProvider (it wins over the preset
+  // strategy). When unset, getRankingProvider() returns undefined and the
+  // deck ranks via the preset's strategy so the user's selection takes effect.
   return getDiscoveryDeck({
     viewer,
     candidates,
@@ -449,7 +470,7 @@ async function buildDeckInner(input: BuildDeckInput) {
     now,
     limit: input.limit,
     deckSessionId: input.deckSessionId,
-    config: currentConfig,
+    config,
     rankingProvider: getRankingProvider(),
   });
 }

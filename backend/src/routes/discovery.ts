@@ -82,6 +82,7 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
           deckSessionId,
           algorithmVersion: deck.algorithmVersion,
           rankingConfigVersion: deck.rankingConfigVersion,
+          strategyId: deck.strategyId,
           cards: deck.cards.map((card) => {
             const profile = profiles.find((p) => p.id === card.profileId);
             const candLatLng = candLoc.get(card.profileId);

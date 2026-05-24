@@ -130,13 +130,36 @@ export interface RankingWeights {
   preferenceOverlap: number;
   relationshipGoal: number;
   profileCompleteness: number;
+  sharedInterests: number;
+  reciprocity: number;
+  ageProximity: number;
   fairnessRotation: number;
   randomization: number;
 }
 
+// The set of weight keys, used for validation and normalization. Keeping a
+// runtime array (not just the type) lets backends validate admin-supplied
+// weight maps without hand-maintaining a second list.
+export const WEIGHT_KEYS: readonly (keyof RankingWeights)[] = [
+  "distance",
+  "activity",
+  "preferenceOverlap",
+  "relationshipGoal",
+  "profileCompleteness",
+  "sharedInterests",
+  "reciprocity",
+  "ageProximity",
+  "fairnessRotation",
+  "randomization",
+] as const;
+
 export interface AlgorithmConfig {
   algorithmVersion: string;
   rankingConfigVersion: string;
+  // Optional: when a config was produced by resolveConfig from a preset that
+  // pins a strategy, the chosen strategy id is recorded here. The shipped
+  // base config omits it (defaults to the weighted-sum strategy).
+  strategyId?: string;
   weights: RankingWeights;
   constraints: {
     minimumAge: number;
@@ -182,9 +205,43 @@ export interface ScoreBreakdown {
   preferenceOverlap: number;
   relationshipGoal: number;
   profileCompleteness: number;
+  sharedInterests: number;
+  reciprocity: number;
+  ageProximity: number;
   fairnessRotation: number;
   randomization: number;
   total: number;
+}
+
+// A pluggable ranking strategy. Strategies turn a (viewer, candidate) pair
+// into a ScoreBreakdown given a config. The deck assembler picks one by id
+// from the registry; the weighted-sum strategy is the default. Strategies
+// must stay pure and deterministic so decks remain auditable and testable.
+export interface AlgorithmStrategy {
+  id: string;
+  label: string;
+  description: string;
+  score(viewer: Viewer, candidate: Candidate, config: AlgorithmConfig, now: Date): ScoreBreakdown;
+}
+
+// A named, selectable weight preset. `weights` is a partial overlay on the
+// base config's weights; unspecified keys inherit the base. `strategyId`
+// optionally pins the preset to a specific strategy.
+export interface WeightPreset {
+  key: string;
+  label: string;
+  description: string;
+  strategyId: string;
+  weights: Partial<RankingWeights>;
+}
+
+// Options for resolveConfig: pick a preset and/or pin a strategy and/or
+// overlay ad-hoc weight overrides (admin-supplied). All optional.
+export interface ResolveConfigOptions {
+  presetKey?: string;
+  strategyId?: string;
+  weightOverrides?: Partial<RankingWeights>;
+  presets?: WeightPreset[];
 }
 
 export type ExplanationKey =
@@ -210,6 +267,7 @@ export interface DeckCard {
 export interface DeckResponse {
   algorithmVersion: string;
   rankingConfigVersion: string;
+  strategyId: string;
   deckSessionId: string;
   cards: DeckCard[];
 }
@@ -223,9 +281,14 @@ export interface DeckRequest {
   limit: number;
   deckSessionId: string;
   config?: AlgorithmConfig;
-  // Plugin API — optional custom ranking provider. When omitted the
-  // builtin (rule-based) provider is used. The provider interface lives
-  // in `ranking-provider.ts`; we keep the import out of this types
-  // module to avoid a runtime/value dependency on the type-only file.
+  // Plugin API — optional custom ranking provider. When supplied it wins
+  // over strategyId. The provider interface lives in `ranking-provider.ts`;
+  // we keep the import out of this types module to avoid a runtime/value
+  // dependency on the type-only file.
   rankingProvider?: import("./ranking-provider.js").RankingProvider;
+  // Selects a registered ranking strategy (see strategies/registry). Used
+  // when no rankingProvider is supplied; defaults to the weighted-sum
+  // strategy when omitted or unknown. A resolved preset config may also pin
+  // a strategy via config.strategyId.
+  strategyId?: string;
 }
