@@ -49,6 +49,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: "/health", label: "Health" },
       { href: "/flags", label: "Feature flags" },
+      { href: "/matching-presets", label: "Matching presets" },
       { href: "/audit", label: "Audit log" },
     ],
   },

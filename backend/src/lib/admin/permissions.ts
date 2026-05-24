@@ -47,6 +47,7 @@ export const PERMISSIONS = {
 
   BETA_INVITE_MANAGE: "beta.invite.manage",
   FEATURE_FLAG_MANAGE: "feature_flag.manage",
+  MATCHING_PRESET_MANAGE: "matching_preset.manage",
   METRO_MANAGE: "metro.manage",
   FEEDBACK_READ: "feedback.read",
   FEEDBACK_RESOLVE: "feedback.resolve",

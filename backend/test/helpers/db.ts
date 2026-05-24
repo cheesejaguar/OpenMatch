@@ -50,6 +50,7 @@ const TABLES = [
   "AlgorithmAuditRecord",
   "FeatureFlag",
   "MetroBoundary",
+  "MatchingPreset",
   "PushDeliveryLog",
   "AlertFired",
   "WaitlistEntry",

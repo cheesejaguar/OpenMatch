@@ -25,6 +25,7 @@ export const PERMISSIONS = {
   APPEAL_READ: "appeal.read",
   APPEAL_DECIDE: "appeal.decide",
   COMPLIANCE_EXPORT: "compliance.export",
+  MATCHING_PRESET_MANAGE: "matching_preset.manage",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

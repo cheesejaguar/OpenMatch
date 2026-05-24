@@ -30,6 +30,7 @@ const preferencesResponseSchema = z.object({
   likesVisibility: z.enum(["visible", "count_only", "hidden"]),
   discoveryPaused: z.boolean(),
   handedness: z.enum(["right", "left", "center"]),
+  discoveryPresetKey: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -58,6 +59,9 @@ const updatePrefs = z.object({
   likesVisibility: z.enum(["visible", "count_only", "hidden"]).optional(),
   discoveryPaused: z.boolean().optional(),
   handedness: z.enum(["right", "left", "center"]).optional(),
+  // null clears the selection (revert to the catalog default). A non-null
+  // value is validated against the enabled preset catalog below.
+  discoveryPresetKey: z.string().min(1).max(80).nullable().optional(),
 });
 
 export const preferencesRoutes: FastifyPluginAsync = async (app) => {
@@ -77,6 +81,41 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
     reply.header("cache-control", "private, max-age=0, must-revalidate");
     return prefs;
   });
+
+  // Public list of selectable matching presets (enabled only). Powers the
+  // discovery-style picker in the iOS app. Mirrors the cached catalog the
+  // discovery deck uses, so what a user can pick is exactly what can apply.
+  r.get(
+    "/matching-presets",
+    {
+      schema: {
+        response: {
+          200: z.object({
+            defaultKey: z.string(),
+            presets: z.array(
+              z.object({
+                key: z.string(),
+                label: z.string(),
+                description: z.string(),
+              }),
+            ),
+          }),
+        },
+      },
+    },
+    async (_req, reply) => {
+      const catalog = await app.matchingPresets.catalog();
+      reply.header("cache-control", "private, max-age=60");
+      return {
+        defaultKey: catalog.defaultKey,
+        presets: catalog.presets.map((p) => ({
+          key: p.key,
+          label: p.label,
+          description: p.description,
+        })),
+      };
+    },
+  );
 
   app.patch("/me", async (req, reply) => {
     const body = updatePrefs.parse(req.body);
@@ -103,6 +142,15 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
         (body.maxAge !== undefined && body.maxAge <= 0)
       ) {
         return sendHttpError(reply, httpError(ErrorCodes.VALIDATION_FAILED));
+      }
+    }
+    // Validate a non-null preset selection against the enabled catalog so a
+    // user can't pin a disabled or nonexistent preset. null is allowed (it
+    // reverts to the default at deck-build time).
+    if (body.discoveryPresetKey != null) {
+      const catalog = await app.matchingPresets.catalog();
+      if (!catalog.presets.some((p) => p.key === body.discoveryPresetKey)) {
+        return sendHttpError(reply, httpError(ErrorCodes.INVALID_REQUEST));
       }
     }
     // SEV-V1 — explicit allow-list. The previous `...(body as
@@ -149,6 +197,9 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
       ...(body.likesVisibility !== undefined && { likesVisibility: body.likesVisibility }),
       ...(body.discoveryPaused !== undefined && { discoveryPaused: body.discoveryPaused }),
       ...(body.handedness !== undefined && { handedness: body.handedness }),
+      ...(body.discoveryPresetKey !== undefined && {
+        discoveryPresetKey: body.discoveryPresetKey,
+      }),
     };
     const prefs = await app.prisma.preferences.upsert({
       where: { userId: req.userId! },

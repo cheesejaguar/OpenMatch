@@ -23,6 +23,7 @@ import adminRbacPlugin from "./plugins/admin-rbac.js";
 import authPlugin from "./plugins/auth.js";
 import countryGatePlugin from "./plugins/country-gate.js";
 import flagsPlugin from "./plugins/flags.js";
+import matchingPresetsPlugin from "./plugins/matching-presets.js";
 import metroGatePlugin from "./plugins/metro-gate.js";
 import { openapiPlugin } from "./plugins/openapi.js";
 import prismaPlugin from "./plugins/prisma.js";
@@ -35,9 +36,10 @@ import { adminConversationRoutes } from "./routes/admin/conversations.js";
 import { adminDsaRoutes } from "./routes/admin/dsa.js";
 import { adminFeedbackRoutes } from "./routes/admin/feedback.js";
 import { adminFlagsRoutes } from "./routes/admin/flags.js";
-import { adminIncidentsRoutes } from "./routes/admin/incidents.js";
 import { adminGeographyRoutes } from "./routes/admin/geography.js";
+import { adminIncidentsRoutes } from "./routes/admin/incidents.js";
 import { adminInvitesRoutes } from "./routes/admin/invites.js";
+import { adminMatchingPresetsRoutes } from "./routes/admin/matching-presets.js";
 import { adminMetricsRoutes, adminSyntheticRoutes } from "./routes/admin/metrics.js";
 import { adminMetrosRoutes } from "./routes/admin/metros.js";
 import { adminModerationRoutes } from "./routes/admin/moderation.js";
@@ -51,7 +53,6 @@ import { adminWaitlistRoutes } from "./routes/admin/waitlist.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { authRoutes } from "./routes/auth.js";
 import { chatRoutes } from "./routes/chat.js";
-import { messagesRoutes } from "./routes/messages.js";
 import { discoveryRoutes } from "./routes/discovery.js";
 import { dsaRoutes } from "./routes/dsa.js";
 import { feedbackRoutes } from "./routes/feedback.js";
@@ -62,6 +63,7 @@ import { internalRoutes } from "./routes/internal.js";
 import { invitesRoutes } from "./routes/invites.js";
 import { likesRoutes } from "./routes/likes.js";
 import { matchesRoutes } from "./routes/matches.js";
+import { messagesRoutes } from "./routes/messages.js";
 import { notificationsRoutes } from "./routes/notifications.js";
 import { photosRoutes } from "./routes/photos.js";
 import { preferencesRoutes } from "./routes/preferences.js";
@@ -311,6 +313,7 @@ export async function buildServer() {
   // flags depends on `prisma`. Both must load before any route that
   // calls `app.flags.evaluate(...)` or `app.checkMetro(...)`.
   await app.register(flagsPlugin);
+  await app.register(matchingPresetsPlugin);
   await app.register(metroGatePlugin);
 
   // OPS-3: tag every authenticated request with its userId for Sentry.
@@ -452,6 +455,7 @@ export async function buildServer() {
   await app.register(adminInvitesRoutes, { prefix: "/api/v1/admin/invites" });
   await app.register(adminFlagsRoutes, { prefix: "/api/v1/admin/flags" });
   await app.register(adminIncidentsRoutes, { prefix: "/api/v1/admin/incidents" });
+  await app.register(adminMatchingPresetsRoutes, { prefix: "/api/v1/admin/matching-presets" });
   await app.register(adminMetrosRoutes, { prefix: "/api/v1/admin/metros" });
   await app.register(adminFeedbackRoutes, { prefix: "/api/v1/admin/feedback" });
   await app.register(adminAnalyticsRoutes, { prefix: "/api/v1/admin/analytics" });

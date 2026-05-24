@@ -175,6 +175,8 @@ enum AdminEventType {
   admin_recovery_code_used
   admin_refresh_reuse
   incident_update_posted
+  matching_preset_created
+  matching_preset_updated
 }
 
 enum SensitiveEntityType {
@@ -547,6 +549,10 @@ model Preferences {
   likesVisibility                 LikesVisibility    @default(visible)
   discoveryPaused                 Boolean            @default(false)
   handedness                      Handedness         @default(right)
+  // User-selected matching preset key (see MatchingPreset.key). Null means
+  // "use the catalog default". Validated against enabled presets on write;
+  // discovery falls back to the default if the selection is gone/disabled.
+  discoveryPresetKey              String?
   createdAt                       DateTime           @default(now())
   updatedAt                       DateTime           @updatedAt
 }
@@ -1400,6 +1406,31 @@ model FeatureFlag {
   createdAt            DateTime @default(now())
 
   @@index([key])
+}
+
+// Admin-curated catalog of selectable matching presets. Each row pins a
+// ranking strategy (see @openmatch/matching strategy registry) and a set of
+// weight overrides. End-users pick one via Preferences.discoveryPresetKey;
+// admins manage the catalog (enable/disable, edit weights, set default).
+// Mirrors the FeatureFlag conventions (key-addressed, audited, cached).
+model MatchingPreset {
+  id                   String   @id @default(cuid())
+  key                  String   @unique
+  label                String
+  description          String
+  strategyId           String
+  // Partial RankingWeights overlay, e.g. { "distance": 0.45 }. Validated
+  // against the known weight keys at the route layer; normalized to sum to 1
+  // by the matching package at resolve time.
+  weights              Json
+  enabled              Boolean  @default(true)
+  isDefault            Boolean  @default(false)
+  sortOrder            Int      @default(0)
+  updatedAt            DateTime @updatedAt
+  updatedByAdminUserId String?
+  createdAt            DateTime @default(now())
+
+  @@index([enabled])
 }
 
 model MetroBoundary {

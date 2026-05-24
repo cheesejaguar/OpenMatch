@@ -18,7 +18,13 @@
 
 import { currentConfig } from "./config.js";
 import { scoreCandidate } from "./scoring.js";
-import type { AlgorithmConfig, Candidate, ScoreBreakdown, Viewer } from "./types.js";
+import type {
+  AlgorithmConfig,
+  AlgorithmStrategy,
+  Candidate,
+  ScoreBreakdown,
+  Viewer,
+} from "./types.js";
 
 export interface RankingProviderInput {
   viewer: Viewer;
@@ -55,6 +61,31 @@ export class BuiltinRankingProvider implements RankingProvider {
     const out: RankedEntry[] = [];
     for (const candidate of input.candidates) {
       const breakdown = scoreCandidate(input.viewer, candidate, input.config, input.now);
+      out.push({ candidate, breakdown });
+    }
+    out.sort((a, b) => b.breakdown.total - a.breakdown.total);
+    return out;
+  }
+}
+
+/**
+ * Bridges the strategy registry (user-selectable, admin-curated weight
+ * presets — see strategies/registry + presets) into the RankingProvider
+ * seam. Scores each eligible candidate with the given AlgorithmStrategy and
+ * returns them sorted by total. `StrategyRankingProvider(weightedSumStrategy)`
+ * produces byte-for-byte the same output as BuiltinRankingProvider; other
+ * strategies (e.g. reciprocal) or preset-resolved weights re-rank from here.
+ */
+export class StrategyRankingProvider implements RankingProvider {
+  readonly name: string;
+  constructor(private readonly strategy: AlgorithmStrategy) {
+    this.name = strategy.id;
+  }
+
+  rank(input: RankingProviderInput): RankedEntry[] {
+    const out: RankedEntry[] = [];
+    for (const candidate of input.candidates) {
+      const breakdown = this.strategy.score(input.viewer, candidate, input.config, input.now);
       out.push({ candidate, breakdown });
     }
     out.sort((a, b) => b.breakdown.total - a.breakdown.total);

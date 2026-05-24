@@ -288,6 +288,23 @@ struct PreferencesDTO: Codable {
     var likesVisibility: String
     var discoveryPaused: Bool
     var handedness: String?
+    /// The user's selected matching preset (discovery style). nil means
+    /// "use the catalog default", resolved server-side when the deck is built.
+    var discoveryPresetKey: String?
+}
+
+/// One selectable discovery-style preset surfaced to the user.
+struct MatchingPresetOptionDTO: Codable, Hashable {
+    let key: String
+    let label: String
+    let description: String
+}
+
+/// Response of GET /api/v1/preferences/matching-presets — the enabled presets
+/// a user can choose between, plus which key is the default.
+struct MatchingPresetsDTO: Codable {
+    let defaultKey: String
+    let presets: [MatchingPresetOptionDTO]
 }
 
 enum LikesVisibility: String, Codable {

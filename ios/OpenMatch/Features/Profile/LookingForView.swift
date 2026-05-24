@@ -4,6 +4,8 @@ import SwiftUI
 @MainActor
 final class LookingForViewModel: ObservableObject {
     @Published var prefs: PreferencesDTO?
+    @Published var presets: [MatchingPresetOptionDTO] = []
+    @Published var defaultPresetKey: String = "balanced"
     @Published var error: String?
     @Published var isSaving = false
     @Published var saved = false
@@ -13,6 +15,12 @@ final class LookingForViewModel: ObservableObject {
         guard let api else { return }
         do { prefs = try await api.preferences() }
         catch { self.error = error.localizedDescription }
+        // Best-effort: a presets failure shouldn't block editing the rest of
+        // the preferences, so swallow its error and just hide the picker.
+        if let catalog = try? await api.matchingPresets() {
+            presets = catalog.presets
+            defaultPresetKey = catalog.defaultKey
+        }
     }
     func save() async {
         guard let api, let p = prefs else { return }
@@ -68,6 +76,29 @@ struct LookingForView: View {
                                 ),
                                 options: [2, 10, 25, 50, 100, 250, 1000].map { (label: "\($0) km", value: $0) }
                             )
+                        }
+
+                        if !vm.presets.isEmpty {
+                            OMSection("Discovery style") {
+                                OMPicker(
+                                    label: "Show me",
+                                    selection: .init(
+                                        get: { prefs.discoveryPresetKey ?? vm.defaultPresetKey },
+                                        set: { var p = prefs; p.discoveryPresetKey = $0; vm.prefs = p }
+                                    ),
+                                    options: vm.presets.map { (label: $0.label, value: $0.key) }
+                                )
+                                if let chosen = vm.presets.first(where: {
+                                    $0.key == (prefs.discoveryPresetKey ?? vm.defaultPresetKey)
+                                }) {
+                                    OMSectionDivider()
+                                    Text(chosen.description)
+                                        .font(OMFont.caption)
+                                        .foregroundStyle(OMColor.inkMuted)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(OMSpacing.lg)
+                                }
+                            }
                         }
 
                         OMSection("Goals") {
