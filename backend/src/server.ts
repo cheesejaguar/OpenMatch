@@ -53,6 +53,8 @@ import { adminWaitlistRoutes } from "./routes/admin/waitlist.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { authRoutes } from "./routes/auth.js";
 import { chatRoutes } from "./routes/chat.js";
+import { contentRoutes } from "./routes/content.js";
+import { dateFeedbackRoutes } from "./routes/date-feedback.js";
 import { discoveryRoutes } from "./routes/discovery.js";
 import { dsaRoutes } from "./routes/dsa.js";
 import { feedbackRoutes } from "./routes/feedback.js";
@@ -423,6 +425,8 @@ export async function buildServer() {
   await app.register(profileRoutes, { prefix: "/api/v1/profile" });
   await app.register(photosRoutes, { prefix: "/api/v1/photos" });
   await app.register(preferencesRoutes, { prefix: "/api/v1/preferences" });
+  await app.register(contentRoutes, { prefix: "/api/v1/content" });
+  await app.register(dateFeedbackRoutes, { prefix: "/api/v1/date-feedback" });
   await app.register(discoveryRoutes, { prefix: "/api/v1/discovery" });
   await app.register(swipesRoutes, { prefix: "/api/v1/swipes" });
   await app.register(likesRoutes, { prefix: "/api/v1/likes" });

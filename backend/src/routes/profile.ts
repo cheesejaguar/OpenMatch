@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { config } from "../lib/config.js";
+import { VALUE_KEYS } from "../lib/content/catalogs.js";
 import { PUBLIC_PROFILE_SELECT } from "../lib/dto/peer-user.js";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
@@ -39,6 +40,9 @@ const updateSchema = z.object({
   politics: z.string().max(60).optional(),
   languages: z.array(z.string().max(60)).max(20).optional(),
   interests: z.array(z.string().max(60)).max(30).optional(),
+  // Selected core values — catalog keys (#6). Validated against the values
+  // catalog in the handler.
+  values: z.array(z.string().min(1).max(60)).max(12).optional(),
   prompts: z
     .array(
       z.object({
@@ -143,6 +147,11 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
 
   app.patch("/me/profile", async (req, reply) => {
     const body = updateSchema.parse(req.body);
+
+    // Values must be known catalog keys (#6).
+    if (body.values && !body.values.every((k) => VALUE_KEYS.has(k))) {
+      return sendHttpError(reply, httpError(ErrorCodes.VALIDATION_FAILED));
+    }
 
     // Metro gate on profile edits — keeps a user from changing their
     // declared location to an out-of-cohort city after signup. If they
@@ -268,6 +277,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       ...(data.politics !== undefined && { politics: data.politics }),
       ...(data.languages !== undefined && { languages: data.languages }),
       ...(data.interests !== undefined && { interests: data.interests }),
+      ...(data.values !== undefined && { values: data.values }),
       ...(data.prompts !== undefined && { prompts: data.prompts as never }),
       ...(data.visibilityStatus !== undefined && { visibilityStatus: data.visibilityStatus }),
     };
@@ -307,6 +317,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       ...(data.politics !== undefined && { politics: data.politics }),
       ...(data.languages !== undefined && { languages: data.languages }),
       ...(data.interests !== undefined && { interests: data.interests }),
+      ...(data.values !== undefined && { values: data.values }),
       ...(data.prompts !== undefined && { prompts: data.prompts as never }),
       ...(data.visibilityStatus !== undefined && { visibilityStatus: data.visibilityStatus }),
     };

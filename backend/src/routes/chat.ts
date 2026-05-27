@@ -15,6 +15,7 @@ import { publishConversationEvent, publishMessage } from "../lib/realtime.js";
 import {
   authorizedForConversation,
   listConversations,
+  listConversationsAwaitingMyReply,
   listMessages,
   markConversationAsRead,
   markMessageAsRead,
@@ -69,6 +70,13 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
   const r = app.withTypeProvider<ZodTypeProvider>();
 
   r.get("/", async (req) => listConversations(app.prisma, req.userId!));
+
+  // Anti-ghosting nudge (#7): conversations awaiting the viewer's reply.
+  r.get("/awaiting-reply", async (req, reply) => {
+    const items = await listConversationsAwaitingMyReply(app.prisma, req.userId!);
+    reply.header("cache-control", "private, max-age=0, must-revalidate");
+    return { items };
+  });
 
   r.get(
     "/:conversationId/messages",

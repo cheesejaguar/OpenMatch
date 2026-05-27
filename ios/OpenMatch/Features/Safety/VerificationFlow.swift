@@ -28,7 +28,7 @@ public final class VerificationFlowModel: ObservableObject {
 
     let api: APIClient
 
-    public init(api: APIClient) {
+    init(api: APIClient) {
         self.api = api
     }
 
@@ -66,7 +66,7 @@ public struct VerificationFlowView: View {
     @State private var pickerImage: UIImage?
     @State private var showingPicker = false
 
-    public init(api: APIClient) {
+    init(api: APIClient) {
         _model = StateObject(wrappedValue: VerificationFlowModel(api: api))
     }
 

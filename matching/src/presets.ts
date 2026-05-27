@@ -54,6 +54,9 @@ function zeroWeights(): RankingWeights {
     sharedInterests: 0,
     reciprocity: 0,
     ageProximity: 0,
+    valuesOverlap: 0,
+    desirabilityBalance: 0,
+    responseLikelihood: 0,
     fairnessRotation: 0,
     randomization: 0,
   };

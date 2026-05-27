@@ -21,6 +21,30 @@ export async function listConversations(prisma: PrismaClient, userId: string) {
   });
 }
 
+// Anti-ghosting nudge (#7): active conversations where the *other* person sent
+// the last message and it's been quiet for a while — i.e. it's the viewer's
+// turn. Powers a gentle client-side "your turn to reply" prompt.
+const STALE_REPLY_HOURS = 12;
+export async function listConversationsAwaitingMyReply(prisma: PrismaClient, userId: string) {
+  const cutoff = new Date(Date.now() - STALE_REPLY_HOURS * 60 * 60 * 1000);
+  const convos = await prisma.conversation.findMany({
+    where: {
+      status: "active",
+      lastMessageAt: { lt: cutoff },
+      lastMessageSenderUserId: { not: userId },
+      match: { status: "active", OR: [{ userAId: userId }, { userBId: userId }] },
+    },
+    select: { id: true, matchId: true, lastMessageAt: true },
+    orderBy: { lastMessageAt: "asc" },
+    take: 20,
+  });
+  return convos.map((c) => ({
+    conversationId: c.id,
+    matchId: c.matchId,
+    lastMessageAt: c.lastMessageAt,
+  }));
+}
+
 export async function authorizedForConversation(
   prisma: PrismaClient,
   conversationId: string,
@@ -212,8 +236,7 @@ async function postMessageInner(
   // T&S "flag" verdicts (heuristic) and Plugin API "flag" verdicts both
   // surface the message but mark it for admin review so the safety queue
   // can audit. Either signal flips the row to under_review.
-  const moderationStatus =
-    pluginFlag || moderation.decision === "flag" ? "under_review" : "clean";
+  const moderationStatus = pluginFlag || moderation.decision === "flag" ? "under_review" : "clean";
 
   const message = await prisma.$transaction(async (tx) => {
     const m = await tx.message.create({
@@ -221,7 +244,13 @@ async function postMessageInner(
     });
     await tx.conversation.update({
       where: { id: conversationId },
-      data: { updatedAt: new Date() },
+      // Responsiveness tracking (#7): record who sent the last message so we
+      // can compute whose turn it is and surface anti-ghosting nudges.
+      data: {
+        updatedAt: new Date(),
+        lastMessageAt: new Date(),
+        lastMessageSenderUserId: senderUserId,
+      },
     });
     return m;
   });
@@ -295,7 +324,13 @@ export async function postAudioMessage(
     });
     await tx.conversation.update({
       where: { id: conversationId },
-      data: { updatedAt: new Date() },
+      // Responsiveness tracking (#7): record who sent the last message so we
+      // can compute whose turn it is and surface anti-ghosting nudges.
+      data: {
+        updatedAt: new Date(),
+        lastMessageAt: new Date(),
+        lastMessageSenderUserId: senderUserId,
+      },
     });
     return m;
   });

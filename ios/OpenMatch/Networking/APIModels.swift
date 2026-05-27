@@ -291,6 +291,13 @@ struct PreferencesDTO: Codable {
     /// The user's selected matching preset (discovery style). nil means
     /// "use the catalog default", resolved server-side when the deck is built.
     var discoveryPresetKey: String?
+    /// Trust filter (#8): only surface photo-verified candidates.
+    var verifiedOnly: Bool
+    /// Intentional-dating focus mode (#10): quiets the deck to focus on
+    /// existing conversations.
+    var focusMode: Bool
+    /// Dealbreaker catalog keys captured at onboarding (#5).
+    var dealbreakers: [String]
 }
 
 /// One selectable discovery-style preset surfaced to the user.
@@ -305,6 +312,84 @@ struct MatchingPresetOptionDTO: Codable, Hashable {
 struct MatchingPresetsDTO: Codable {
     let defaultKey: String
     let presets: [MatchingPresetOptionDTO]
+}
+
+// MARK: - Content catalogs (#6 values/prompts, #3 question sets, #12 coaching)
+
+struct ValueOptionDTO: Codable, Hashable, Identifiable {
+    let key: String
+    let label: String
+    var id: String { key }
+}
+
+struct DealbreakerOptionDTO: Codable, Hashable, Identifiable {
+    let key: String
+    let label: String
+    var id: String { key }
+}
+
+struct PromptOptionDTO: Codable, Hashable, Identifiable {
+    let id: String
+    let question: String
+    let valueTag: String?
+}
+
+struct QuestionSetDTO: Codable, Hashable, Identifiable {
+    let level: Int
+    let title: String
+    let questions: [String]
+    var id: Int { level }
+}
+
+struct CoachingTipDTO: Codable, Hashable, Identifiable {
+    let id: String
+    let context: String
+    let text: String
+}
+
+struct ContentCatalogsDTO: Codable {
+    let version: String
+    let values: [ValueOptionDTO]
+    let dealbreakers: [DealbreakerOptionDTO]
+    let prompts: [PromptOptionDTO]
+    let questionSets: [QuestionSetDTO]
+    let coachingTips: [CoachingTipDTO]
+}
+
+// MARK: - Post-date feedback (#1/#11)
+
+struct PendingDateFeedbackDTO: Codable, Identifiable {
+    let matchId: String
+    let aboutUserId: String
+    let matchedAt: Date
+    var id: String { matchId }
+}
+
+struct PendingDateFeedbackResponse: Codable {
+    let items: [PendingDateFeedbackDTO]
+}
+
+/// Body for POST /api/v1/date-feedback/:matchId. Optional fields are only
+/// asked once the user says they met.
+struct DateFeedbackRequest: Codable {
+    let met: Bool
+    var wantToContinue: Bool?
+    var respectful: Bool?
+    var matchedProfile: Bool?
+    var note: String?
+}
+
+// MARK: - Anti-ghosting "your turn" nudge (#7)
+
+struct AwaitingReplyItemDTO: Codable, Identifiable {
+    let conversationId: String
+    let matchId: String
+    let lastMessageAt: Date?
+    var id: String { conversationId }
+}
+
+struct AwaitingReplyResponse: Codable {
+    let items: [AwaitingReplyItemDTO]
 }
 
 enum LikesVisibility: String, Codable {
@@ -349,6 +434,8 @@ struct ProfileDTO: Codable, Identifiable {
     let heightCm: Int?
     let relationshipGoal: String?
     let interests: [String]
+    /// Selected core values (#6). Optional for backward-compatible decoding.
+    let values: [String]?
     let languages: [String]?
     let visibilityStatus: String
     let moderationStatus: String
@@ -367,6 +454,8 @@ struct ProfileUpdateRequest: Codable {
     var relationshipGoal: String?
     var languages: [String]?
     var interests: [String]?
+    /// Selected core values (#6) — catalog keys.
+    var values: [String]?
     var visibilityStatus: String?
     // ISO-8601 date string; the server enforces 18+ at write time, but
     // we also enforce it on the client side so a clearly-underage user

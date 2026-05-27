@@ -70,6 +70,13 @@ export interface Profile {
   city: string | null;
   relationshipGoal: RelationshipGoal | null;
   interests: string[];
+  // Selected core values (catalog keys). Drives values-overlap scoring and
+  // the "you both value …" explanation. Defaults to [] when unset.
+  values: string[];
+  // Optional global desirability in [0,1] (e.g. normalized incoming-like
+  // rate), populated by the caller. Used for desirability-balanced matching;
+  // absent → treated as neutral.
+  desirability?: number;
   accountStatus: AccountStatus;
   visibilityStatus: VisibilityStatus;
   moderationStatus: ModerationStatus;
@@ -109,6 +116,11 @@ export interface Candidate {
   // against the viewer's preferences.
   softPreferences: SoftPreferenceSnapshot;
   recentImpressions: number; // for fairness rotation
+  // Optional historical response/continuation rate in [0,1] for this
+  // candidate (how often they reply / want to continue), populated by the
+  // caller. Used for responsiveness-aware ranking; absent → treated as
+  // neutral so new users aren't penalized.
+  responseRate?: number;
 }
 
 export interface Block {
@@ -133,6 +145,9 @@ export interface RankingWeights {
   sharedInterests: number;
   reciprocity: number;
   ageProximity: number;
+  valuesOverlap: number;
+  desirabilityBalance: number;
+  responseLikelihood: number;
   fairnessRotation: number;
   randomization: number;
 }
@@ -149,6 +164,9 @@ export const WEIGHT_KEYS: readonly (keyof RankingWeights)[] = [
   "sharedInterests",
   "reciprocity",
   "ageProximity",
+  "valuesOverlap",
+  "desirabilityBalance",
+  "responseLikelihood",
   "fairnessRotation",
   "randomization",
 ] as const;
@@ -208,6 +226,9 @@ export interface ScoreBreakdown {
   sharedInterests: number;
   reciprocity: number;
   ageProximity: number;
+  valuesOverlap: number;
+  desirabilityBalance: number;
+  responseLikelihood: number;
   fairnessRotation: number;
   randomization: number;
   total: number;
@@ -250,6 +271,7 @@ export type ExplanationKey =
   | "sameRelationshipGoal"
   | "compatibleRelationshipGoal"
   | "sharedInterests"
+  | "sharedValues"
   | "recentlyActive";
 
 export interface Explanation {

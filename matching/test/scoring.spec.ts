@@ -3,6 +3,7 @@ import { currentConfig } from "../src/config.js";
 import {
   activityScore,
   ageProximityScore,
+  desirabilityBalanceScore,
   distanceScore,
   fairnessRotationScore,
   preferenceOverlapScore,
@@ -10,8 +11,10 @@ import {
   randomizationScore,
   reciprocityScore,
   relationshipGoalScore,
+  responseLikelihoodScore,
   scoreCandidate,
   sharedInterestsScore,
+  valuesOverlapScore,
 } from "../src/scoring.js";
 import type { Candidate, Viewer } from "../src/types.js";
 import { FIXED_NOW, makeCandidates, makeViewer } from "./helpers.js";
@@ -149,6 +152,42 @@ describe("ageProximityScore", () => {
   });
   it("never goes below 0", () => {
     expect(ageProximityScore(20, 60, 19, 25)).toBe(0);
+  });
+});
+
+describe("valuesOverlapScore", () => {
+  it("is 0 when either side lists no values", () => {
+    expect(valuesOverlapScore([], ["family"])).toBe(0);
+    expect(valuesOverlapScore(["family"], [])).toBe(0);
+  });
+  it("is Jaccard overlap, case-insensitive", () => {
+    expect(valuesOverlapScore(["Family", "Faith"], ["faith", "family"])).toBe(1);
+    expect(valuesOverlapScore(["a", "b", "c"], ["b", "c", "d"])).toBeCloseTo(0.5, 5);
+  });
+});
+
+describe("desirabilityBalanceScore", () => {
+  it("is neutral 0.5 when either desirability is unknown", () => {
+    expect(desirabilityBalanceScore(undefined, 0.5)).toBe(0.5);
+    expect(desirabilityBalanceScore(0.5, undefined)).toBe(0.5);
+  });
+  it("is 1 for equal desirability and decays with the gap", () => {
+    expect(desirabilityBalanceScore(0.6, 0.6)).toBe(1);
+    expect(desirabilityBalanceScore(0.6, 0.35)).toBeCloseTo(1 - 0.25 / 0.5, 5);
+  });
+  it("floors at 0 for a large gap", () => {
+    expect(desirabilityBalanceScore(0.1, 0.9)).toBe(0);
+  });
+});
+
+describe("responseLikelihoodScore", () => {
+  it("is neutral 0.5 when unknown", () => {
+    expect(responseLikelihoodScore(undefined)).toBe(0.5);
+  });
+  it("passes through a clamped rate", () => {
+    expect(responseLikelihoodScore(0.8)).toBe(0.8);
+    expect(responseLikelihoodScore(1.5)).toBe(1);
+    expect(responseLikelihoodScore(-0.2)).toBe(0);
   });
 });
 

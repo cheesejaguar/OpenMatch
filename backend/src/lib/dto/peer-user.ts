@@ -61,6 +61,8 @@ export const PEER_VISIBLE_PROFILE_SELECT = {
   politics: true,
   languages: true,
   interests: true,
+  // Selected core values — surfaced so the client can show shared values (#6).
+  values: true,
   prompts: true,
   visibilityStatus: true,
   verificationStatus: true,

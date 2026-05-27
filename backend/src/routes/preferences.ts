@@ -3,6 +3,7 @@ import type { FastifyPluginAsync } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { config } from "../lib/config.js";
+import { DEALBREAKER_KEYS } from "../lib/content/catalogs.js";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
 
@@ -31,6 +32,9 @@ const preferencesResponseSchema = z.object({
   discoveryPaused: z.boolean(),
   handedness: z.enum(["right", "left", "center"]),
   discoveryPresetKey: z.string().nullable(),
+  verifiedOnly: z.boolean(),
+  focusMode: z.boolean(),
+  dealbreakers: z.array(z.string()),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -62,6 +66,10 @@ const updatePrefs = z.object({
   // null clears the selection (revert to the catalog default). A non-null
   // value is validated against the enabled preset catalog below.
   discoveryPresetKey: z.string().min(1).max(80).nullable().optional(),
+  verifiedOnly: z.boolean().optional(),
+  focusMode: z.boolean().optional(),
+  // Dealbreaker catalog keys (#5). Validated against the catalog below.
+  dealbreakers: z.array(z.string().min(1).max(60)).max(10).optional(),
 });
 
 export const preferencesRoutes: FastifyPluginAsync = async (app) => {
@@ -153,6 +161,10 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
         return sendHttpError(reply, httpError(ErrorCodes.INVALID_REQUEST));
       }
     }
+    // Dealbreakers must be known catalog keys (#5).
+    if (body.dealbreakers && !body.dealbreakers.every((k) => DEALBREAKER_KEYS.has(k))) {
+      return sendHttpError(reply, httpError(ErrorCodes.VALIDATION_FAILED));
+    }
     // SEV-V1 — explicit allow-list. The previous `...(body as
     // Record<string, unknown>)` / `update: body as never` cast escaped
     // the Prisma type system and made every Zod-known field
@@ -200,6 +212,9 @@ export const preferencesRoutes: FastifyPluginAsync = async (app) => {
       ...(body.discoveryPresetKey !== undefined && {
         discoveryPresetKey: body.discoveryPresetKey,
       }),
+      ...(body.verifiedOnly !== undefined && { verifiedOnly: body.verifiedOnly }),
+      ...(body.focusMode !== undefined && { focusMode: body.focusMode }),
+      ...(body.dealbreakers !== undefined && { dealbreakers: body.dealbreakers }),
     };
     const prefs = await app.prisma.preferences.upsert({
       where: { userId: req.userId! },

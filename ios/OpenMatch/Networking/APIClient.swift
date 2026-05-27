@@ -819,6 +819,35 @@ final class APIClient: ObservableObject {
         try await get("/api/v1/preferences/matching-presets")
     }
 
+    // MARK: - Content catalogs (#6/#3/#12)
+
+    /// Values, curated prompts, escalating question sets, and coaching tips.
+    func contentCatalogs() async throws -> ContentCatalogsDTO {
+        try await get("/api/v1/content/catalogs")
+    }
+
+    // MARK: - Post-date feedback (#1/#11)
+
+    /// Matches the user should be prompted to give feedback on.
+    func pendingDateFeedback() async throws -> [PendingDateFeedbackDTO] {
+        let res: PendingDateFeedbackResponse = try await get("/api/v1/date-feedback/pending")
+        return res.items
+    }
+
+    /// Submit private post-date feedback for a match.
+    func submitDateFeedback(matchId: String, _ body: DateFeedbackRequest) async throws {
+        struct Ack: Codable { let id: String }
+        let _: Ack = try await post("/api/v1/date-feedback/\(matchId)", body: body)
+    }
+
+    // MARK: - Anti-ghosting nudge (#7)
+
+    /// Conversations awaiting the viewer's reply ("your turn").
+    func conversationsAwaitingReply() async throws -> [AwaitingReplyItemDTO] {
+        let res: AwaitingReplyResponse = try await get("/api/v1/conversations/awaiting-reply")
+        return res.items
+    }
+
     /// Patch only the handedness field. The backend route accepts a
     /// partial body so we avoid round-tripping the full preferences
     /// object every time a user changes their thumb-reach setting.

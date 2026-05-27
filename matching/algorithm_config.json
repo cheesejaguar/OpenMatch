@@ -1,17 +1,20 @@
 {
-  "algorithmVersion": "discovery-v1.1.0",
-  "rankingConfigVersion": "2026-05-24",
+  "algorithmVersion": "discovery-v1.2.0",
+  "rankingConfigVersion": "2026-05-26",
   "weights": {
-    "distance": 0.18,
-    "activity": 0.12,
-    "preferenceOverlap": 0.10,
-    "relationshipGoal": 0.15,
-    "profileCompleteness": 0.08,
-    "sharedInterests": 0.12,
-    "reciprocity": 0.12,
-    "ageProximity": 0.08,
-    "fairnessRotation": 0.03,
-    "randomization": 0.02
+    "distance": 0.14,
+    "activity": 0.10,
+    "preferenceOverlap": 0.08,
+    "relationshipGoal": 0.13,
+    "profileCompleteness": 0.06,
+    "sharedInterests": 0.10,
+    "reciprocity": 0.10,
+    "ageProximity": 0.06,
+    "valuesOverlap": 0.08,
+    "desirabilityBalance": 0.06,
+    "responseLikelihood": 0.06,
+    "fairnessRotation": 0.02,
+    "randomization": 0.01
   },
   "constraints": {
     "minimumAge": 18,

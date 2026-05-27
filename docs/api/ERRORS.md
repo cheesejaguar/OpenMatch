@@ -101,7 +101,6 @@ MUST branch on this string, not on `message`.
 | `payload_too_large` | 413 | The uploaded file exceeds the size limit. |
 | `photo_not_found` | 404 | The photo id does not exist for this profile. |
 | `photo_not_owned` | 400 | A photo id in the reorder payload does not belong to this profile. |
-| `photo_rejected_by_moderation` | 422 | The configured ModerationProvider returned `block` for this image; the upload was rejected before persistence. |
 | `photo_url_token_expired` | 401 | The photo-serve token has expired; request a fresh URL. |
 | `photo_url_token_invalid` | 401 | The photo-serve token is missing, malformed, or has a bad signature. |
 | `profile_not_found` | 404 | The caller does not yet have a Profile row. |
@@ -119,7 +118,7 @@ MUST branch on this string, not on `message`.
 | `conversation_not_found` | 404 | The conversation id is unknown. |
 | `empty_message` | 400 | The chat message body is empty. |
 | `match_not_found` | 404 | The match id is unknown or the caller is not a participant. |
-| `message_rejected_by_moderation` | 422 | The configured ModerationProvider returned `block` for this message body; the message was not delivered. |
+| `message_blocked` | 422 | The chat message was blocked by automated safety review. |
 | `message_too_long` | 400 | The chat message body exceeds the length limit. |
 | `missing_location` | 400 | Either the viewer or the candidate has no recorded location. |
 | `not_participant` | 403 | Caller is not a participant in this conversation. |

@@ -79,6 +79,8 @@ interface RawProfileRow {
   education_level: string | null;
   relationship_goal: string | null;
   interests: string[];
+  values: string[];
+  is_photo_verified: boolean;
   account_status: string;
   visibility_status: string;
   moderation_status: string;
@@ -104,6 +106,7 @@ function toMatchingProfile(row: RawProfileRow): MatchingProfile {
     relationshipGoal:
       row.relationship_goal === null ? null : (row.relationship_goal as MatchingRelationshipGoal),
     interests: row.interests,
+    values: row.values ?? [],
     accountStatus: row.account_status as MatchingProfile["accountStatus"],
     visibilityStatus: row.visibility_status as MatchingProfile["visibilityStatus"],
     moderationStatus: row.moderation_status as MatchingProfile["moderationStatus"],
@@ -205,6 +208,8 @@ async function buildDeckInner(input: BuildDeckInput) {
       p."educationLevel"   AS education_level,
       p."relationshipGoal"::text AS relationship_goal,
       p."interests"        AS interests,
+      p."values"           AS values,
+      p."isPhotoVerified"  AS is_photo_verified,
       u."status"::text     AS account_status,
       p."visibilityStatus"::text AS visibility_status,
       p."moderationStatus"::text AS moderation_status,
@@ -355,6 +360,7 @@ async function buildDeckInner(input: BuildDeckInput) {
         ? null
         : (viewerUser.profile.relationshipGoal as MatchingRelationshipGoal),
     interests: viewerUser.profile.interests,
+    values: viewerUser.profile.values,
     accountStatus: viewerUser.status as MatchingProfile["accountStatus"],
     visibilityStatus: viewerUser.profile.visibilityStatus as MatchingProfile["visibilityStatus"],
     moderationStatus: viewerUser.profile.moderationStatus as MatchingProfile["moderationStatus"],
@@ -419,7 +425,12 @@ async function buildDeckInner(input: BuildDeckInput) {
     };
   }
 
-  const eligibleRows = inMetro.filter((row) => !likedTargets.has(row.user_id));
+  let eligibleRows = inMetro.filter((row) => !likedTargets.has(row.user_id));
+  // Trust filter (#8): when the viewer opts into verified-only, drop
+  // un-verified candidates before ranking.
+  if (viewerUser.preferences.verifiedOnly) {
+    eligibleRows = eligibleRows.filter((row) => row.is_photo_verified);
+  }
   const freshRows = eligibleRows.filter((row) => !recentlyShownTargets.has(row.user_id));
   // Stale-but-unswiped: candidates the viewer has seen recently but
   // never acted on. Eligible for re-admission when `fresh` is empty.
@@ -427,8 +438,13 @@ async function buildDeckInner(input: BuildDeckInput) {
     (row) => recentlyShownTargets.has(row.user_id) && !swipedTargets.has(row.user_id),
   );
 
-  const candidates: Candidate[] =
-    freshRows.length > 0 ? freshRows.map(rowToCandidate) : staleUnswipedRows.map(rowToCandidate);
+  // Focus mode (#10): when on, the deck is intentionally quieted so the user
+  // concentrates on existing conversations — return no new cards.
+  const candidates: Candidate[] = viewerUser.preferences.focusMode
+    ? []
+    : freshRows.length > 0
+      ? freshRows.map(rowToCandidate)
+      : staleUnswipedRows.map(rowToCandidate);
 
   // Hydrate candidate ages in one round-trip.
   const dobs = await input.prisma.user.findMany({
@@ -439,6 +455,54 @@ async function buildDeckInner(input: BuildDeckInput) {
   for (const c of candidates) {
     const dob = dobByUser.get(c.profile.userId);
     if (dob) c.profile.age = ageFromDob(dob, now);
+  }
+
+  // Hydrate desirability (#9) and responseRate (#7) for the viewer + the
+  // candidate set in two grouped round-trips.
+  //   - desirability = normalized incoming-like volume (a proxy for global
+  //     desirability per Bruch & Newman); capped so it saturates at 1.
+  //   - responseRate = share of post-date feedback about the user that was
+  //     positive (respectful and want-to-continue); undefined when no
+  //     feedback exists yet so new users stay neutral.
+  if (candidates.length > 0) {
+    const userIds = [viewerUser.id, ...candidates.map((c) => c.profile.userId)];
+    const DESIRABILITY_CAP = 50;
+    const [likeCounts, feedback] = await Promise.all([
+      input.prisma.like.groupBy({
+        by: ["toUserId"],
+        where: { toUserId: { in: userIds }, status: { in: ["active", "matched"] } },
+        _count: { _all: true },
+      }),
+      input.prisma.dateFeedback.groupBy({
+        by: ["aboutUserId"],
+        where: { aboutUserId: { in: userIds } },
+        _count: { _all: true },
+      }),
+    ]);
+    const desirabilityByUser = new Map<string, number>();
+    for (const r of likeCounts) {
+      desirabilityByUser.set(r.toUserId, Math.min(1, r._count._all / DESIRABILITY_CAP));
+    }
+    // responseRate: a second narrow query for positive-feedback counts, since
+    // groupBy can't conditionally sum booleans portably.
+    const positiveFeedback = await input.prisma.dateFeedback.groupBy({
+      by: ["aboutUserId"],
+      where: { aboutUserId: { in: userIds }, respectful: { not: false }, wantToContinue: true },
+      _count: { _all: true },
+    });
+    const totalByUser = new Map(feedback.map((f) => [f.aboutUserId, f._count._all]));
+    const positiveByUser = new Map(positiveFeedback.map((f) => [f.aboutUserId, f._count._all]));
+    const responseRateByUser = new Map<string, number>();
+    for (const [uid, total] of totalByUser) {
+      if (total > 0) responseRateByUser.set(uid, (positiveByUser.get(uid) ?? 0) / total);
+    }
+
+    viewer.profile.desirability = desirabilityByUser.get(viewerUser.id) ?? 0;
+    for (const c of candidates) {
+      c.profile.desirability = desirabilityByUser.get(c.profile.userId) ?? 0;
+      const rr = responseRateByUser.get(c.profile.userId);
+      if (rr !== undefined) c.responseRate = rr;
+    }
   }
 
   // Resolve the viewer's selected matching preset into a concrete config

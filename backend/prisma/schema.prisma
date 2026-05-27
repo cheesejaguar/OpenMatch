@@ -438,6 +438,8 @@ model User {
   deckImpressionsAbout DeckImpression[]         @relation("DeckImpressionTarget")
   verificationRequests VerificationRequest[]
   moderationFlags      ModerationFlag[]         @relation("ModerationFlagTarget")
+  dateFeedbackGiven    DateFeedback[]           @relation("DateFeedbackFrom")
+  dateFeedbackReceived DateFeedback[]           @relation("DateFeedbackAbout")
 
   @@index([status])
   // PERF-B14 — daily-digest counts new signups in a time window
@@ -478,6 +480,10 @@ model Profile {
   politics              String?
   languages             String[]                               @default([])
   interests             String[]                               @default([])
+  // Selected core values (keys from the curated values catalog, see
+  // matching/src/content). Powers values-overlap scoring (#6) and the
+  // "you both value …" card explanation. Distinct from free-form interests.
+  values                String[]                               @default([])
   verificationStatus    String                                 @default("unverified")
   // Trust & safety automation — set by an admin when they approve a
   // selfie-pose verification request. The iOS deck renders a small
@@ -553,6 +559,18 @@ model Preferences {
   // "use the catalog default". Validated against enabled presets on write;
   // discovery falls back to the default if the selection is gone/disabled.
   discoveryPresetKey              String?
+  // Trust filter (#8): when true, discovery only surfaces photo-verified
+  // candidates. Default off so the pool isn't silently shrunk.
+  verifiedOnly                    Boolean            @default(false)
+  // Intentional-dating "focus mode" (#10): when true the deck is quieted so
+  // the user concentrates on existing conversations. Distinct from
+  // discoveryPaused (a hard user-initiated pause); focusMode can be toggled
+  // automatically/seasonally and is advisory.
+  focusMode                       Boolean            @default(false)
+  // Dealbreakers captured at onboarding (#5): catalog keys the user will not
+  // compromise on (e.g. "wants_kids", "non_smoker"). Stored for intent
+  // capture and surfaced; soft-applied in ranking, not a hard gate.
+  dealbreakers                    String[]           @default([])
   createdAt                       DateTime           @default(now())
   updatedAt                       DateTime           @updatedAt
 }
@@ -630,6 +648,7 @@ model Match {
   unmatchedBy       User?         @relation("MatchUnmatcher", fields: [unmatchedByUserId], references: [id])
   status            MatchStatus   @default(active)
   conversation      Conversation?
+  dateFeedbacks     DateFeedback[]
 
   @@unique([userAId, userBId])
   @@index([userAId, status])
@@ -641,6 +660,32 @@ model Match {
   @@index([createdAt])
 }
 
+// Post-match / post-date feedback (#1 outcome loop + #11 two-sided feedback).
+// One row per (match, author). Private — never shown to the other person.
+// Feeds two consumers: (a) safety, when respectful=false or matchedProfile=
+// false (deception/bad-actor signal into the moderation pipeline); and (b)
+// matching, where met/wantToContinue rates per user inform desirability and
+// response-quality aggregates. `met` gates the optional quality fields.
+model DateFeedback {
+  id             String   @id @default(cuid())
+  matchId        String
+  match          Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  fromUserId     String
+  from           User     @relation("DateFeedbackFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  aboutUserId    String
+  about          User     @relation("DateFeedbackAbout", fields: [aboutUserId], references: [id], onDelete: Cascade)
+  met            Boolean  @default(false)
+  wantToContinue Boolean?
+  respectful     Boolean?
+  matchedProfile Boolean?
+  note           String?
+  createdAt      DateTime @default(now())
+
+  @@unique([matchId, fromUserId])
+  @@index([aboutUserId])
+  @@index([createdAt])
+}
+
 model Conversation {
   id        String             @id @default(cuid())
   matchId   String             @unique
@@ -648,6 +693,11 @@ model Conversation {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
   status    ConversationStatus @default(active)
+  // Responsiveness / anti-ghosting (#7): who sent the last message and when,
+  // so we can compute whose "turn" it is and nudge the non-responder.
+  // Maintained on each message send.
+  lastMessageAt           DateTime?
+  lastMessageSenderUserId String?
 
   messages Message[]
 }
