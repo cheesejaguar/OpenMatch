@@ -1,0 +1,205 @@
+/* Localizable.strings — Spanish (es) stub for OpenMatch iOS.
+ *
+ * Every value is intentionally the literal placeholder shown below so a contributor can
+ * locate every untranslated string. We do NOT ship machine
+ * translations — accurate, native-speaker translations should come
+ * from the community. Open a PR with translated values.
+ *
+ * Keep this file in lockstep with en.lproj/Localizable.strings: any
+ * new key added there must be added here as a stub before merge.
+ *
+ * Format specifiers (%@, %lld, %.1f, %1$@ / %2$@) must be preserved
+ * exactly when translating. The positional form (%1$@) lets the
+ * target language reorder arguments if natural.
+ */
+
+
+// MARK: - Common
+
+"common.ok"                                = "???common.ok???";
+"common.cancel"                            = "???common.cancel???";
+"common.save"                              = "???common.save???";
+"common.continue"                          = "???common.continue???";
+"common.retry"                             = "???common.retry???";
+"common.done"                              = "???common.done???";
+"common.back"                              = "???common.back???";
+"common.next"                              = "???common.next???";
+"common.skip"                              = "???common.skip???";
+"common.loading"                           = "???common.loading???";
+"common.error_generic"                     = "???common.error_generic???";
+
+// MARK: - Welcome / sign-in
+
+"welcome.title"                            = "???welcome.title???";
+"welcome.kicker.line1"                     = "???welcome.kicker.line1???";
+"welcome.kicker.line2"                     = "???welcome.kicker.line2???";
+"welcome.kicker.line3"                     = "???welcome.kicker.line3???";
+"welcome.invite.placeholder"               = "???welcome.invite.placeholder???";
+"welcome.invite.hint"                      = "???welcome.invite.hint???";
+"welcome.email.placeholder"                = "???welcome.email.placeholder???";
+"welcome.continue.button"                  = "???welcome.continue.button???";
+"welcome.verify.placeholder"               = "???welcome.verify.placeholder???";
+"welcome.verify.button"                    = "???welcome.verify.button???";
+"welcome.separator"                        = "???welcome.separator???";
+"welcome.apple.button"                     = "???welcome.apple.button???";
+"welcome.dev.disclosure"                   = "???welcome.dev.disclosure???";
+"welcome.dev.user_id.placeholder"          = "???welcome.dev.user_id.placeholder???";
+"welcome.dev.button"                       = "???welcome.dev.button???";
+"welcome.footer.privacy"                   = "???welcome.footer.privacy???";
+"welcome.footer.safety"                    = "???welcome.footer.safety???";
+"welcome.footer.source"                    = "???welcome.footer.source???";
+"welcome.signin_error.alert.title"         = "???welcome.signin_error.alert.title???";
+
+"welcome.invite.required"                  = "???welcome.invite.required???";
+"welcome.invite.invalid"                   = "???welcome.invite.invalid???";
+"welcome.invite.exhausted"                 = "???welcome.invite.exhausted???";
+"welcome.invite.expired"                   = "???welcome.invite.expired???";
+"welcome.invite.revoked"                   = "???welcome.invite.revoked???";
+"welcome.signups_paused"                   = "???welcome.signups_paused???";
+"welcome.outside_metro"                    = "???welcome.outside_metro???";
+"welcome.country_not_supported"            = "???welcome.country_not_supported???";
+
+// MARK: - Onboarding
+
+"onboarding.basics.title"                  = "???onboarding.basics.title???";
+"onboarding.photos.title"                  = "???onboarding.photos.title???";
+"onboarding.preferences.title"             = "???onboarding.preferences.title???";
+"onboarding.review.title"                  = "???onboarding.review.title???";
+"onboarding.finish.button"                 = "???onboarding.finish.button???";
+
+// MARK: - Swipe deck
+
+"swipe.toolbar.filters.a11y_label"         = "???swipe.toolbar.filters.a11y_label???";
+"swipe.toolbar.why.a11y_label"             = "???swipe.toolbar.why.a11y_label???";
+"swipe.empty_state.title"                  = "???swipe.empty_state.title???";
+"swipe.empty_state.body"                   = "???swipe.empty_state.body???";
+"swipe.empty_state.adjust_filters.button"  = "???swipe.empty_state.adjust_filters.button???";
+"swipe.deck_error.alert.title"             = "???swipe.deck_error.alert.title???";
+"swipe.stamp.like"                         = "???swipe.stamp.like???";
+"swipe.stamp.pass"                         = "???swipe.stamp.pass???";
+"swipe.profile.why_seeing.a11y_label"      = "???swipe.profile.why_seeing.a11y_label???";
+"swipe.action.undo.a11y_label"             = "???swipe.action.undo.a11y_label???";
+"swipe.action.reject.a11y_label"           = "???swipe.action.reject.a11y_label???";
+"swipe.action.like.a11y_label"             = "???swipe.action.like.a11y_label???";
+"swipe.photo.previous.a11y_label"          = "???swipe.photo.previous.a11y_label???";
+"swipe.photo.next.a11y_label"              = "???swipe.photo.next.a11y_label???";
+// VoiceOver: combined card label. %1$@ name, %2$lld age, %3$@ distance.
+"swipe.card.a11y_label"                    = "???swipe.card.a11y_label???";
+"swipe.card.a11y_hint"                     = "???swipe.card.a11y_hint???";
+
+// MARK: - Match overlay
+
+"match.title"                              = "???match.title???";
+// %@ = peer display name.
+"match.subtitle"                           = "???match.subtitle???";
+"match.send_message.button"                = "???match.send_message.button???";
+"match.keep_swiping.button"                = "???match.keep_swiping.button???";
+"match.overlay.a11y_label"                 = "???match.overlay.a11y_label???";
+
+// MARK: - Profile (own)
+
+"profile.home.title"                       = "???profile.home.title???";
+"profile.edit.button"                      = "???profile.edit.button???";
+"profile.photos.section"                   = "???profile.photos.section???";
+"profile.add_photo.button"                 = "???profile.add_photo.button???";
+"profile.add_photo.a11y_label"             = "???profile.add_photo.a11y_label???";
+"profile.bio.section"                      = "???profile.bio.section???";
+"profile.basics.section"                   = "???profile.basics.section???";
+"profile.preferences.section"              = "???profile.preferences.section???";
+
+// MARK: - Looking-for filters
+
+"looking_for.title"                        = "???looking_for.title???";
+"looking_for.age_range.label"              = "???looking_for.age_range.label???";
+"looking_for.distance.label"               = "???looking_for.distance.label???";
+"looking_for.gender.label"                 = "???looking_for.gender.label???";
+"looking_for.save.button"                  = "???looking_for.save.button???";
+
+// MARK: - Chat list
+
+"chat.title"                               = "???chat.title???";
+"chat.section.matches"                     = "???chat.section.matches???";
+"chat.list_error.alert.title"              = "???chat.list_error.alert.title???";
+"chat.empty_state.title"                   = "???chat.empty_state.title???";
+"chat.empty_state.body"                    = "???chat.empty_state.body???";
+"chat.row.placeholder_message"             = "???chat.row.placeholder_message???";
+"chat.row.fallback_name"                   = "???chat.row.fallback_name???";
+"chat.row.chevron.a11y_label"              = "???chat.row.chevron.a11y_label???";
+
+// MARK: - Conversation
+
+"conversation.placeholder"                 = "???conversation.placeholder???";
+"conversation.send.button"                 = "???conversation.send.button???";
+"conversation.send.a11y_label"             = "???conversation.send.a11y_label???";
+"conversation.menu.a11y_label"             = "???conversation.menu.a11y_label???";
+"conversation.unblock.button"              = "???conversation.unblock.button???";
+"conversation.block.button"                = "???conversation.block.button???";
+"conversation.report.button"               = "???conversation.report.button???";
+"conversation.delete.button"               = "???conversation.delete.button???";
+"conversation.empty_state.title"           = "???conversation.empty_state.title???";
+"conversation.empty_state.body"            = "???conversation.empty_state.body???";
+"conversation.delivered"                   = "???conversation.delivered???";
+"conversation.read"                        = "???conversation.read???";
+
+// MARK: - Likes
+
+"likes.title"                              = "???likes.title???";
+"likes.tab.received"                       = "???likes.tab.received???";
+"likes.tab.sent"                           = "???likes.tab.sent???";
+"likes.empty.received.title"               = "???likes.empty.received.title???";
+"likes.empty.received.body"                = "???likes.empty.received.body???";
+"likes.empty.sent.title"                   = "???likes.empty.sent.title???";
+"likes.empty.sent.body"                    = "???likes.empty.sent.body???";
+
+// MARK: - Settings
+
+"settings.title"                           = "???settings.title???";
+"settings.section.account"                 = "???settings.section.account???";
+"settings.section.privacy"                 = "???settings.section.privacy???";
+"settings.section.safety"                  = "???settings.section.safety???";
+"settings.section.about"                   = "???settings.section.about???";
+"settings.handedness.label"                = "???settings.handedness.label???";
+"settings.handedness.right"                = "???settings.handedness.right???";
+"settings.handedness.left"                 = "???settings.handedness.left???";
+"settings.handedness.center"               = "???settings.handedness.center???";
+"settings.likes_visibility.label"          = "???settings.likes_visibility.label???";
+"settings.likes_visibility.visible"        = "???settings.likes_visibility.visible???";
+"settings.likes_visibility.count_only"     = "???settings.likes_visibility.count_only???";
+"settings.likes_visibility.hidden"         = "???settings.likes_visibility.hidden???";
+"settings.export_data.button"              = "???settings.export_data.button???";
+"settings.delete_account.button"           = "???settings.delete_account.button???";
+"settings.delete_account.confirm.title"    = "???settings.delete_account.confirm.title???";
+"settings.delete_account.confirm.body"     = "???settings.delete_account.confirm.body???";
+"settings.sign_out.button"                 = "???settings.sign_out.button???";
+"settings.feedback.button"                 = "???settings.feedback.button???";
+"settings.licenses.button"                 = "???settings.licenses.button???";
+"settings.version.label"                   = "???settings.version.label???";
+
+// MARK: - Feedback
+
+"feedback.title"                           = "???feedback.title???";
+"feedback.body.placeholder"                = "???feedback.body.placeholder???";
+"feedback.send.button"                     = "???feedback.send.button???";
+"feedback.thanks.title"                    = "???feedback.thanks.title???";
+"feedback.thanks.body"                     = "???feedback.thanks.body???";
+
+// MARK: - Safety / reporting
+
+"safety.report.title"                      = "???safety.report.title???";
+"safety.report.reason.label"               = "???safety.report.reason.label???";
+"safety.report.context.label"              = "???safety.report.context.label???";
+"safety.report.submit.button"              = "???safety.report.submit.button???";
+"safety.block.confirm.title"               = "???safety.block.confirm.title???";
+"safety.block.confirm.body"                = "???safety.block.confirm.body???";
+
+// MARK: - Formatters (not user-facing strings but format keys)
+//
+// We never compose these manually — use `MeasurementFormatter`,
+// `Date.formatted(date:time:)`, and `NumberFormatter` so locale picks
+// the right pattern. Keys here are only for tests that assert on
+// formatted output (e.g. "1.2 km" vs "1.2 km" with locale-correct
+// separators).
+
+"format.distance.km"                       = "???format.distance.km???";
+"format.distance.mi"                       = "???format.distance.mi???";
+"format.age"                               = "???format.age???";

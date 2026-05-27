@@ -101,6 +101,26 @@ struct LookingForView: View {
                             }
                         }
 
+                        OMSection("Trust & focus") {
+                            OMToggle(
+                                label: "Verified profiles only",
+                                caption: "Only show people who've passed photo verification.",
+                                isOn: .init(
+                                    get: { prefs.verifiedOnly },
+                                    set: { var p = prefs; p.verifiedOnly = $0; vm.prefs = p }
+                                )
+                            )
+                            OMSectionDivider()
+                            OMToggle(
+                                label: "Focus mode",
+                                caption: "Quiet the deck so you can focus on the conversations you've already started.",
+                                isOn: .init(
+                                    get: { prefs.focusMode },
+                                    set: { var p = prefs; p.focusMode = $0; vm.prefs = p }
+                                )
+                            )
+                        }
+
                         OMSection("Goals") {
                             OMToggle(
                                 label: "Exclude incompatible goals",
