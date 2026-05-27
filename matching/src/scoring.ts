@@ -110,6 +110,45 @@ export function ageProximityScore(
   return Math.max(0, Math.min(1, 1 - gap / window));
 }
 
+// Jaccard overlap of selected core values. Mirrors sharedInterestsScore but
+// over the curated values list — perceived value similarity is a strong,
+// durable predictor of attraction (Montoya et al. 2008). 0 when either side
+// listed no values.
+export function valuesOverlapScore(viewerValues: string[], candidateValues: string[]): number {
+  if (viewerValues.length === 0 || candidateValues.length === 0) return 0;
+  const a = new Set(viewerValues.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const b = new Set(candidateValues.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const v of a) if (b.has(v)) intersection += 1;
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+// Desirability-balanced matching (Bruch & Newman 2018): reply probability
+// falls sharply as the desirability gap widens. Peaks (1) when the two are
+// equally desirable and decays with the absolute gap. A SCALE of 0.5 means a
+// half-scale gap drives the score to 0. When either desirability is unknown
+// we return a neutral 0.5 so new/unscored users aren't penalized.
+const DESIRABILITY_GAP_SCALE = 0.5;
+export function desirabilityBalanceScore(
+  viewerDesirability: number | undefined,
+  candidateDesirability: number | undefined,
+): number {
+  if (viewerDesirability === undefined || candidateDesirability === undefined) return 0.5;
+  const gap = Math.abs(viewerDesirability - candidateDesirability);
+  return Math.max(0, Math.min(1, 1 - gap / DESIRABILITY_GAP_SCALE));
+}
+
+// Responsiveness-aware ranking (Reis: responsiveness is the bedrock of
+// intimacy; ghosting is the dominant early-dating failure). Rewards
+// candidates with a track record of replying/continuing. Unknown → neutral
+// 0.5 so brand-new users start fair.
+export function responseLikelihoodScore(responseRate: number | undefined): number {
+  if (responseRate === undefined) return 0.5;
+  return Math.max(0, Math.min(1, responseRate));
+}
+
 export function fairnessRotationScore(recentImpressions: number, config: AlgorithmConfig): number {
   const cap = config.constraints.fairnessImpressionCap;
   if (cap <= 0) return 1;
@@ -155,6 +194,12 @@ export function scoreCandidate(
     viewer.preferences.minAge,
     viewer.preferences.maxAge,
   );
+  const valuesOverlap = valuesOverlapScore(viewer.profile.values, candidate.profile.values);
+  const desirabilityBalance = desirabilityBalanceScore(
+    viewer.profile.desirability,
+    candidate.profile.desirability,
+  );
+  const responseLikelihood = responseLikelihoodScore(candidate.responseRate);
   const fairness = fairnessRotationScore(candidate.recentImpressions, config);
   const random = randomizationScore(
     viewer.userId,
@@ -172,6 +217,9 @@ export function scoreCandidate(
     w.sharedInterests * sharedInterests +
     w.reciprocity * reciprocity +
     w.ageProximity * ageProximity +
+    w.valuesOverlap * valuesOverlap +
+    w.desirabilityBalance * desirabilityBalance +
+    w.responseLikelihood * responseLikelihood +
     w.fairnessRotation * fairness +
     w.randomization * random;
 
@@ -184,6 +232,9 @@ export function scoreCandidate(
     sharedInterests,
     reciprocity,
     ageProximity,
+    valuesOverlap,
+    desirabilityBalance,
+    responseLikelihood,
     fairnessRotation: fairness,
     randomization: random,
     total,

@@ -16,6 +16,7 @@ export {
 export {
   activityScore,
   ageProximityScore,
+  desirabilityBalanceScore,
   distanceScore,
   fairnessRotationScore,
   preferenceOverlapScore,
@@ -23,8 +24,10 @@ export {
   randomizationScore,
   reciprocityScore,
   relationshipGoalScore,
+  responseLikelihoodScore,
   scoreCandidate,
   sharedInterestsScore,
+  valuesOverlapScore,
 } from "./scoring.js";
 export { reciprocalStrategy } from "./strategies/reciprocal.js";
 export {

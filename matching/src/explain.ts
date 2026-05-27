@@ -6,6 +6,7 @@ const COPY: Record<ExplanationKey, (n?: number) => string> = {
   sameRelationshipGoal: () => "You both selected the same relationship goal.",
   compatibleRelationshipGoal: () => "Your relationship goals are compatible.",
   sharedInterests: (n) => (n && n > 0 ? `You share ${n} interest${n === 1 ? "" : "s"}.` : ""),
+  sharedValues: (n) => (n && n > 0 ? `You share ${n} core value${n === 1 ? "" : "s"}.` : ""),
   recentlyActive: () => "This profile is active recently.",
 };
 
@@ -49,6 +50,12 @@ export function explain(
   if (shared > 0) {
     keys.push("sharedInterests");
     parts.push(COPY.sharedInterests(shared));
+  }
+
+  const sharedVals = countSharedInterests(viewer.profile.values, candidate.profile.values);
+  if (sharedVals > 0) {
+    keys.push("sharedValues");
+    parts.push(COPY.sharedValues(sharedVals));
   }
 
   if (candidate.activityBucket === "within24h" || candidate.activityBucket === "within7d") {

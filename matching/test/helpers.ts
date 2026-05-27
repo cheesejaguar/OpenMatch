@@ -61,6 +61,7 @@ function toProfile(u: RawUser): Profile {
     city: u.city,
     relationshipGoal: u.relationshipGoal as RelationshipGoal,
     interests: u.interests,
+    values: (u as RawUser & { values?: string[] }).values ?? [],
     accountStatus: "active",
     visibilityStatus: "visible",
     moderationStatus: u.moderationStatus as ModerationStatus,
