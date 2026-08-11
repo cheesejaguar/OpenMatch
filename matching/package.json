@@ -32,7 +32,7 @@
     "@types/seedrandom": "^3.0.8",
     "@vitest/coverage-v8": "^1.6.1",
     "typescript": "^6.0.3",
-    "vitest": "^1.4.0"
+    "vitest": "^4.1.7"
   },
   "dependencies": {
     "seedrandom": "^3.0.5"
