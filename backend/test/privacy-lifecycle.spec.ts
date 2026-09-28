@@ -34,7 +34,7 @@ describe("privacy lifecycle", () => {
     ).toBe(first.textHash);
   });
 
-  it("rolls back a withdrawal when its evidentiary record cannot be written", async () => {
+  it("allows withdrawal of a legacy grant without a currently published policy", async () => {
     const user = await createUser();
     const grant = await recordConsent(testPrisma, {
       userId: user.id,
@@ -44,24 +44,14 @@ describe("privacy lifecycle", () => {
       policyVersion: "legacy",
       textHash: "legacy-hash",
     });
-    await expect(
-      withdrawConsent(testPrisma, { userId: user.id, scope: "analytics", surface: "test" }),
-    ).rejects.toThrow();
-    expect(
-      (await testPrisma.consentRecord.findUniqueOrThrow({ where: { id: grant.id } })).withdrawnAt,
-    ).toBeNull();
-    await publishPolicyDocument(testPrisma, {
-      scope: "analytics",
-      version: "v1",
-      text: "analytics",
-      effectiveAt: new Date("2025-01-01"),
-    });
     const withdrawn = await withdrawConsent(testPrisma, {
       userId: user.id,
       scope: "analytics",
       surface: "test",
     });
     expect(withdrawn.granted).toBe(false);
+    expect(withdrawn.policyVersion).toBe("legacy");
+    expect(withdrawn.textHash).toBe("legacy-hash");
     expect(
       (await testPrisma.consentRecord.findUniqueOrThrow({ where: { id: grant.id } })).withdrawnAt,
     ).not.toBeNull();

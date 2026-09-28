@@ -155,11 +155,22 @@ export async function withdrawConsent(
   // evidence (we cannot pretend it never happened), while the withdrawal
   // is the operative signal for future processing decisions.
   return prisma.$transaction(async (tx) => {
+    // A retired/missing publication must not prevent withdrawing an
+    // existing grant. Preserve the original policy evidence in that case.
+    const prior = await tx.consentRecord.findFirst({
+      where: { userId: args.userId, scope: args.scope },
+      orderBy: { collectedAt: "desc" },
+    });
     await tx.consentRecord.updateMany({
       where: { userId: args.userId, scope: args.scope, granted: true, withdrawnAt: null },
       data: { withdrawnAt: new Date() },
     });
-    return recordConsent(tx, { ...args, granted: false });
+    return recordConsent(tx, {
+      ...args,
+      granted: false,
+      policyVersion: prior?.policyVersion,
+      textHash: prior?.textHash,
+    });
   });
 }
 
