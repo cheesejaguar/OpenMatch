@@ -1,4 +1,5 @@
 import type { Preferences, Profile, ProfilePhoto, User, UserBan } from "@prisma/client";
+import { ageOnDate } from "../age.js";
 import { maskEmail } from "./hash.js";
 import { PERMISSIONS, type Permission } from "./permissions.js";
 
@@ -153,11 +154,7 @@ export interface PhotoDTO {
 
 export function ageFromDob(dob: Date | null | undefined): number | null {
   if (!dob) return null;
-  const now = new Date();
-  let age = now.getFullYear() - dob.getFullYear();
-  const m = now.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age -= 1;
-  return age;
+  return ageOnDate(dob);
 }
 
 export function serializeUserSummary(

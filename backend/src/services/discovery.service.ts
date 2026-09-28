@@ -15,6 +15,7 @@ import {
 } from "@openmatch/matching";
 import type { PrismaClient } from "@prisma/client";
 import { env } from "../env.js";
+import { ageOnDate } from "../lib/age.js";
 import { haversineKm } from "../lib/location.js";
 import { getPresetCatalog, resolveActivePresetKey } from "../lib/matching-presets.js";
 import { getActiveMetros } from "../lib/metros-cache.js";
@@ -128,11 +129,6 @@ function toMatchingProfile(row: RawProfileRow): MatchingProfile {
   };
 }
 
-function ageFromDob(dob: Date, now: Date): number {
-  const ms = now.getTime() - dob.getTime();
-  return Math.floor(ms / (1000 * 60 * 60 * 24 * 365.25));
-}
-
 export interface BuildDeckInput {
   prisma: PrismaClient;
   viewerUserId: string;
@@ -161,7 +157,7 @@ async function buildDeckInner(input: BuildDeckInput) {
      FROM "Profile" WHERE "userId" = $1`,
     input.viewerUserId,
   );
-  if (!viewerLoc[0]) {
+  if (!viewerLoc[0] || viewerLoc[0].lat === null || viewerLoc[0].lng === null) {
     throw Object.assign(new Error("viewer_has_no_location"), { statusCode: 400 });
   }
 
@@ -253,39 +249,10 @@ async function buildDeckInner(input: BuildDeckInput) {
       )
     : candidateRows;
 
-  // PERF-B1 (partial) — blocks, priorSwipes, and standingLikes are
-  // three mutually independent lookups against the viewer's history.
-  // Previously they stacked three sequential RTTs on the Neon
-  // WebSocket connection between the candidate query and the matching
-  // call. Fan them out via Promise.all so they run in parallel — same
-  // semantics, one round-trip cost.
-  //
-  // The full CTE collapse that also folds the candidate fetch
-  // (PERF-B1) is tracked as a follow-up.
-
-  // PERF-B2 — bound the priorSwipes lookup. The matching package only
-  // dedupes against swipes within `rejectStickyDays` (90 days by the
-  // shipped config) AND ignores rows where `undoneAt !== null`, so the
-  // previous unbounded `findMany` materialised tens of thousands of
-  // historical rows per request for power users with no benefit.
-  //
-  // Window choice: 120 days. That's `rejectStickyDays` (90) plus a 30-day
-  // safety buffer in case the config is bumped or a candidate's
-  // `createdAt` floats relative to the viewer's clock. Above the buffer
-  // matching's loop would have ignored the row regardless. `take: 10000`
-  // caps memory blowup if a single user manages to swipe at >100/day for
-  // 120 days; with `orderBy createdAt desc` the cap keeps the most recent
-  // rows so the dedupe window remains honest.
-  //
-  // `select` narrows the wire payload to only the columns matching's
-  // `notRecentlyActedUpon` reads: targetUserId, decision, createdAt,
-  // undoneAt. Pulling the row's id / algorithmVersion / deckSessionId
-  // wasted ~80% of the per-row bytes.
-  const PRIOR_SWIPES_WINDOW_DAYS = 120;
-  const PRIOR_SWIPES_CAP = 10_000;
-  const priorSwipesWindow = new Date(
-    now.getTime() - PRIOR_SWIPES_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-  );
+  // History is scoped to the bounded candidate pool. Fetching a user's
+  // entire lifetime history wastes memory; truncating it can resurface
+  // previously acted-on candidates. Let matching apply its configured window.
+  const candidateIds = inMetro.map((row) => row.user_id);
 
   // DISC-Q1 — anti-staleness. We pull the set of (target, shownAt) for
   // every card we've surfaced to this viewer in the trailing 7 days.
@@ -303,47 +270,44 @@ async function buildDeckInner(input: BuildDeckInput) {
     // Blocks (either direction)
     input.prisma.block.findMany({
       where: {
-        OR: [{ blockerUserId: input.viewerUserId }, { blockedUserId: input.viewerUserId }],
+        OR: [
+          { blockerUserId: input.viewerUserId, blockedUserId: { in: candidateIds } },
+          { blockedUserId: input.viewerUserId, blockerUserId: { in: candidateIds } },
+        ],
       },
     }),
-    input.prisma.swipeAction.findMany({
+    input.prisma.swipeAction.groupBy({
+      by: ["targetUserId", "decision"],
+      _max: { createdAt: true },
       where: {
         viewerUserId: input.viewerUserId,
         undoneAt: null,
-        createdAt: { gt: priorSwipesWindow },
+        targetUserId: { in: candidateIds },
       },
-      select: {
-        targetUserId: true,
-        decision: true,
-        createdAt: true,
-        undoneAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: PRIOR_SWIPES_CAP,
     }),
     // Standing likes the viewer sent — exclude those candidates from deck.
     input.prisma.like.findMany({
       where: {
         fromUserId: input.viewerUserId,
+        toUserId: { in: candidateIds },
         status: { in: ["active", "matched"] },
       },
       select: { toUserId: true },
     }),
-    input.prisma.deckImpression.findMany({
+    input.prisma.deckImpression.groupBy({
+      by: ["targetUserId"],
+      _count: { _all: true },
       where: {
         viewerUserId: input.viewerUserId,
         shownAt: { gt: impressionsWindow },
+        targetUserId: { in: candidateIds },
       },
-      select: { targetUserId: true },
     }),
   ]);
   const likedTargets = new Set(standingLikes.map((l) => l.toUserId));
   const impressionCountByTarget = new Map<string, number>();
   for (const row of recentImpressions) {
-    impressionCountByTarget.set(
-      row.targetUserId,
-      (impressionCountByTarget.get(row.targetUserId) ?? 0) + 1,
-    );
+    impressionCountByTarget.set(row.targetUserId, row._count._all);
   }
   const recentlyShownTargets = new Set(impressionCountByTarget.keys());
 
@@ -351,7 +315,7 @@ async function buildDeckInner(input: BuildDeckInput) {
     id: viewerUser.profile.id,
     userId: viewerUser.id,
     displayName: viewerUser.profile.displayName,
-    age: ageFromDob(viewerUser.dateOfBirth, now),
+    age: ageOnDate(viewerUser.dateOfBirth, now),
     gender: viewerUser.profile.gender as MatchingGender,
     location: { lat: viewerLoc[0].lat, lng: viewerLoc[0].lng },
     city: viewerUser.profile.city,
@@ -454,7 +418,7 @@ async function buildDeckInner(input: BuildDeckInput) {
   const dobByUser = new Map(dobs.map((d) => [d.id, d.dateOfBirth]));
   for (const c of candidates) {
     const dob = dobByUser.get(c.profile.userId);
-    if (dob) c.profile.age = ageFromDob(dob, now);
+    if (dob) c.profile.age = ageOnDate(dob, now);
   }
 
   // Hydrate desirability (#9) and responseRate (#7) for the viewer + the
@@ -528,8 +492,8 @@ async function buildDeckInner(input: BuildDeckInput) {
       viewerId: input.viewerUserId,
       targetUserId: s.targetUserId,
       decision: s.decision === "like" ? "like" : "reject",
-      createdAt: s.createdAt,
-      undoneAt: s.undoneAt,
+      createdAt: s._max.createdAt!,
+      undoneAt: null,
     })),
     now,
     limit: input.limit,

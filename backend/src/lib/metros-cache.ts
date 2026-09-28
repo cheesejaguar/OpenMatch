@@ -1,54 +1,34 @@
 import type { MetroBoundary, PrismaClient } from "@prisma/client";
-
-// PERF-B12 — Tiny in-process LRU for active MetroBoundary rows. The two
-// hot paths that touch this table — `plugins/metro-gate.ts:checkMetro`
-// (signup + profile edit) and `services/discovery.service.ts:buildDeck`
-// — both run on every request and previously did a fresh `findMany` per
-// call. Metro rows change at most quarterly, so even a 30s TTL eliminates
-// >95% of the round-trips on those paths.
-//
-// Cache is keyed by `(active, countryCode)` since that's the predicate
-// `metro-gate` filters on. `discovery.service.ts` filters by `active:
-// true` only — we route that through a separate `__ALL__` country key.
-// Admin write paths in `routes/admin/metros.ts` call `invalidateMetros()`
-// on success so a new row propagates immediately rather than waiting on
-// TTL expiry.
-
-interface Entry {
-  rows: MetroBoundary[];
-  expiresAt: number;
-}
+import { AsyncCache } from "./async-cache.js";
 
 const DEFAULT_TTL_MS = 30_000;
 let ttlMs = DEFAULT_TTL_MS;
-const cache = new Map<string, Entry>();
+// Scope by client so tests, tenants, and independently configured apps cannot
+// reuse another database's rows. Resetting the map fences in-flight loads.
+let caches = new WeakMap<PrismaClient, AsyncCache<string, MetroBoundary[]>>();
 
 export function __setMetrosCacheTtlMs(ms: number): void {
   ttlMs = ms;
+  invalidateMetros();
 }
 
 export function invalidateMetros(): void {
-  cache.clear();
+  caches = new WeakMap();
 }
 
-function key(countryCode: string | null): string {
-  return countryCode === null ? "__ALL__" : countryCode.toUpperCase();
-}
-
-export async function getActiveMetros(
+export function getActiveMetros(
   prisma: PrismaClient,
   countryCode: string | null,
 ): Promise<MetroBoundary[]> {
-  const now = Date.now();
-  const k = key(countryCode);
-  const cached = cache.get(k);
-  if (cached && cached.expiresAt > now) return cached.rows;
-
-  const where =
-    countryCode === null
-      ? ({ active: true } as const)
-      : ({ active: true, countryCode: countryCode.toUpperCase() } as const);
-  const rows = await prisma.metroBoundary.findMany({ where });
-  cache.set(k, { rows, expiresAt: now + ttlMs });
-  return rows;
+  let cache = caches.get(prisma);
+  if (!cache) {
+    cache = new AsyncCache(ttlMs);
+    caches.set(prisma, cache);
+  }
+  const country = countryCode?.toUpperCase() ?? null;
+  return cache.get(country ?? "__ALL__", () =>
+    prisma.metroBoundary.findMany({
+      where: { active: true, ...(country === null ? {} : { countryCode: country }) },
+    }),
+  );
 }

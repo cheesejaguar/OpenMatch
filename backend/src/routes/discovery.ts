@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { currentConfig, explain } from "@openmatch/matching";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ageOnDate } from "../lib/age.js";
 import { ErrorCodes } from "../lib/error-codes.js";
 import { httpError, sendHttpError } from "../lib/http-error.js";
 import { formatDistance, haversineKm } from "../lib/location.js";
@@ -200,8 +201,7 @@ export const discoveryRoutes: FastifyPluginAsync = async (app) => {
             ? "within30d"
             : "older";
 
-    const dobAge = (dob: Date) =>
-      Math.floor((Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+    const dobAge = ageOnDate;
     const candidateUser = await app.prisma.user.findUnique({
       where: { id: candidate.userId },
       select: { dateOfBirth: true },

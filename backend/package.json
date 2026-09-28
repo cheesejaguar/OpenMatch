@@ -29,7 +29,7 @@
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/sensible": "^6.0.4",
     "@fastify/swagger": "^9.7.0",
-    "@fastify/swagger-ui": "^5.2.6",
+    "@fastify/swagger-ui": "^6.1.1",
     "@neondatabase/serverless": "^1.1.0",
     "@openmatch/matching": "*",
     "@parse/node-apn": "^7.1.0",
@@ -44,7 +44,7 @@
     "fastify": "^5.8.5",
     "fastify-type-provider-zod": "^6.1.0",
     "jose": "^6.2.3",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^9.1.1",
     "pino": "^9.5.0",
     "pino-pretty": "^11.0.0",
     "ws": "^8.17.0",
@@ -54,15 +54,15 @@
     "@types/node": "^25.6.2",
     "@types/nodemailer": "^8.0.0",
     "@types/ws": "^8.5.10",
-    "@vitest/coverage-v8": "^1.6.1",
+    "@vitest/coverage-v8": "^4.1.11",
     "fast-check": "^3.23.2",
     "prisma": "^7.8.0",
     "tsx": "^4.7.0",
     "typescript": "^6.0.3",
-    "vitest": "^1.4.0",
+    "vitest": "^4.1.11",
     "yaml": "^2.9.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   }
 }

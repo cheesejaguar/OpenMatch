@@ -22,9 +22,7 @@ export default defineConfig({
     // pool for this CPU-bound workload; cap at four workers so CI
     // runners with limited cores don't oversubscribe.
     pool: "threads",
-    poolOptions: {
-      threads: { singleThread: false, minThreads: 1, maxThreads: 4 },
-    },
+    maxWorkers: 4,
     // `server-only` is a Next.js-provided marker module that has no
     // implementation outside the Next.js bundler. Tests that import
     // server-only modules (e.g. admin-client) need a stub so the import

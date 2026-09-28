@@ -30,14 +30,14 @@
   "devDependencies": {
     "@types/node": "^25.6.2",
     "@types/seedrandom": "^3.0.8",
-    "@vitest/coverage-v8": "^1.6.1",
+    "@vitest/coverage-v8": "^4.1.11",
     "typescript": "^6.0.3",
-    "vitest": "^1.4.0"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "seedrandom": "^3.0.5"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   }
 }

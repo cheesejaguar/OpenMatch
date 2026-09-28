@@ -1147,6 +1147,7 @@ model AccountDeletionRequest {
   gracePeriodEndsAt DateTime
   cancelledAt       DateTime?
   startedAt         DateTime?
+  leaseToken        String?
   completedAt       DateTime?
   // Final "irreversibly purged" timestamp written by the async worker
   // in backend/src/workers/deletion.ts. Distinct from completedAt to
@@ -1159,7 +1160,8 @@ model AccountDeletionRequest {
   contactEmailHash  String? // so we can reach the user if they restore
   retainedDataNote  String?
 
-  @@unique([userId, status])
+  // One active request per user is enforced by a partial unique SQL index.
+  @@index([userId, status])
   @@index([status, gracePeriodEndsAt])
   // PERF-B14 — daily-digest counts new deletion requests in a time window
   @@index([requestedAt])
