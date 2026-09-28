@@ -10,9 +10,7 @@ export default defineConfig({
     // pays a much heavier per-file startup tax than threads. Cap at
     // four workers so CI runners with fewer cores don't oversubscribe.
     pool: "threads",
-    poolOptions: {
-      threads: { singleThread: false, minThreads: 1, maxThreads: 4 },
-    },
+    maxWorkers: 4,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html", "json-summary"],

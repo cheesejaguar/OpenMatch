@@ -13,8 +13,8 @@ function mockPrisma(initial: Record<string, unknown>) {
   const calls: Array<{ method: string; args: unknown }> = [];
   const prisma = {
     notificationPreference: {
-      findUnique: vi.fn(async () => initial),
-      create: vi.fn(async ({ data }) => data),
+      createMany: vi.fn(async () => ({ count: 0 })),
+      findUniqueOrThrow: vi.fn(async () => initial),
       update: vi.fn(async ({ data }) => {
         calls.push({ method: "update", args: data });
         return data;

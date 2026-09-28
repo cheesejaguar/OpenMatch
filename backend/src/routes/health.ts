@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../env.js";
+import { AsyncCache } from "../lib/async-cache.js";
 
 // /health vs /ready (OPS-5).
 //
@@ -36,8 +37,7 @@ export interface ReadyResponse {
 const READY_CACHE_MS = 5_000;
 const CHECK_TIMEOUT_MS = 1_000;
 
-type CachedReady = { snapshot: ReadyResponse; expiresAt: number };
-let cached: CachedReady | null = null;
+let caches = new WeakMap<import("fastify").FastifyInstance, AsyncCache<string, ReadyResponse>>();
 
 async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -57,12 +57,12 @@ async function checkPostgres(app: import("fastify").FastifyInstance): Promise<Ch
   try {
     await withTimeout(app.prisma.$queryRawUnsafe("SELECT 1"), CHECK_TIMEOUT_MS);
     return { ok: true, configured: true, latencyMs: Date.now() - started };
-  } catch (err) {
+  } catch {
     return {
       ok: false,
       configured: true,
       latencyMs: Date.now() - started,
-      error: (err as Error).message,
+      error: "dependency_unavailable",
     };
   }
 }
@@ -83,7 +83,10 @@ async function checkAbly(): Promise<CheckResult> {
     }
     const auth = Buffer.from(`${keyName}:${keySecret}`).toString("base64");
     const res = await withTimeout(
-      fetch("https://rest.ably.io/time", { headers: { Authorization: `Basic ${auth}` } }),
+      fetch("https://rest.ably.io/time", {
+        headers: { Authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+      }),
       CHECK_TIMEOUT_MS,
     );
     if (!res.ok) {
@@ -95,12 +98,12 @@ async function checkAbly(): Promise<CheckResult> {
       };
     }
     return { ok: true, configured: true, latencyMs: Date.now() - started };
-  } catch (err) {
+  } catch {
     return {
       ok: false,
       configured: true,
       latencyMs: Date.now() - started,
-      error: (err as Error).message,
+      error: "dependency_unavailable",
     };
   }
 }
@@ -121,12 +124,12 @@ async function checkRedis(app: import("fastify").FastifyInstance): Promise<Check
       };
     }
     return { ok: true, configured: true, latencyMs: Date.now() - started };
-  } catch (err) {
+  } catch {
     return {
       ok: false,
       configured: true,
       latencyMs: Date.now() - started,
-      error: (err as Error).message,
+      error: "dependency_unavailable",
     };
   }
 }
@@ -149,19 +152,18 @@ export async function buildReadySnapshot(
 }
 
 async function getCachedReady(app: import("fastify").FastifyInstance): Promise<ReadyResponse> {
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) {
-    return cached.snapshot;
+  let cache = caches.get(app);
+  if (!cache) {
+    cache = new AsyncCache(READY_CACHE_MS, 1);
+    caches.set(app, cache);
   }
-  const snapshot = await buildReadySnapshot(app);
-  cached = { snapshot, expiresAt: now + READY_CACHE_MS };
-  return snapshot;
+  return cache.get("ready", () => buildReadySnapshot(app));
 }
 
 // Test-only escape hatch so a spec can simulate Postgres being down
 // without actually killing the connection pool. Not exported elsewhere.
 export function _resetReadyCacheForTests() {
-  cached = null;
+  caches = new WeakMap();
 }
 
 export const healthRoutes: FastifyPluginAsync = async (app) => {

@@ -11,7 +11,7 @@
 [![Linted with Biome](https://img.shields.io/badge/Linted_with-Biome-60A5FA.svg?logo=biome&logoColor=white)](https://biomejs.dev/)
 [![Made with Swift](https://img.shields.io/badge/Swift-5.9-orange.svg?logo=swift&logoColor=white)](https://swift.org)
 [![Made with TypeScript](https://img.shields.io/badge/TypeScript-5.4-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node](https://img.shields.io/badge/Node-20.x-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node](https://img.shields.io/badge/Node-24.x-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Postgres + PostGIS](https://img.shields.io/badge/Postgres-16%20%2B%20PostGIS-336791.svg?logo=postgresql&logoColor=white)](https://postgis.net/)
 [![Platform: iOS 17+](https://img.shields.io/badge/Platform-iOS%2017%2B-lightgrey.svg?logo=apple&logoColor=white)](https://developer.apple.com/ios/)
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed_on-Vercel-000000.svg?logo=vercel&logoColor=white)](https://vercel.com/)
@@ -53,14 +53,14 @@ OpenMatch is built on a different social contract from most mainstream dating ap
 
 ## 🚀 Running locally
 
-**Prerequisites:** Node 20, Docker, (for iOS) macOS with Xcode 15+ and `brew install xcodegen`.
+**Prerequisites:** Node 24, Docker, (for iOS) macOS with Xcode 15+ and `brew install xcodegen`.
 
 ```bash
 # 1️⃣  Bring up Postgres+PostGIS and MailHog (dev SMTP UI)
 docker compose up -d
 
 # 2️⃣  Install JS workspaces
-npm install
+npm ci
 
 # 3️⃣  Run matching package tests (no DB required)
 npm test -w @openmatch/matching
@@ -88,7 +88,7 @@ The backend deploys as a single Vercel Node Function that wraps the Fastify app 
 
 | Concern | Service |
 | --- | --- |
-| Compute | Vercel Functions (Node 20, region `iad1`, 60s `maxDuration`) |
+| Compute | Vercel Functions (Node 24, region `iad1`, 60s `maxDuration`) |
 | Postgres + PostGIS | [Neon](https://neon.tech) (HTTP/WS driver via `@prisma/adapter-neon`) |
 | Cache + rate-limit store | [Upstash Redis](https://upstash.com) (REST) |
 | Photo storage | [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) |

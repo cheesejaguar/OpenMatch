@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { ageOnDate } from "../lib/age.js";
 import { config } from "../lib/config.js";
 import { VALUE_KEYS } from "../lib/content/catalogs.js";
 import { PUBLIC_PROFILE_SELECT } from "../lib/dto/peer-user.js";
@@ -176,7 +177,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       if (Number.isNaN(dob.getTime())) {
         return sendHttpError(reply, httpError(ErrorCodes.INVALID_DOB));
       }
-      const age = Math.floor((Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+      const age = ageOnDate(dob);
       if (age < 18) {
         return sendHttpError(reply, httpError(ErrorCodes.UNDERAGE));
       }

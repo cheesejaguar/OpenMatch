@@ -53,13 +53,8 @@ describe("per-endpoint rate limits", () => {
         headers: { authorization: auth },
         payload: { category: "praise", body: "one too many" },
       });
-      // The rate-limit error-response builder shapes the body, which is
-      // what consumers see. (Status code is 429 with a stock builder; in
-      // this codebase the project's custom builder + global error
-      // handler can surface it as either 429 or 500 depending on
-      // Fastify version — both are equivalent for the gate's purpose.)
       expect(eleventh.json().error).toBe(ErrorCodes.RATE_LIMITED);
-      expect([429, 500]).toContain(eleventh.statusCode);
+      expect(eleventh.statusCode).toBe(429);
     } finally {
       await app.close();
     }
