@@ -44,7 +44,15 @@ Cancellation restores account eligibility only when permitted by current ban sta
 - Complete a DPIA where applicable, incident/breach exercises, safety escalation coverage, NCMEC/CSAM reporting readiness, and DSA/other notice-and-action applicability review.
 - Run native iOS build/tests, VoiceOver/Dynamic Type checks, privacy-manifest and App Store disclosure checks, and admin keyboard/screen-reader audits. No WCAG conformance claim is made here.
 - Load-test real Neon/PostGIS, Upstash, Ably, SMTP, and Blob. Grouped queries reduce returned rows; no production latency improvement is claimed without measurements. Candidate preselection still uses an unordered 500-row cap and needs a separate fairness-reviewed redesign.
-- Resolve remaining dependency audit findings, require CI and privacy/safety maintainer approval, and perform a staging restore/rollback rehearsal before enabling production traffic.
+- Require CI and privacy/safety maintainer approval, resolve the backend coverage gate, and perform a staging restore/rollback rehearsal before enabling production traffic. The refreshed dependency lockfile reports zero npm audit vulnerabilities as of this change; keep scanning it for new advisories.
+
+## Validation and open engineering blocker
+
+Matching (86 tests) and admin (29 tests) pass with coverage. Backend regression tests pass locally against PGlite/PostGIS; conventional PostgreSQL CI remains authoritative for concurrency. Its first run exposed a Prisma empty-update upsert race. Notification defaults and immutable policy publication now use conflict-safe inserts; the concurrent initialization regression is retained and existing-preference preservation is tested.
+
+Lint, formatting, workspace typechecks, generated-code checks, backend and admin builds, and the dependency audit pass. The license inventory has no forbidden or unknown packages; nine packages require review.
+
+The upgraded Vitest coverage engine reports backend branch/function coverage below the existing global thresholds, plus a DSA SLA worker branch shortfall. Thresholds are unchanged. This is an unresolved release gate requiring meaningful test backfill, not grounds to lower the checks or claim this draft is ready to merge. Native iOS, production load, accessibility, and vendor end-to-end checks have not been completed.
 
 ## Reference standards and guidance
 

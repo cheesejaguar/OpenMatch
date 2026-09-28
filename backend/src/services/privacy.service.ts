@@ -62,16 +62,18 @@ export async function publishPolicyDocument(
     notes?: string;
   },
 ) {
-  const document = await prisma.policyDocument.upsert({
-    where: { scope_version: { scope: args.scope, version: args.version } },
-    create: {
+  await prisma.policyDocument.createMany({
+    skipDuplicates: true,
+    data: {
       scope: args.scope,
       version: args.version,
       textHash: textHash(args.text),
       effectiveAt: args.effectiveAt,
       notes: args.notes ?? null,
     },
-    update: {},
+  });
+  const document = await prisma.policyDocument.findUniqueOrThrow({
+    where: { scope_version: { scope: args.scope, version: args.version } },
   });
   if (
     document.textHash !== textHash(args.text) ||
@@ -710,11 +712,14 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefsPatch = {
 };
 
 export async function getNotificationPreferences(prisma: PrismaClient, userId: string) {
-  return prisma.notificationPreference.upsert({
-    where: { userId },
-    create: { userId, ...DEFAULT_NOTIFICATION_PREFS },
-    update: {},
+  // Empty-update upserts can fall back to a read/create sequence in Prisma.
+  // INSERT ... ON CONFLICT DO NOTHING keeps concurrent initialization atomic
+  // and never rewrites the existing preferences or their timestamps.
+  await prisma.notificationPreference.createMany({
+    data: { userId, ...DEFAULT_NOTIFICATION_PREFS },
+    skipDuplicates: true,
   });
+  return prisma.notificationPreference.findUniqueOrThrow({ where: { userId } });
 }
 
 export async function updateNotificationPreferences(

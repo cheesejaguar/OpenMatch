@@ -24,7 +24,11 @@ describe("privacy lifecycle", () => {
       text: "original",
       effectiveAt: new Date("2025-01-01"),
     };
-    const first = await publishPolicyDocument(testPrisma, policy);
+    const published = await Promise.all(
+      Array.from({ length: 4 }, () => publishPolicyDocument(testPrisma, policy)),
+    );
+    expect(new Set(published.map((row) => row.id)).size).toBe(1);
+    const first = published[0]!;
     expect((await publishPolicyDocument(testPrisma, policy)).id).toBe(first.id);
     await expect(
       publishPolicyDocument(testPrisma, { ...policy, text: "changed" }),
@@ -66,6 +70,17 @@ describe("privacy lifecycle", () => {
     expect(rows.every((r) => !r.productNewsEmail && !r.productNewsPush && !r.productNewsSms)).toBe(
       true,
     );
+  });
+
+  it("does not reset saved notification preferences or their timestamps", async () => {
+    const user = await createUser();
+    const saved = await testPrisma.notificationPreference.create({
+      data: { userId: user.id, productNewsEmail: true, newMatchPush: false },
+    });
+    const rows = await Promise.all(
+      Array.from({ length: 4 }, () => getNotificationPreferences(testPrisma, user.id)),
+    );
+    for (const row of rows) expect(row).toEqual(saved);
   });
 
   it("exports aggregate swipe history and revocable photo links without storage bearer URLs", async () => {
