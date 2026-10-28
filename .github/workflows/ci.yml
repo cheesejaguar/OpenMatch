@@ -15,7 +15,14 @@ permissions:
 jobs:
   fast-feedback:
     name: Fast feedback (lint + typecheck)
-    runs-on: ubuntu-latest
+    runs-on: >-
+      ${{
+        (github.event_name == 'pull_request' &&
+         (github.event.pull_request.head.repo.full_name != github.repository ||
+          github.event.pull_request.user.login == 'dependabot[bot]')) &&
+        'ubuntu-latest' ||
+        fromJSON(vars.RUNNER_FLEET_LABELS || '["ubuntu-latest"]')
+      }}
     timeout-minutes: 5
     steps:
       # SEV-N11 — actions pinned to immutable commit SHAs.
@@ -50,7 +57,14 @@ jobs:
 
   lint-and-build:
     name: Lint, typecheck, build (Node)
-    runs-on: ubuntu-latest
+    runs-on: >-
+      ${{
+        (github.event_name == 'pull_request' &&
+         (github.event.pull_request.head.repo.full_name != github.repository ||
+          github.event.pull_request.user.login == 'dependabot[bot]')) &&
+        'ubuntu-latest' ||
+        fromJSON(vars.RUNNER_FLEET_LABELS || '["ubuntu-latest"]')
+      }}
     steps:
       # SEV-N11 — actions pinned to immutable commit SHAs.
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -156,7 +170,14 @@ jobs:
 
   admin-dashboard:
     name: Lint + typecheck admin dashboard
-    runs-on: ubuntu-latest
+    runs-on: >-
+      ${{
+        (github.event_name == 'pull_request' &&
+         (github.event.pull_request.head.repo.full_name != github.repository ||
+          github.event.pull_request.user.login == 'dependabot[bot]')) &&
+        'ubuntu-latest' ||
+        fromJSON(vars.RUNNER_FLEET_LABELS || '["ubuntu-latest"]')
+      }}
     steps:
       # SEV-N11 — actions pinned to immutable commit SHAs.
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -225,7 +246,14 @@ jobs:
 
   test-matching:
     name: Test @openmatch/matching
-    runs-on: ubuntu-latest
+    runs-on: >-
+      ${{
+        (github.event_name == 'pull_request' &&
+         (github.event.pull_request.head.repo.full_name != github.repository ||
+          github.event.pull_request.user.login == 'dependabot[bot]')) &&
+        'ubuntu-latest' ||
+        fromJSON(vars.RUNNER_FLEET_LABELS || '["ubuntu-latest"]')
+      }}
     steps:
       # SEV-N11 — actions pinned to immutable commit SHAs.
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
