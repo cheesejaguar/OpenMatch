@@ -1,20 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCodes } from "../lib/api/error-codes";
+import { API_BASE, setRawSessionCookie, signIn, signOut, TEST_SESSION } from "./backend";
 
 // Round B — verifies the typed Result<T, AdminApiError> the admin client
-// now returns. Mocks the env + session modules so the URL builder and
-// SSRF guard run, then stubs global fetch with a synthetic Response.
+// returns. The real env, session and URL-builder code runs; only Next's
+// request-scoped cookie store and the network (global fetch) are stubbed.
 
-vi.mock("server-only", () => ({}));
-
-vi.mock("../lib/env", () => ({
-  env: () => ({ ADMIN_API_BASE_URL: "https://api.example.com" }),
-  assertNoPreviewToProd: vi.fn(),
-}));
-
-vi.mock("../lib/auth/session", () => ({
-  readSession: vi.fn(async () => null),
-}));
+vi.mock("next/headers", async () => (await import("./backend")).nextHeaders);
 
 function mockResponse(opts: { status: number; body?: string; contentType?: string }): Response {
   const headers: Record<string, string> = {};
@@ -24,6 +16,86 @@ function mockResponse(opts: { status: number; body?: string; contentType?: strin
     headers,
   });
 }
+
+describe("admin client request construction", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(mockResponse({ status: 200, body: "{}" }));
+    signOut();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("anchors the path to ADMIN_API_BASE_URL and serialises query + JSON body", async () => {
+    const { adminFetch } = await import("../lib/api/admin-client");
+    await adminFetch("/api/v1/admin/users", {
+      method: "POST",
+      query: { q: "alice", limit: 20, skip: undefined, none: null, active: true },
+      body: { reason: "spam" },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe(`${API_BASE}/api/v1/admin/users?q=alice&limit=20&active=true`);
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(JSON.stringify({ reason: "spam" }));
+    expect(init.headers).toMatchObject({
+      accept: "application/json",
+      "content-type": "application/json",
+    });
+    expect(init.headers.authorization).toBeUndefined();
+  });
+
+  it("sends the session access token as a bearer header when signed in", async () => {
+    await signIn();
+    const { adminFetch } = await import("../lib/api/admin-client");
+    await adminFetch("/api/v1/admin/me");
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init.method).toBe("GET");
+    expect(init.body).toBeUndefined();
+    expect(init.headers.authorization).toBe(`Bearer ${TEST_SESSION.accessToken}`);
+  });
+
+  it("ignores a session cookie whose signature has been tampered with", async () => {
+    await signIn();
+    const { encode } = await import("../lib/auth/session");
+    const [body] = encode(TEST_SESSION).split(".");
+    setRawSessionCookie(`${body}.forged-signature`);
+    const { adminFetch } = await import("../lib/api/admin-client");
+    await adminFetch("/api/v1/admin/me");
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init.headers.authorization).toBeUndefined();
+  });
+
+  it.each([
+    "//attacker.example/steal",
+    "https://attacker.example/steal",
+    "/api/v1/admin/users/<script>",
+    "/api/v1/admin/users/a b",
+    "",
+  ])("refuses to build a request for unsafe path %j", async (path) => {
+    const { adminFetch } = await import("../lib/api/admin-client");
+    await expect(adminFetch(path)).rejects.toThrow(/admin api path/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("throws a typed error when throwOnError is set", async () => {
+    const { adminFetch } = await import("../lib/api/admin-client");
+    fetchMock.mockResolvedValueOnce(
+      mockResponse({ status: 403, body: JSON.stringify({ error: "admin_rbac_denied" }) }),
+    );
+    await expect(
+      adminFetch("/api/v1/admin/users/u1/ban", { method: "POST", throwOnError: true }),
+    ).rejects.toMatchObject({
+      status: 403,
+      error: { code: ErrorCodes.ADMIN_RBAC_DENIED },
+    });
+  });
+});
 
 describe("admin client typed error parsing", () => {
   const fetchMock = vi.fn();
@@ -57,6 +129,7 @@ describe("admin client typed error parsing", () => {
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.status).toBe(204);
+      expect(res.data).toBeNull();
     }
   });
 

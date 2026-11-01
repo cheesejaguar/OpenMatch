@@ -56,6 +56,9 @@ const TABLES = [
   "WaitlistEntry",
   "SyntheticCheckRun",
   "IncidentUpdate",
+  // No FK to User, so it is not reached by the User CASCADE. Without it
+  // billing-provider.spec's fixed transaction ids collide on re-runs.
+  "Entitlement",
 ];
 
 export async function resetDb(): Promise<void> {

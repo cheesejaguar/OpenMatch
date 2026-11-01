@@ -9,6 +9,10 @@
 // warning when running components that schedule effects.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+// Pin the backend base URL the real admin client builds requests
+// against. Specs stub global fetch at this origin (see test/backend.ts).
+process.env.ADMIN_API_BASE_URL = "https://api.openmatch.test";
+
 if (typeof globalThis.navigator !== "undefined" && !globalThis.navigator.clipboard) {
   Object.defineProperty(globalThis.navigator, "clipboard", {
     value: { writeText: async () => undefined },

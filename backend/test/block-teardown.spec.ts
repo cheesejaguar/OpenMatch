@@ -1,105 +1,136 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // SEV-M11 — Block enforcement tears down the Ably channel for any
 // closed match's conversation.
 //
-// We exercise `blockUser` against an in-memory mock prisma so we can
-// assert:
-//   1. The Block row is upserted.
-//   2. Active matches between the two parties are closed.
-//   3. The Ably channel teardown publish happens for every affected
-//      conversation.
-//
-// The full DB-backed flow (creating a match, sending a message,
-// confirming the channel-close event arrives) belongs to the chat
-// integration suite; this spec pins the unit contract.
+// `blockUser` runs against the real Postgres test database so the
+// Block upsert and the CTE-wrapped UPDATE ... RETURNING that closes
+// matches are exercised for real. Only the Ably REST client — a paid
+// third-party realtime service — is replaced, so we can observe the
+// teardown publishes without a network call. Everything else in
+// `lib/realtime.ts` (e.g. the channel-name builder) is the real code.
 
-vi.mock("../src/lib/realtime.js", () => {
-  return {
-    ably: { channels: { get: vi.fn() } },
-    conversationChannel: (id: string) => `conversation:${id}`,
-    publishMessage: vi.fn(),
-    publishConversationEvent: vi.fn(),
-  };
+const { channelGet } = vi.hoisted(() => ({ channelGet: vi.fn() }));
+vi.mock("../src/lib/realtime.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/lib/realtime.js")>();
+  return { ...actual, ably: { channels: { get: channelGet } } };
 });
 
-import { ably } from "../src/lib/realtime.js";
 import { blockUser } from "../src/services/safety.service.js";
+import { createUser, resetDb, testPrisma } from "./helpers/db.js";
 
-interface MockMatch {
-  id: string;
-  conversation: { id: string } | null;
-}
-
-function buildPrismaMock(activeMatches: MockMatch[]) {
-  const blockUpsert = vi.fn();
-  // PERF-B7 — safety.service now uses a single CTE-wrapped
-  // UPDATE...RETURNING via tx.$queryRaw (one round-trip in place of
-  // findMany+updateMany). Mock returns the same shape the real query
-  // would yield: one row per closed match with its conversationId.
-  const queryRaw = vi.fn(async () =>
-    activeMatches.map((m) => ({ conversationId: m.conversation?.id ?? null })),
-  );
-  const transaction = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-    fn({
-      block: { upsert: blockUpsert },
-      $queryRaw: queryRaw,
-    }),
-  );
-  return {
-    prisma: { $transaction: transaction } as never,
-    spies: { blockUpsert, queryRaw },
-  };
+async function makeActiveMatch(x: string, y: string, withConversation = true) {
+  const [userAId, userBId] = [x, y].sort() as [string, string];
+  const match = await testPrisma.match.create({
+    data: { userAId, userBId, status: "active" },
+  });
+  const conversation = withConversation
+    ? await testPrisma.conversation.create({ data: { matchId: match.id, status: "active" } })
+    : null;
+  return { match, conversation };
 }
 
 describe("blockUser — SEV-M11 channel teardown", () => {
-  it("rejects self-block before touching the DB", async () => {
-    const { prisma } = buildPrismaMock([]);
-    await expect(blockUser(prisma, "u1", "u1")).rejects.toThrow(/cannot_block_self/);
+  let publish: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    await resetDb();
+    channelGet.mockReset();
+    publish = vi.fn();
+    channelGet.mockReturnValue({ publish });
+  });
+
+  afterAll(async () => {
+    await testPrisma.$disconnect();
+  });
+
+  it("rejects self-block without writing a Block row", async () => {
+    const alice = await createUser();
+    await expect(blockUser(testPrisma, alice.id, alice.id)).rejects.toMatchObject({
+      message: "cannot_block_self",
+      statusCode: 400,
+    });
+    expect(await testPrisma.block.count()).toBe(0);
   });
 
   it("upserts the Block row and unmatches the active match", async () => {
-    const { prisma, spies } = buildPrismaMock([{ id: "m1", conversation: { id: "conv1" } }]);
-    await blockUser(prisma, "u_alice", "u_bob");
-    expect(spies.blockUpsert).toHaveBeenCalledOnce();
-    const upsertArg = spies.blockUpsert.mock.calls[0]![0];
-    expect(upsertArg.create).toEqual({ blockerUserId: "u_alice", blockedUserId: "u_bob" });
-    expect(spies.queryRaw).toHaveBeenCalledOnce();
-    // The raw CTE update is built via a tagged-template literal so the
-    // first positional arg is the template-string array (or values
-    // array depending on Prisma version). We assert the values include
-    // the blocker + sorted pair + 'unmatched' literal indirectly via
-    // the integration test; here we just confirm the call shape.
-    const queryArgs = spies.queryRaw.mock.calls[0]!;
-    expect(queryArgs.length).toBeGreaterThan(0);
+    const alice = await createUser();
+    const bob = await createUser();
+    const { match } = await makeActiveMatch(alice.id, bob.id);
+
+    await blockUser(testPrisma, alice.id, bob.id);
+
+    const blocks = await testPrisma.block.findMany();
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({ blockerUserId: alice.id, blockedUserId: bob.id });
+
+    const closed = await testPrisma.match.findUniqueOrThrow({ where: { id: match.id } });
+    expect(closed.status).toBe("unmatched");
+    expect(closed.unmatchedByUserId).toBe(alice.id);
+    expect(closed.unmatchedAt).toBeInstanceOf(Date);
+
+    // Blocking twice is idempotent: still a single Block row.
+    await blockUser(testPrisma, alice.id, bob.id);
+    expect(await testPrisma.block.count()).toBe(1);
   });
 
-  it("publishes a `conversation.closed` event per affected channel", async () => {
-    const { prisma } = buildPrismaMock([
-      { id: "m1", conversation: { id: "convA" } },
-      { id: "m2", conversation: { id: "convB" } },
-    ]);
-    const channelGet = ably!.channels.get as ReturnType<typeof vi.fn>;
-    const publish = vi.fn();
-    channelGet.mockReturnValue({ publish });
-    await blockUser(prisma, "u_alice", "u_bob");
-    // One call per closed conversation.
-    expect(channelGet).toHaveBeenCalledWith("conversation:convA");
-    expect(channelGet).toHaveBeenCalledWith("conversation:convB");
-    expect(publish).toHaveBeenCalledTimes(2);
-    for (const call of publish.mock.calls) {
-      const [event, payload] = call;
-      expect(event).toBe("conversation.closed");
-      expect(payload.reason).toBe("blocked");
-      expect(typeof payload.conversationId).toBe("string");
-    }
+  it("leaves matches between other users untouched", async () => {
+    const alice = await createUser();
+    const bob = await createUser();
+    const carol = await createUser();
+    const { match: aliceCarol } = await makeActiveMatch(alice.id, carol.id);
+    await makeActiveMatch(alice.id, bob.id);
+
+    await blockUser(testPrisma, alice.id, bob.id);
+
+    const untouched = await testPrisma.match.findUniqueOrThrow({ where: { id: aliceCarol.id } });
+    expect(untouched.status).toBe("active");
+    expect(untouched.unmatchedAt).toBeNull();
+  });
+
+  it("publishes a `conversation.closed` event on the closed match's channel", async () => {
+    const alice = await createUser();
+    const bob = await createUser();
+    const { conversation } = await makeActiveMatch(bob.id, alice.id);
+
+    await blockUser(testPrisma, alice.id, bob.id);
+
+    expect(channelGet).toHaveBeenCalledTimes(1);
+    expect(channelGet).toHaveBeenCalledWith(`conversation:${conversation!.id}`);
+    expect(publish).toHaveBeenCalledTimes(1);
+    const [event, payload] = publish.mock.calls[0]!;
+    expect(event).toBe("conversation.closed");
+    expect(payload).toMatchObject({ conversationId: conversation!.id, reason: "blocked" });
+    expect(Number.isNaN(Date.parse(payload.at))).toBe(false);
+  });
+
+  it("does not publish when the closed match has no conversation", async () => {
+    const alice = await createUser();
+    const bob = await createUser();
+    const { match } = await makeActiveMatch(alice.id, bob.id, false);
+
+    await blockUser(testPrisma, alice.id, bob.id);
+
+    expect((await testPrisma.match.findUniqueOrThrow({ where: { id: match.id } })).status).toBe(
+      "unmatched",
+    );
+    expect(channelGet).not.toHaveBeenCalled();
   });
 
   it("does not publish when there are no active matches", async () => {
-    const { prisma } = buildPrismaMock([]);
-    const channelGet = ably!.channels.get as ReturnType<typeof vi.fn>;
-    channelGet.mockReset();
-    await blockUser(prisma, "u_alice", "u_bob");
+    const alice = await createUser();
+    const bob = await createUser();
+    await blockUser(testPrisma, alice.id, bob.id);
     expect(channelGet).not.toHaveBeenCalled();
+  });
+
+  it("swallows Ably publish failures so the block still lands", async () => {
+    const alice = await createUser();
+    const bob = await createUser();
+    await makeActiveMatch(alice.id, bob.id);
+    publish.mockRejectedValueOnce(new Error("ably down"));
+
+    await expect(blockUser(testPrisma, alice.id, bob.id)).resolves.toBeUndefined();
+    expect(await testPrisma.block.count()).toBe(1);
   });
 });

@@ -56,15 +56,13 @@ describe("chat moderation integration", () => {
     const a = await createUser({ displayName: "A" });
     const b = await createUser({ displayName: "B" });
     const convo = await makeConversationBetween(a.id, b.id);
-    try {
-      await postMessage(testPrisma, convo.id, a.id, "DM me at @cryptouser later");
-    } catch {
-      // expected
-    }
+    await expect(
+      postMessage(testPrisma, convo.id, a.id, "DM me at @cryptouser later"),
+    ).rejects.toMatchObject({ statusCode: 422, message: "message_blocked" });
     const flags = await testPrisma.moderationFlag.findMany({
       where: { targetUserId: a.id },
     });
-    expect(flags.length).toBeGreaterThan(0);
+    expect(flags).toHaveLength(1);
     expect(flags[0]?.decision).toBe("block");
   });
 });

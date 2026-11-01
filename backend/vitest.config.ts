@@ -12,9 +12,7 @@ export default defineConfig({
     // from another. Force sequential execution.
     fileParallelism: false,
     pool: "forks",
-    poolOptions: {
-      forks: { singleFork: true },
-    },
+    maxWorkers: 1,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html", "json-summary"],

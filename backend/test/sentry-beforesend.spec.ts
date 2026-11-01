@@ -47,13 +47,18 @@ describe("sentry beforeSend filter", () => {
 
   it("passes generic Error through even without a context", () => {
     const real = new Error("kaboom");
-    const out = beforeSendForTest(evt(), { originalException: real });
-    expect(out).not.toBeNull();
+    const event = evt();
+    const out = beforeSendForTest(event, { originalException: real });
+    expect(out).toBe(event);
+    // No request context → no tags or user are attached.
+    expect(out?.tags).toBeUndefined();
+    expect(out?.user).toBeUndefined();
   });
 
   it("passes a 500 HttpError-shape through", () => {
     const err = Object.assign(new Error("internal"), { statusCode: 500 });
-    const out = beforeSendForTest(evt(), { originalException: err });
-    expect(out).not.toBeNull();
+    const event = evt();
+    const out = beforeSendForTest(event, { originalException: err });
+    expect(out).toBe(event);
   });
 });
