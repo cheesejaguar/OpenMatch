@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../../env.js";
 
 // Out-of-band notifications for admin-account security events. Used by
@@ -11,8 +11,8 @@ import { env } from "../../env.js";
 // route response — the security event has already been written to
 // AdminAuditLog by the caller, which is the authoritative record.
 
-let mailer: nodemailer.Transporter | null = null;
-function getMailer(): nodemailer.Transporter {
+let mailer: Transporter | null = null;
+function getMailer(): Transporter {
   if (!mailer) {
     const secure = env.SMTP_SECURE ?? env.SMTP_PORT === 465;
     mailer = nodemailer.createTransport({

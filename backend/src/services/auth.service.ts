@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../env.js";
 import { hashIdentity, hashIdentityCandidates, hashIp } from "../lib/hash.js";
 import { normalizeInviteCode } from "../lib/invite-codes.js";
@@ -14,8 +14,8 @@ function hashToken(t: string): string {
   return createHash("sha256").update(t).digest("hex");
 }
 
-let mailer: nodemailer.Transporter | null = null;
-function getMailer(): nodemailer.Transporter {
+let mailer: Transporter | null = null;
+function getMailer(): Transporter {
   if (!mailer) {
     const secure = env.SMTP_SECURE ?? env.SMTP_PORT === 465;
     // SEV-N1 — strict cert verification in production via the shared

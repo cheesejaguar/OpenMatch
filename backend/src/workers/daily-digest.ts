@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../env.js";
 import { requestContext } from "../lib/request-context.js";
 import { pruneOldDeckImpressions } from "../services/discovery.service.js";
@@ -150,7 +150,7 @@ export interface DailyDigestRunReport {
 export async function runDailyDigestOnce(
   prisma: PrismaClient,
   opts: {
-    transport?: nodemailer.Transporter;
+    transport?: Transporter;
     asOf?: Date;
   } = {},
 ): Promise<DailyDigestRunReport> {
@@ -160,7 +160,7 @@ export async function runDailyDigestOnce(
 async function runDailyDigestInner(
   prisma: PrismaClient,
   opts: {
-    transport?: nodemailer.Transporter;
+    transport?: Transporter;
     asOf?: Date;
   },
 ): Promise<DailyDigestRunReport> {
