@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { updateNotificationPreferences } from "../src/services/privacy.service.js";
+import { createUser, resetDb, testPrisma } from "./helpers/db.js";
 
 // updateNotificationPreferences must record BOTH a marketingOptInAt
 // and a marketingOptOutAt when a single patch contains both an opt-in
@@ -7,55 +8,81 @@ import { updateNotificationPreferences } from "../src/services/privacy.service.j
 // suppressed the opt-out when an opt-in was present, dropping the
 // CASL/TCPA-relevant opt-out event.
 //
-// This is a pure-logic test driven by a hand-rolled Prisma mock; no DB.
-
-function mockPrisma(initial: Record<string, unknown>) {
-  const calls: Array<{ method: string; args: unknown }> = [];
-  const prisma = {
-    notificationPreference: {
-      findUnique: vi.fn(async () => initial),
-      create: vi.fn(async ({ data }) => data),
-      update: vi.fn(async ({ data }) => {
-        calls.push({ method: "update", args: data });
-        return data;
-      }),
-    },
-  } as never;
-  return { prisma, calls };
-}
+// Runs against the real Postgres test database and asserts on the
+// persisted NotificationPreference row.
 
 describe("updateNotificationPreferences — marketing opt-in/out timestamps", () => {
-  it("records marketingOptInAt when any channel is enabled", async () => {
-    const { prisma, calls } = mockPrisma({ userId: "u1" });
-    await updateNotificationPreferences(prisma, "u1", { productNewsEmail: true });
-    expect(calls[0]?.args).toMatchObject({ marketingOptInAt: expect.any(Date) });
-    expect((calls[0]?.args as Record<string, unknown>).marketingOptOutAt).toBeUndefined();
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  afterAll(async () => {
+    await testPrisma.$disconnect();
+  });
+
+  async function stored(userId: string) {
+    return testPrisma.notificationPreference.findUniqueOrThrow({ where: { userId } });
+  }
+
+  it("creates the row with defaults on first update and records marketingOptInAt", async () => {
+    const user = await createUser();
+    expect(await testPrisma.notificationPreference.count({ where: { userId: user.id } })).toBe(0);
+
+    const before = Date.now();
+    await updateNotificationPreferences(testPrisma, user.id, {
+      productNewsEmail: true,
+      marketingOptInSource: "settings",
+    });
+
+    const row = await stored(user.id);
+    expect(row.productNewsEmail).toBe(true);
+    expect(row.productNewsPush).toBe(false);
+    expect(row.marketingOptInSource).toBe("settings");
+    expect(row.marketingOptInAt).toBeInstanceOf(Date);
+    expect(row.marketingOptInAt!.getTime()).toBeGreaterThanOrEqual(before - 1000);
+    expect(row.marketingOptOutAt).toBeNull();
   });
 
   it("records marketingOptOutAt when any channel is disabled", async () => {
-    const { prisma, calls } = mockPrisma({ userId: "u1" });
-    await updateNotificationPreferences(prisma, "u1", { productNewsPush: false });
-    expect(calls[0]?.args).toMatchObject({ marketingOptOutAt: expect.any(Date) });
-    expect((calls[0]?.args as Record<string, unknown>).marketingOptInAt).toBeUndefined();
+    const user = await createUser();
+    await updateNotificationPreferences(testPrisma, user.id, { productNewsPush: false });
+    const row = await stored(user.id);
+    expect(row.marketingOptOutAt).toBeInstanceOf(Date);
+    expect(row.marketingOptInAt).toBeNull();
   });
 
   it("records BOTH timestamps when a patch contains both an opt-in and an opt-out", async () => {
-    const { prisma, calls } = mockPrisma({ userId: "u1" });
-    await updateNotificationPreferences(prisma, "u1", {
+    const user = await createUser();
+    await updateNotificationPreferences(testPrisma, user.id, {
       productNewsEmail: true,
       productNewsPush: false,
     });
-    expect(calls[0]?.args).toMatchObject({
-      marketingOptInAt: expect.any(Date),
-      marketingOptOutAt: expect.any(Date),
-    });
+    const row = await stored(user.id);
+    expect(row.productNewsEmail).toBe(true);
+    expect(row.productNewsPush).toBe(false);
+    expect(row.marketingOptInAt).toBeInstanceOf(Date);
+    expect(row.marketingOptOutAt).toBeInstanceOf(Date);
+    expect(row.marketingOptInAt!.getTime()).toBe(row.marketingOptOutAt!.getTime());
   });
 
   it("records neither when only transactional toggles change", async () => {
-    const { prisma, calls } = mockPrisma({ userId: "u1" });
-    await updateNotificationPreferences(prisma, "u1", { newMatchPush: false });
-    const data = calls[0]?.args as Record<string, unknown>;
-    expect(data.marketingOptInAt).toBeUndefined();
-    expect(data.marketingOptOutAt).toBeUndefined();
+    const user = await createUser();
+    await updateNotificationPreferences(testPrisma, user.id, { newMatchPush: false });
+    const row = await stored(user.id);
+    expect(row.newMatchPush).toBe(false);
+    expect(row.marketingOptInAt).toBeNull();
+    expect(row.marketingOptOutAt).toBeNull();
+  });
+
+  it("keeps an earlier opt-in timestamp when a later patch only opts out", async () => {
+    const user = await createUser();
+    await updateNotificationPreferences(testPrisma, user.id, { productNewsEmail: true });
+    const optIn = (await stored(user.id)).marketingOptInAt;
+
+    await updateNotificationPreferences(testPrisma, user.id, { productNewsEmail: false });
+    const row = await stored(user.id);
+    expect(row.productNewsEmail).toBe(false);
+    expect(row.marketingOptInAt?.getTime()).toBe(optIn?.getTime());
+    expect(row.marketingOptOutAt).toBeInstanceOf(Date);
   });
 });

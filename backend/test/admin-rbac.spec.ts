@@ -71,7 +71,11 @@ describe("admin RBAC", () => {
     const audits = await testPrisma.adminAuditLog.findMany({
       where: { adminUserId: admin.id, eventType: "access_denied" },
     });
-    expect(audits.length).toBeGreaterThanOrEqual(1);
+    expect(audits).toHaveLength(1);
+    expect(audits[0]?.metadata).toMatchObject({
+      method: "GET",
+      permission: PERMISSIONS.USER_READ_FULL_PROFILE,
+    });
   });
 
   it("trust_safety_admin can ban, unban, and audit rows are written", async () => {

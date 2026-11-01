@@ -110,7 +110,8 @@ describe("BillingProvider", () => {
             transactionId: "dup-txn",
           },
         }),
-      ).rejects.toBeDefined();
+      ).rejects.toMatchObject({ code: "P2002" });
+      expect(await testPrisma.entitlement.count({ where: { transactionId: "dup-txn" } })).toBe(1);
     });
   });
 });

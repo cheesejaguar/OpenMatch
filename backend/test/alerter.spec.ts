@@ -52,14 +52,13 @@ describe("alerter", () => {
       },
     });
     const first = await runAlertCheckOnce(testPrisma);
-    expect(first.fired).toBeGreaterThan(0);
+    expect(first).toMatchObject({ fired: 1, suppressed: 0 });
     const second = await runAlertCheckOnce(testPrisma);
-    expect(second.fired).toBe(0);
-    expect(second.suppressed).toBeGreaterThan(0);
+    expect(second).toMatchObject({ fired: 0, suppressed: 1 });
     // After resolution, the alert can fire again on the next check.
     await resolveAlertCondition(testPrisma, "report_queue_age");
     const third = await runAlertCheckOnce(testPrisma);
-    expect(third.fired).toBeGreaterThan(0);
+    expect(third).toMatchObject({ fired: 1, suppressed: 0 });
   });
 
   it("fires error_rate_5m when 5xx share exceeds threshold", async () => {

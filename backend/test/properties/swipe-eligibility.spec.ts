@@ -92,7 +92,12 @@ describe("swipe eligibility properties (fast-check + DB)", () => {
         const stored = await testPrisma.swipeAction.findUnique({
           where: { id: res.swipeId },
         });
-        return stored !== null && DECISIONS.includes(stored.decision as "like" | "reject");
+        return (
+          stored !== null &&
+          stored.viewerUserId === aa.id &&
+          stored.targetUserId === bb.id &&
+          stored.decision === decision
+        );
       }),
       { numRuns: 5 },
     );

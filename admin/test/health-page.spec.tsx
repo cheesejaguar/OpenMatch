@@ -1,34 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { signIn, stubBackend } from "./backend";
 import { render } from "./helpers";
 
-vi.mock("../lib/api/admin-client", () => ({
-  adminFetch: vi.fn(),
-}));
-vi.mock("server-only", () => ({}));
+// The real page + admin client run against a stubbed backend HTTP hop.
+vi.mock("next/headers", async () => (await import("./backend")).nextHeaders);
 
 describe("Health page", () => {
   let result: ReturnType<typeof render> | null = null;
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+  beforeEach(async () => {
+    await signIn();
   });
 
   afterEach(() => {
     result?.unmount();
     result = null;
+    vi.unstubAllGlobals();
   });
 
   it("renders a danger badge when a service is down", async () => {
-    const { adminFetch } = (await import("../lib/api/admin-client")) as unknown as {
-      adminFetch: ReturnType<typeof vi.fn>;
-    };
     // First call: snapshot. Second call: timeseries.
-    adminFetch.mockImplementation(async (path: string) => {
-      if (path.includes("/health/snapshot")) {
+    const requests = stubBackend((req) => {
+      if (req.url.pathname === "/api/v1/admin/health/snapshot") {
         return {
-          ok: true,
-          status: 200,
-          data: {
+          body: {
             ready: {
               ok: false,
               checkedAt: "2026-05-18T12:00:00.000Z",
@@ -50,9 +45,7 @@ describe("Health page", () => {
         };
       }
       return {
-        ok: true,
-        status: 200,
-        data: {
+        body: {
           metric: "requests",
           granularity: "hour",
           points: Array.from({ length: 5 }, (_, i) => ({
@@ -72,6 +65,12 @@ describe("Health page", () => {
       el.textContent?.includes("Down"),
     );
     expect(downBadge).toBeDefined();
+    const series = requests.find((r) => r.url.pathname === "/api/v1/admin/metrics/timeseries");
+    expect(series?.url.searchParams.get("metric")).toBe("requests");
+    expect(series?.url.searchParams.get("granularity")).toBe("hour");
+    const from = Date.parse(series!.url.searchParams.get("from")!);
+    const to = Date.parse(series!.url.searchParams.get("to")!);
+    expect(to - from).toBe(24 * 60 * 60 * 1000);
     // The 'danger' Badge variant maps to the 'removed' class in our
     // existing CSS palette.
     expect(downBadge?.classList.contains("removed")).toBe(true);
@@ -79,15 +78,7 @@ describe("Health page", () => {
   });
 
   it("renders the not-deployed empty state when the snapshot returns 404", async () => {
-    const { adminFetch } = (await import("../lib/api/admin-client")) as unknown as {
-      adminFetch: ReturnType<typeof vi.fn>;
-    };
-    adminFetch.mockImplementation(async (path: string) => {
-      if (path.includes("/health/snapshot")) {
-        return { ok: false, status: 404, error: { code: "not_found" } };
-      }
-      return { ok: false, status: 404, error: { code: "not_found" } };
-    });
+    stubBackend(() => ({ status: 404, body: { error: "not_found" } }));
 
     const HealthPage = (await import("../app/(app)/health/page")).default;
     const element = await HealthPage();

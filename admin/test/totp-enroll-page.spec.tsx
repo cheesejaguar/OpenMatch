@@ -1,46 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { signIn, signOut } from "./backend";
 import { render } from "./helpers";
 
-// The enrol page is a Next.js server component. We mock everything it
-// touches: the admin API client (we just need it not to throw), the
-// session reader, qrcode (we don't render an actual QR), and
-// next/navigation (redirect throws — never called in render-only path).
+// The page is a Next.js server component. The real session reader
+// (HMAC-verified cookie), qrcode renderer and page code run;
+// only Next's cookie store and redirect() are stubbed because they exist
+// solely inside a running Next.js server. redirect() throws, as in Next.
 
-vi.mock("../lib/api/admin-client", () => ({
-  adminFetch: vi.fn(async () => ({ ok: true, status: 200, data: { ok: true } })),
-}));
-
-vi.mock("../lib/auth/session", () => ({
-  readSession: vi.fn(async () => ({
-    adminUserId: "admin-1",
-    email: "admin@openmatch.local",
-    roles: [],
-    permissions: [],
-    accessToken: "tkn",
-    refreshToken: "rtkn",
-    accessExpiresAt: new Date(Date.now() + 60_000).toISOString(),
-  })),
-}));
-
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn(() => {
-    throw new Error("redirect_called");
+const { redirect } = vi.hoisted(() => ({
+  redirect: vi.fn((to: string) => {
+    throw new Error(`redirect_called:${to}`);
   }),
 }));
-
-vi.mock("qrcode", () => ({
-  default: {
-    toDataURL: vi.fn(async () => "data:image/png;base64,FAKEQR"),
-  },
-}));
-
-vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/headers", async () => (await import("./backend")).nextHeaders);
 
 describe("TOTP enroll page", () => {
   let result: ReturnType<typeof render> | null = null;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    await signIn();
   });
 
   afterEach(() => {
@@ -73,7 +53,11 @@ describe("TOTP enroll page", () => {
     result = render(element);
     const img = result.container.querySelector("img");
     expect(img).not.toBeNull();
-    expect(img?.getAttribute("src")).toContain("data:image/png;base64,FAKEQR");
+    const src = img?.getAttribute("src") ?? "";
+    expect(src.startsWith("data:image/png;base64,")).toBe(true);
+    // A real PNG: base64 payload decodes to the PNG signature.
+    const png = Buffer.from(src.slice("data:image/png;base64,".length), "base64");
+    expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
     for (const c of codes) {
       expect(result.container.textContent).toContain(c);
     }
@@ -89,5 +73,14 @@ describe("TOTP enroll page", () => {
     });
     result = render(element);
     expect(result.container.textContent).toContain("invalid_code");
+  });
+
+  it("redirects to /login when there is no valid session", async () => {
+    signOut();
+    const { default: TotpEnrollPage } = await import("../app/(auth)/login/totp-enroll/page");
+    await expect(TotpEnrollPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      "redirect_called:/login",
+    );
+    expect(redirect).toHaveBeenCalledWith("/login");
   });
 });

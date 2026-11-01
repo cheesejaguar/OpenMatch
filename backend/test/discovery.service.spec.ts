@@ -119,10 +119,13 @@ describe("discovery.buildDeck", () => {
     await createUser({ displayName: "Far", lat: 32.7157, lng: -117.1611 });
     const deck = await runDeck(a.id);
     const names = deck.cards.map((c) => c.profileId);
-    expect(names.length).toBeGreaterThan(0);
+    const nearProfile = await testPrisma.profile.findFirst({
+      where: { displayName: "Near" },
+    });
     const farProfile = await testPrisma.profile.findFirst({
       where: { displayName: "Far" },
     });
+    expect(names).toEqual([nearProfile!.id]);
     expect(names).not.toContain(farProfile!.id);
   });
 

@@ -1,35 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { signIn, signOut } from "./backend";
 import { render } from "./helpers";
 
-vi.mock("../lib/api/admin-client", () => ({
-  adminFetch: vi.fn(async () => ({ ok: true, status: 200, data: { ok: true } })),
-}));
+// The page is a Next.js server component. The real session reader
+// (HMAC-verified cookie) and page code run;
+// only Next's cookie store and redirect() are stubbed because they exist
+// solely inside a running Next.js server. redirect() throws, as in Next.
 
-vi.mock("../lib/auth/session", () => ({
-  readSession: vi.fn(async () => ({
-    adminUserId: "admin-1",
-    email: "admin@openmatch.local",
-    roles: [],
-    permissions: [],
-    accessToken: "tkn",
-    refreshToken: "rtkn",
-    accessExpiresAt: new Date(Date.now() + 60_000).toISOString(),
-  })),
-}));
-
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn(() => {
-    throw new Error("redirect_called");
+const { redirect } = vi.hoisted(() => ({
+  redirect: vi.fn((to: string) => {
+    throw new Error(`redirect_called:${to}`);
   }),
 }));
-
-vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/headers", async () => (await import("./backend")).nextHeaders);
 
 describe("TOTP verify page", () => {
   let result: ReturnType<typeof render> | null = null;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    await signIn();
   });
 
   afterEach(() => {
@@ -80,5 +71,14 @@ describe("TOTP verify page", () => {
       "input[type='hidden'][name='next']",
     ) as HTMLInputElement | null;
     expect(hiddenNext?.value).toBe("/reports");
+  });
+
+  it("redirects to /login when there is no valid session", async () => {
+    signOut();
+    const { default: TotpVerifyPage } = await import("../app/(auth)/login/totp-verify/page");
+    await expect(TotpVerifyPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      "redirect_called:/login",
+    );
+    expect(redirect).toHaveBeenCalledWith("/login");
   });
 });
